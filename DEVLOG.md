@@ -128,3 +128,14 @@ oldest at the top, newest at the bottom. Use English AM/PM timestamps. Format:
 - interfaces touched: added backend API `POST /api/0g/agentic-id` and updated
   `packages/nextjs/integrations/0g/agentic-id/types.ts` for the real 0G
   registration result.
+
+## 2026-07-24 08:44 PM - Codex - docs
+- did: translated the remaining Portuguese Markdown content in
+  `docs/0g/notes/agentic-id-sync-notes.md` to English, preserving technical
+  meaning, paths, links, and branch notes. Verified Markdown files with `rg`
+  searches for Portuguese accents and strong Portuguese terms.
+- next: restore `TASKS.md` or decide the current replacement for task tracking,
+  because `PLAYBOOK.md` still requires it.
+- blockers: `TASKS.md` is still missing, so no task checklist update was
+  possible.
+- interfaces touched: none.

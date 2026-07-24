@@ -1,13 +1,12 @@
 # 0G Agentic ID Sync — Notes
 
-## Objetivo
+## Objective
 
 Branch: `feat/0g-agentic-id-sync`
 
-AEGIS precisa criar/vincular um 0G Agentic ID quando o backend registra um
-agent.
+AEGIS must create/link a 0G Agentic ID when the backend registers an agent.
 
-## Recursos consultados
+## Referenced Resources
 
 - 0G Agent Skills: https://github.com/0gfoundation/0g-agent-skills
 - 0G AI Context: https://docs.0g.ai/ai-context
@@ -15,20 +14,22 @@ agent.
 - Agentic ID Examples: https://github.com/0gfoundation/agenticID-examples
 - 0G Zero Coding: https://build.0g.ai/zero-coding
 
-## Decisão
+## Decision
 
-Para esta branch, usar os exemplos oficiais de Agentic ID como base.
+For this branch, use the official Agentic ID examples as the baseline.
 
-Não implementar TeeML/DecisionVerifier aqui.
+Do not implement TeeML/DecisionVerifier here.
 
-A integração 0G Galileo fica isolada em `packages/nextjs/integrations/0g/agentic-id/`
-e não deve ser misturada com os contratos/deployments Hedera do Scaffold-HBAR.
+The 0G Galileo integration stays isolated in
+`packages/nextjs/integrations/0g/agentic-id/` and must not be mixed with
+Scaffold-HBAR Hedera contracts/deployments.
 
-O fluxo desta branch deve ser backend-first: sem dashboard de cadastro, sem
-localStorage e sem fallback que pareça sucesso. Se a 0G Storage, a rede, o
-contrato ou a chave de serviço falhar, a API retorna erro explícito.
+This branch's flow must be backend-first: no registration dashboard, no
+localStorage, and no fallback that looks like success. If 0G Storage, the
+network, the contract, or the service key fails, the API returns an explicit
+error.
 
-## Artefatos esperados
+## Expected Artifacts
 
 - Agent metadata
 - Metadata hash
@@ -36,80 +37,81 @@ contrato ou a chave de serviço falhar, a API retorna erro explícito.
 - Contract address
 - Mint/link transaction hash
 
-## Implementado nesta branch
+## Implemented In This Branch
 
-- Rota backend `POST /api/0g/agentic-id` para registrar/vincular o Agentic ID.
-- Integração isolada em `packages/nextjs/integrations/0g/agentic-id/`.
-- Tipo `AgentProfile` e tipos de input/output da função de integração.
-- Geração de metadata offchain e `metadataHash`.
-- Upload real da metadata para 0G Storage via `@0glabs/0g-ts-sdk`.
-- Geração de Merkle tree antes do upload.
-- Verificação do root hash retornado pelo upload contra o root local.
-- Download verificado da metadata enviada para 0G Storage.
-- Geração de `datas` para `iMint(to, datas)` com hashes de:
+- Backend route `POST /api/0g/agentic-id` to register/link the Agentic ID.
+- Isolated integration in `packages/nextjs/integrations/0g/agentic-id/`.
+- `AgentProfile` type and integration function input/output types.
+- Offchain metadata generation and `metadataHash`.
+- Real metadata upload to 0G Storage through `@0glabs/0g-ts-sdk`.
+- Merkle tree generation before upload.
+- Verification of the root hash returned by upload against the local root.
+- Verified download of the metadata sent to 0G Storage.
+- `datas` generation for `iMint(to, datas)` with hashes of:
   `aegisAgentId`, `agentName`, `agentDescription`, `agentType`,
-  `capabilities`, `agentWalletAddress`, `policyHash` e `metadataHash`.
-- ABI mínima do AgenticID com `iMint`, `mintFee`, `setTokenURI`, `ownerOf`,
-  `transferFrom`, `tokenURI`, `getIntelligentDatas` e `Transfer`.
-- Chamada real de `mintFee()` e `iMint(to, datas)` no contrato AgenticID da 0G
-  Galileo usando signer backend configurado por env.
-- Parse do `tokenId` pelo evento `Transfer`, filtrando pelo contrato AgenticID,
-  `from` zero address e `to` igual ao signer backend.
-- Chamada real de `setTokenURI(tokenId, metadataURI)` usando URI derivada do
-  root hash da 0G Storage.
-- Transferência real do token para `ownerAddress` quando `ownerAddress` é
-  diferente do signer backend.
-- Verificação final de `ownerOf(tokenId)` e `tokenURI(tokenId)`.
-- Variáveis 0G Galileo e 0G Storage em `packages/nextjs/.env.example`.
+  `capabilities`, `agentWalletAddress`, `policyHash`, and `metadataHash`.
+- Minimal AgenticID ABI with `iMint`, `mintFee`, `setTokenURI`, `ownerOf`,
+  `transferFrom`, `tokenURI`, `getIntelligentDatas`, and `Transfer`.
+- Real `mintFee()` and `iMint(to, datas)` calls against the 0G Galileo
+  AgenticID contract using the backend signer configured by env.
+- `tokenId` parsing from the `Transfer` event, filtering by the AgenticID
+  contract, zero address `from`, and `to` equal to the backend signer.
+- Real `setTokenURI(tokenId, metadataURI)` call using a URI derived from the 0G
+  Storage root hash.
+- Real token transfer to `ownerAddress` when `ownerAddress` differs from the
+  backend signer.
+- Final `ownerOf(tokenId)` and `tokenURI(tokenId)` verification.
+- 0G Galileo and 0G Storage variables in `packages/nextjs/.env.example`.
 
 ## Real vs not implemented
 
 ### Real
 
-- AEGIS normaliza e valida input no backend.
-- AEGIS calcula metadata e `metadataHash` deterministicamente.
-- AEGIS sobe a metadata para 0G Storage.
-- AEGIS verifica Merkle root local, root retornado pelo upload e download
-  verificado.
-- AEGIS minta no contrato AgenticID usando `iMint(to, datas)`.
-- AEGIS lê `mintFee()` e envia esse valor no mint.
-- AEGIS minta para o signer backend para conseguir chamar `setTokenURI`.
-- AEGIS seta `tokenURI` com a URI da metadata em 0G Storage.
-- AEGIS transfere o token para o `ownerAddress` final.
-- AEGIS recupera `agenticIdTokenId` a partir do evento `Transfer`.
-- AEGIS retorna `agenticIdTokenId`, contrato, `metadataHash`,
-  `metadataRootHash`, `metadataURI`, tx de upload, tx de mint, tx de
-  `setTokenURI`, tx de transferência e explorer URL.
+- AEGIS normalizes and validates input in the backend.
+- AEGIS computes metadata and `metadataHash` deterministically.
+- AEGIS uploads metadata to 0G Storage.
+- AEGIS verifies the local Merkle root, the root returned by upload, and the
+  verified download.
+- AEGIS mints on the AgenticID contract using `iMint(to, datas)`.
+- AEGIS reads `mintFee()` and sends that value with the mint.
+- AEGIS mints to the backend signer so it can call `setTokenURI`.
+- AEGIS sets `tokenURI` with the 0G Storage metadata URI.
+- AEGIS transfers the token to the final `ownerAddress`.
+- AEGIS retrieves `agenticIdTokenId` from the `Transfer` event.
+- AEGIS returns `agenticIdTokenId`, contract, `metadataHash`,
+  `metadataRootHash`, `metadataURI`, upload tx, mint tx, `setTokenURI` tx,
+  transfer tx, and explorer URL.
 
 ### Removed local/fallback behavior
 
-- Nenhum fallback de sucesso.
-- Nenhuma persistência local.
-- Nenhuma metadata estática pública de exemplo.
-- Nenhum `mode: "fallback"`.
-- Se qualquer etapa real falhar, a rota retorna erro HTTP.
+- No successful fallback.
+- No local persistence.
+- No public static example metadata.
+- No `mode: "fallback"`.
+- If any real step fails, the route returns an HTTP error.
 
-## Não feito nesta branch
+## Not Done In This Branch
 
-- Teste de mint real com wallet financiada na 0G Galileo.
-- Banco/indexador para persistir o resultado depois do sucesso.
-- Autenticação/autorização da rota de API.
-- Leitura onchain posterior em uma rotina separada para recomparar
-  `getIntelligentDatas(tokenId)` contra os hashes esperados.
-- Exibição textual do `agenticIdContractAddress` e do `txHash`; eles são
-  retornados pela API, mas não há frontend nesta branch.
-- Indexação via The Graph ou banco persistente.
+- Real mint test with a funded wallet on 0G Galileo.
+- Database/indexer to persist the result after success.
+- API route authentication/authorization.
+- Later onchain read in a separate routine to compare
+  `getIntelligentDatas(tokenId)` against the expected hashes again.
+- Text display of `agenticIdContractAddress` and `txHash`; they are returned by
+  the API, but there is no frontend in this branch.
+- Indexing through The Graph or a persistent database.
 - ERC-8004 registry/discoverability.
-- Transferência ERC-7857 com re-encryption, TEE, ZKP, clone ou authorized usage.
+- ERC-7857 transfer with re-encryption, TEE, ZKP, clone, or authorized usage.
 - DecisionVerifier.
-- TeeML ou 0G Compute verdict.
+- TeeML or 0G Compute verdict.
 - Hedera payment.
-- Safe, Recovery, Seguro ou PolicyRegistry.
-- Deploy de contrato AgenticID; usa contrato externo/predeploy 0G.
-- Alteração de `packages/nextjs/contracts/deployedContracts.ts` ou deployments
-  Hedera.
+- Safe, Recovery, Insurance, or PolicyRegistry.
+- AgenticID contract deployment; uses an external/predeployed 0G contract.
+- Change to `packages/nextjs/contracts/deployedContracts.ts` or Hedera
+  deployments.
 
 ## Git policy
 
-Raw docs, cloned third-party repos e local skills ficam fora do git.
-O que entra no git são notas curadas, código implementado, `.env.example` e devlog.
+Raw docs, cloned third-party repos, and local skills stay out of git.
+What goes into git is curated notes, implemented code, `.env.example`, and the
+devlog.
