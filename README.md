@@ -1,11 +1,34 @@
 # AEGIS
 
+AEGIS is a safety layer for AI agents that move value. It creates the agent
+itself on Hedera, wraps it in a Safe-based protected wallet (2-of-3: agent
+signer + AEGIS co-signer + recovery guardian), and requires every transaction
+to clear a user-defined policy, 0G/TeeML decision verification, and AEGIS
+co-signature before it can execute. The Graph indexes the resulting history
+for the dashboard and audit log.
+
+![AEGIS architecture](docs/AEGIS_ARCHITECTURE.png)
+![AEGIS user flow](docs/AEGIS_USER_FLOW.png)
+
 Built during ETHGlobal Lisbon on public starter kits: [scaffold-hbar](https://github.com/hedera-dev/scaffold-hbar)
 (`packages/`), [0g-compute-ts-starter-kit](https://github.com/0glabs/0g-compute-ts-starter-kit)
 (`services/decision-verifier`), and the [Safe{Core} SDK](https://docs.safe.global/)
 (`services/cosigner`). All AEGIS product logic - policies, decision receipts,
-co-signature flow, coverage - was written during the event; see
-`docs/AEGIS_ARQUITETURA_REFATORADA_V3_FINAL.md` and `PLAYBOOK.md`.
+co-signature flow - was written during the event.
+
+- **Architecture:** [`docs/AEGIS_ARCHITECTURE.md`](docs/AEGIS_ARCHITECTURE.md) - full production architecture, user flow, transaction flow, and hackathon scope.
+- **Decisions:** [`docs/decisions.md`](docs/decisions.md) - ADR-lite log of locked product/technical decisions.
+- **Workflow:** [`PLAYBOOK.md`](PLAYBOOK.md) - how the team builds, ownership, conventions.
+
+## AEGIS repo layout
+
+```
+packages/nextjs             dashboard (Next.js + RainbowKit + wagmi)
+packages/foundry            contracts (PolicyRegistry, AgentVault...)
+services/decision-verifier  0G TEE inference -> signed ALLOW/DENY
+services/cosigner           policy re-check + co-signature (Safe SDK)
+docs/                       architecture, decisions
+```
 
 ---
 

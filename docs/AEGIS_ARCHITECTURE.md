@@ -111,6 +111,8 @@ Mitigation:
 
 ## 3. User flow — fully explicit
 
+![AEGIS user flow diagram](AEGIS_USER_FLOW.png)
+
 ### 3.1 Onboarding
 
 1. User opens AEGIS.
@@ -392,6 +394,12 @@ infrastructure — the dashboard does not scan raw RPC logs in production.
 ---
 
 ## 6. Architecture diagram
+
+![AEGIS production architecture diagram](AEGIS_ARCHITECTURE.png)
+
+The diagram above is the detailed system view (services, contracts, signer
+custody, indexing). The flowchart below is the condensed request-path view of
+the same system, kept in Mermaid so it stays diffable in git:
 
 ```mermaid
 flowchart TD

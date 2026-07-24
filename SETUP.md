@@ -70,8 +70,9 @@ EOF
 
 cat > services/cosigner/src/index.ts <<'EOF'
 // AEGIS co-signer (skeleton). Re-checks policy + identity + decision receipt,
-// then co-signs (Safe 2-of-2 in prod, AgentVault in MVP). Key in .env for DEMO
-// ONLY - never exposed to the user; KMS/HSM in prod.
+// then co-signs (Safe 2-of-3: agent signer + AEGIS co-signer + recovery
+// guardian). Key in .env for DEMO ONLY - never exposed to the user;
+// local HSM/MPC/TEE in prod, always self-hosted, never a hosted service.
 import "dotenv/config";
 import express from "express";
 
@@ -105,7 +106,7 @@ printf 'COSIGNER_PRIVATE_KEY=0x_demo_key\nCOSIGNER_PORT=4100\nSAFE_ADDRESS=\nRPC
 ## 4. Docs + playbook
 
 Place these files in the repo:
-- `docs/AEGIS_ARQUITETURA_REFATORADA_V3_FINAL.md` (your architecture)
+- `docs/AEGIS_ARCHITECTURE.md` (your architecture)
 - `PLAYBOOK.md`, `TASKS.md`, `DEVLOG.md` (provided alongside this file)
 - `STACK.md` optional (module -> location map)
 

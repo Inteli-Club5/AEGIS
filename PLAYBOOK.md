@@ -37,10 +37,11 @@ docs/                   architecture, interfaces, decisions
 Three people work at once, but inside each lane there is exactly one "current
 task" - no ambiguous parallel blocks. Your top TASKS.md item is your focus.
 
-- **Victor - web3 core & contracts.** Foundry contracts, AgentVault 2-of-2,
-  payment executor, ABIs, cosigner signing logic, deploy scripts.
+- **Victor - web3 core & contracts.** Foundry contracts, AgentVault 2-of-3
+  (agent signer + AEGIS co-signer + recovery guardian), payment executor,
+  ABIs, cosigner signing logic, deploy scripts.
 - **Leunam - dashboard & integration.** Next.js UI (connect, protect agent,
-  policy form, trust badge), wagmi hooks, wiring the two services into the flow.
+  policy form, audit log), wagmi hooks, wiring the two services into the flow.
 - **Rodrigo - product, pitch & demo.** Demo script, bounty checklists (Hedera,
   0G), sponsor relations, docs, the 3-min video, judging table narrative.
 
@@ -106,22 +107,24 @@ lane, then implement.
 
 Every task should move one of these six steps forward. Owner in brackets.
 
-1. Register agent (ENS + World ID optional) [Leunam UI / Victor profile]
+1. Create/register agent, AEGIS-created on Hedera [Leunam UI / Victor profile]
 2. Sign mandate/policy with on-chain commitment [Victor contract + Leunam UI]
-3. Approved action passes the gate -> executed + HBAR paid [Victor + Leunam]
+3. Approved action passes the gate -> executed + HBAR paid (incl. AEGIS fee,
+   same batched Safe tx) [Victor + Leunam]
 4. Live gate block on a disallowed action [Victor + Leunam]
 5. Forced violation -> same-block payout / DeniedReceipt [Victor]
-6. Dashboard shows green action, fee, blocked action, trust badge [Leunam]
+6. Dashboard shows green action, fee, blocked action [Leunam]
 
 Plus: 0G verifier produces a TEE-signed verdict feeding steps 3-5, and the
 3-min video (Rodrigo).
 
-## Definition of done - hackathon core (arch doc 13)
+## Definition of done - hackathon core (arch doc 12)
 
-Connect wallet - register/protect agent - create/link agent wallet - create
-policy - 0G verify (or declared fallback) - decision receipt - Accepted/Denied
-receipt - co-signature model - action allowed - action blocked - trust badge /
-audit logs - HBAR transfer on Hedera testnet. Everything else is stretch.
+Connect wallet - register/protect agent - create/link agent wallet (Safe
+2-of-3) - create policy - 0G verify (or declared fallback) - decision receipt
+- Accepted/Denied receipt - co-signature model - action allowed - action
+blocked - audit logs - HBAR transfer on Hedera testnet. Everything else is
+stretch.
 
 ## Bounty targets (confirmed)
 
