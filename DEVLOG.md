@@ -29,11 +29,3 @@ are. Format:
 - blockers: none. Foundry deploy and dashboard dev server were not run -
   deploying needs a funded Hedera testnet key, left for whoever owns that step.
 - interfaces touched: none.
-
-## 2026-07-24 - Victor - setup
-- did: bootstrapped repo from scaffold-hbar (Hedera-wired) + 0G starter kit as
-  services/decision-verifier + cosigner skeleton; added PLAYBOOK/TASKS/DEVLOG;
-  pointed AGENTS.md + CLAUDE.md at the playbook.
-- next: freeze interfaces in docs/interfaces.md with the team.
-- blockers: none.
-- interfaces touched: none (to be defined next).
