@@ -40,6 +40,16 @@ are. Format:
   `AEGIS_ARQUITETURA_REFATORADA_V3_FINAL.md` as the architecture source of
   truth (loudly noting per PLAYBOOK.md rule 5).
 
+## 2026-07-24 13:32 - Codex (Leunam) - tooling
+- did: installed the `ethskills` Codex skill from
+  `austintgriffith/ethskills` root `SKILL.md` into
+  `/home/inteli/.codex/skills/ethskills` and verified the installed metadata.
+  No AEGIS product task was started.
+- next: freeze interfaces in docs/interfaces.md with the team (first Shared
+  task in TASKS.md), then create a GitHub remote and push.
+- blockers: none.
+- interfaces touched: none.
+
 ## 2026-07-24 - Claude Code (CryptoVictor) - setup
 - did: executed SETUP.md end to end per PLAYBOOK.md - merged scaffold-hbar
   (Hedera-wired scaffold-eth-2, submodules included) into the repo root, cloned
