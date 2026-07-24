@@ -1,0 +1,11 @@
+{
+  "aegisAgentId": "treasurybot-demo",
+  "agentName": "TreasuryBot",
+  "agentDescription": "Demo agent protected by AEGIS Agent Safety Vault.",
+  "agentType": "payment",
+  "capabilities": ["pay_service_provider", "request_policy_approval"],
+  "agentWalletAddress": "0x0000000000000000000000000000000000000000",
+  "policyHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+  "status": "Protected by AEGIS",
+  "mode": "example"
+}

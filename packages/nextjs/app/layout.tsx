@@ -6,8 +6,8 @@ import "~~/styles/globals.css";
 import { getMetadata } from "~~/utils/scaffold-hbar/getMetadata";
 
 export const metadata = getMetadata({
-  title: "Scaffold-HBAR",
-  description: "Built with Scaffold-HBAR",
+  title: "AEGIS Agentic ID API",
+  description: "Backend integration for linking AEGIS agents to 0G Agentic IDs.",
 });
 
 const ScaffoldHbarApp = ({ children }: { children: React.ReactNode }) => {

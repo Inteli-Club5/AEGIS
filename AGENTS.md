@@ -1,4 +1,4 @@
-> **START HERE, EVERY SESSION:** read `PLAYBOOK.md`, then `TASKS.md`, then the latest entry in `DEVLOG.md` before doing anything. Follow the playbook workflow and log your work to `DEVLOG.md` at the end of the session.
+> **START HERE, EVERY SESSION:** read `PLAYBOOK.md`, then `TASKS.md`, then the latest entry at the bottom of `DEVLOG.md` before doing anything. Follow the playbook workflow and log your work to `DEVLOG.md` at the end of the session using English AM/PM timestamps and chronological order.
 
 # [AGENTS.md](http://AGENTS.md)
 

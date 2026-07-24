@@ -7,8 +7,8 @@ agents both follow it. Keep it short; if a rule stops helping, change it here.
 
 ## For AI agents - read this first, every session
 
-1. **Read** `PLAYBOOK.md` (this file), then `TASKS.md`, then the newest entry in
-   `DEVLOG.md`. Read the relevant lane's code before editing.
+1. **Read** `PLAYBOOK.md` (this file), then `TASKS.md`, then the newest entry at
+   the bottom of `DEVLOG.md`. Read the relevant lane's code before editing.
 2. **Work** only inside the current owner's lane (see Ownership). Do not refactor
    another lane without a note in `TASKS.md`.
 3. **Commit small and often** with the convention below. ETHGlobal judges the
@@ -84,9 +84,11 @@ lane, then implement.
 
 ## Documentation protocol
 
-- **DEVLOG.md** - append-only. One entry per work session per person (or per AI
-  session). This is what makes shared, async work possible: the next person (or
-  agent) reads the last entries and knows exactly where things stand.
+- **DEVLOG.md** - append-only in chronological order. One entry per work session
+  per person (or per AI session). New entries go at the bottom. Use English
+  AM/PM timestamps in the format `YYYY-MM-DD hh:mm AM/PM`. This is what makes
+  shared, async work possible: the next person (or agent) reads the last entries
+  and knows exactly where things stand.
 - **docs/decisions.md** - one line per hard-to-reverse decision (ADR-lite).
   Example seeded: "All EVM contracts on Hedera testnet (single-chain MVP)."
 - **docs/interfaces.md** - the frozen contracts between lanes (see above).
@@ -94,7 +96,7 @@ lane, then implement.
 
 ### DEVLOG entry format
 ```
-## YYYY-MM-DD HH:MM - <name or agent> - <lane>
+## YYYY-MM-DD hh:mm AM/PM - <name or agent> - <lane>
 - did: <what changed, files/PRs>
 - next: <the single next task>
 - blockers: <none | what + who can unblock>

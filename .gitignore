@@ -1,5 +1,49 @@
-# dependencies
-node_modules
+# --- AEGIS / local secrets ---
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.keystore
+secrets/
+private/
+keys/
+
+# --- AEGIS / external local context, do not commit ---
+.0g-skills/
+.codex/skills/
+external/agenticID-examples/
+docs/0g/raw/
+docs/0g/*.html
+
+# --- AEGIS / generated local outputs ---
+tmp/
+temp/
+.cache/
+.cache-*/
+logs/
+*.log
+dev-output/
+coverage/
+dist/
+build/
+.next/
+.turbo/
+node_modules/
+
+# --- AEGIS / local chain artifacts ---
+anvil-state.json
+broadcast/
+cache/
+out/
+
+# --- OS / editor ---
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.example.json
 
 # yarn
 .yarn/*
@@ -11,26 +55,3 @@ node_modules
 
 # eslint
 .eslintcache
-
-# misc
-.DS_Store
-
-# IDE
-.vscode
-.idea
-
-# cli
-dist
-
-# next.js
-.next
-
-# env
-.env
-.env.*
-!.env.example
-
-# foundry
-packages/foundry/out
-packages/foundry/cache
-packages/foundry/broadcast
