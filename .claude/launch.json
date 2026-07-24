@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "aegis-dashboard",
+      "runtimeExecutable": "yarn",
+      "runtimeArgs": ["next:start"],
+      "port": 3000
+    }
+  ]
+}
