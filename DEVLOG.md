@@ -14,7 +14,7 @@ are. Format:
 
 ---
 
-## 2026-07-24 - Claude Code (agent) - setup
+## 2026-07-24 - Claude Code (CryptoVictor) - setup
 - did: executed SETUP.md end to end per PLAYBOOK.md - merged scaffold-hbar
   (Hedera-wired scaffold-eth-2, submodules included) into the repo root, cloned
   0g-compute-ts-starter-kit into services/decision-verifier, wrote the
