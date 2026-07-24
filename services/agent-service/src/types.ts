@@ -17,8 +17,10 @@ export type AgentProfile = {
   endpoint?: string;
   description?: string;
   hederaAccountId: string;
+  evmAddress: string;
   publicKey: string;
   toolNames: string[];
   status: "active" | "inactive";
   createdAt: string;
+  safeAddress?: string;
 };

@@ -431,8 +431,8 @@ flowchart TD
 | `ProtectedAgentWallet` (`AgentVault`) | the agent's operational wallet | Safe smart account, 2-of-3 (agent signer + AEGIS co-signer + recovery guardian; guardian only signs for recovery) |
 | `PolicyRegistry` | stores constraints and `policyHash` | on-chain contract; versioning and revocation |
 | `DecisionVerifier` | integrates 0G / fallback | 0G/TeeML real, signed local fallback declared as such |
-| `AegisCosigner` | signs accepted/denied receipts | always-local backend signer; no centralized/hosted custody; path to local HSM/MPC/TEE |
-| `SafeExecutionLayer` | requires both routine signatures | Safe module/guard enforcing 2-of-3 (guardian reserved for recovery) |
+| `AegisCosigner` | signs accepted/denied receipts | one AEGIS-operated key across every deployment/user (§9.2); always-local, never third-party-hosted; path to local HSM/MPC/TEE |
+| `SafeExecutionLayer` | requires both routine signatures | Safe Guard/Module enforcing 2-of-3 plus an on-chain 0G attestation before execution (§9.2); guardian reserved for recovery |
 | `HederaPaymentExecutor` | pays the provider | HBAR transfer on testnet; path to x402/HTS/escrow |
 | `IndexingLayer` | serves history to the dashboard | The Graph subgraph over `PolicyRegistry` + Safe + receipt events |
 
@@ -465,6 +465,12 @@ stalls. There's no centralized fallback instance to fail over to — it always
 runs locally. Mitigations: local HSM/MPC/TEE key custody, signer rotation,
 emergency recovery, timelock, and an always-available migration path so the
 user is never stuck.
+
+The co-signer key is centralized — it belongs to AEGIS, not the user — and it
+signs on a server AEGIS runs itself, not a shared third-party service. The
+Safe's Guard/Module (§7, `SafeExecutionLayer`) requires a verifiable 0G
+attestation on-chain before allowing execution, so the co-signer's signature
+alone — even paired with the agent's — isn't sufficient without it.
 
 ### 9.3 A stuck signer can lock the user out
 
