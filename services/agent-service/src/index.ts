@@ -1,9 +1,12 @@
 import "dotenv/config";
 import express from "express";
 import { createAgent } from "./createAgent.js";
+import { createWallet } from "./createWallet.js";
 import { proposeAction } from "./proposeAction.js";
 import { getAgent } from "./store.js";
 import type { AgentType } from "./types.js";
+
+const EVM_ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/;
 
 const AGENT_TYPES: AgentType[] = ["Payment", "API Buyer", "DeFi", "Treasury", "Other"];
 
@@ -40,20 +43,53 @@ app.get("/agents/:agentId", (req, res) => {
 });
 
 app.post("/agents/:agentId/propose-actions", async (req, res) => {
-  const { task } = req.body ?? {};
+  const { task, safeAddress } = req.body ?? {};
 
   if (typeof task !== "string" || !task) {
     return res.status(400).json({ error: "task is required" });
   }
+  if (safeAddress !== undefined && typeof safeAddress !== "string") {
+    return res.status(400).json({ error: "safeAddress must be a string" });
+  }
+
+  const profile = getAgent(req.params.agentId);
+  const effectiveSafeAddress = safeAddress ?? profile?.safeAddress;
 
   try {
-    const proposal = await proposeAction(req.params.agentId, task);
+    const proposal = await proposeAction(req.params.agentId, task, effectiveSafeAddress);
     res.json({ proposal });
   } catch (error) {
     if (error instanceof Error && error.message === "agent_not_found") {
       return res.status(404).json({ error: "not_found" });
     }
     res.status(500).json({ error: error instanceof Error ? error.message : "propose_action_failed" });
+  }
+});
+
+app.post("/agents/:agentId/create-wallets", async (req, res) => {
+  const { recoveryGuardianAddress } = req.body ?? {};
+
+  if (recoveryGuardianAddress !== undefined && typeof recoveryGuardianAddress !== "string") {
+    return res.status(400).json({ error: "recoveryGuardianAddress must be a string" });
+  }
+
+  const profile = getAgent(req.params.agentId);
+  const effectiveGuardian = recoveryGuardianAddress ?? profile?.ownerWallet;
+
+  if (typeof effectiveGuardian !== "string" || !EVM_ADDRESS_RE.test(effectiveGuardian)) {
+    return res.status(400).json({
+      error: "recoveryGuardianAddress must be a valid EVM address (defaults to the agent's ownerWallet, which must also be one)",
+    });
+  }
+
+  try {
+    const wallet = await createWallet(req.params.agentId, effectiveGuardian);
+    res.status(201).json(wallet);
+  } catch (error) {
+    if (error instanceof Error && error.message === "agent_not_found") {
+      return res.status(404).json({ error: "not_found" });
+    }
+    res.status(500).json({ error: error instanceof Error ? error.message : "create_wallet_failed" });
   }
 });
 

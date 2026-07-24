@@ -23,7 +23,7 @@ export async function createAgent(input: CreateAgentInput): Promise<AgentProfile
     throw new Error("Hedera did not return an account ID for the new agent");
   }
 
-  const agentClient = getAgentClient(hederaAccountId.toString(), agentPrivateKey.toString());
+  const agentClient = getAgentClient(hederaAccountId.toString(), agentPrivateKey.toStringRaw());
   const toolkit = buildAgentToolkit(agentClient, hederaAccountId.toString());
 
   const profile: AgentProfile = {
@@ -34,13 +34,14 @@ export async function createAgent(input: CreateAgentInput): Promise<AgentProfile
     endpoint: input.endpoint,
     description: input.description,
     hederaAccountId: hederaAccountId.toString(),
+    evmAddress: `0x${agentPrivateKey.publicKey.toEvmAddress()}`,
     publicKey: agentPrivateKey.publicKey.toString(),
     toolNames: toolkit.getTools().map(tool => tool.name),
     status: "active",
     createdAt: new Date().toISOString(),
   };
 
-  saveAgent(profile, agentPrivateKey.toString());
+  saveAgent(profile, agentPrivateKey.toStringRaw());
 
   return profile;
 }

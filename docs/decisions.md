@@ -20,3 +20,11 @@ add a new line noting the change and why — don't edit history away.
   plain 2-of-2. The guardian never signs routine transactions — only
   break-glass recovery if the agent signer or AEGIS co-signer is stuck. See
   `docs/AEGIS_ARCHITECTURE.md` §3.3, §9.3.
+- 2026-07-24 — The AEGIS co-signer key is one institutional key operated by
+  AEGIS across every deployment/user (like a custodian), not a distinct key
+  per user or per instance. Accepted tradeoff: a leak has company-wide blast
+  radius, not just one deployment's. Mitigated today by the 2-of-3 threshold
+  (stealing this key alone isn't enough); the deeper fix — a Safe Guard/Module
+  requiring an on-chain 0G attestation before execution — is a known TODO,
+  blocked on 0G being wired into the cosign flow. See
+  `docs/AEGIS_ARCHITECTURE.md` §9.2, `services/cosigner/src/index.ts`.
