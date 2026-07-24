@@ -65,3 +65,27 @@ are. Format:
 - blockers: none. Foundry deploy and dashboard dev server were not run -
   deploying needs a funded Hedera testnet key, left for whoever owns that step.
 - interfaces touched: none.
+
+## 2026-07-24 20:43 - Claude Code (Rodrigo) - dashboard
+- did: first two AEGIS screens from Rodrigo's wireframe, on branch `front`.
+  Replaced the scaffold landing in `packages/nextjs/app/page.tsx` with the
+  AEGIS screen (title + "Connect your Wallet" opening the RainbowKit modal),
+  added `packages/nextjs/app/dashboard/page.tsx` ("Dashboard starts here" +
+  Back), set the app metadata title to AEGIS in `app/layout.tsx`. Connecting
+  from the landing pushes to `/dashboard`; the redirect only fires for a
+  connect started on that screen (tracked with a ref) so Back from the
+  dashboard doesn't bounce straight back. When already connected the landing
+  button reads "Enter Dashboard". Added `.claude/launch.json` so agents can
+  boot the dashboard preview. `yarn install` had to be run first (no
+  node_modules in this clone); `yarn next:build` passes, `/` and `/dashboard`
+  both prerender static.
+- next: dashboard shell proper - replace the scaffold Header branding and the
+  Debug/Block Explorer nav with AEGIS nav, then the protect-agent / policy
+  form screens. Note this is Leunam's lane in PLAYBOOK.md ownership; Rodrigo
+  said in-session he is taking front end too, worth a verbal sync before
+  either of us touches `packages/nextjs` further.
+- blockers: none for the code. Could not visually confirm in the browser -
+  the in-app browser refused to navigate to http://localhost:3000 twice
+  ("navigation denied or failed"); the dev server itself is up and returning
+  200 (`preview_logs`). Verification so far is the build only.
+- interfaces touched: none.
