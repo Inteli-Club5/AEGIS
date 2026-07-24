@@ -10,8 +10,9 @@ This repo is AEGIS, built at ETHGlobal Lisbon on top of scaffold-hbar (Hedera)
 - `PLAYBOOK.md` - workflow, ownership lanes, commit/DEVLOG conventions (source of truth).
 - `TASKS.md` - each owner's priority-ordered task list; top unchecked item = current focus.
 - `DEVLOG.md` - append-only session log; read the newest entries before working.
-- `docs/AEGIS_ARQUITETURA_REFATORADA_V3_FINAL.md` - product/technical architecture.
-- `docs/interfaces.md` / `docs/decisions.md` - frozen cross-lane contracts and ADR-lite log (created once the team freezes Day 1 interfaces).
+- `docs/AEGIS_ARCHITECTURE.md` - product/technical architecture (EN, production-locked: Safe, The Graph, no ENS for agent identity).
+- `docs/decisions.md` - ADR-lite log of locked decisions.
+- `docs/interfaces.md` - frozen cross-lane contracts (created once the team freezes Day 1 interfaces; not yet done, see TASKS.md).
 
 ```
 packages/nextjs             dashboard (Next.js + RainbowKit + wagmi)
