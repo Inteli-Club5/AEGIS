@@ -1,15 +1,19 @@
 {
-  "name": "aegis-cosigner",
+  "name": "aegis-agent-service",
   "version": "0.0.0",
   "private": true,
   "type": "module",
   "scripts": { "dev": "tsx watch src/index.ts", "build": "tsc" },
   "dependencies": {
+    "@hashgraph/hedera-agent-kit": "^4.0.0",
+    "@hashgraph/hedera-agent-kit-langchain": "^1.0.0",
+    "@hiero-ledger/sdk": "^2.80.0",
+    "@langchain/core": "^1.2.3",
+    "@langchain/groq": "^1.3.1",
     "@safe-global/protocol-kit": "^6.1.0",
-    "@safe-global/api-kit": "^4.0.0",
     "dotenv": "^16.4.5",
-    "ethers": "^6.11.1",
     "express": "^4.18.2",
+    "langchain": "^1.5.3",
     "viem": "^2.55.8"
   },
   "devDependencies": {

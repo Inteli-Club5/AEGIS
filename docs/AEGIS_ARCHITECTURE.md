@@ -121,7 +121,7 @@ Mitigation:
 4. The app shows the empty dashboard: "No protected agents yet."
 5. User clicks **+ Protect Agent**.
 
-### 3.2 Register agent
+### 3.2 Create agent
 
 The user fills out a form:
 
@@ -129,15 +129,14 @@ The user fills out a form:
 - `Agent type`: Payment / API Buyer / DeFi / Treasury / Other.
 - `Agent endpoint`: optional.
 - `Agent description`: short description.
-- `Agent signer`: the agent's signer address or operational wallet.
 
-Agent identity is created directly as an AEGIS `AgentProfile`
-(§5.4) — there is nothing to resolve externally at registration time.
-
-Clicking **Register Agent** creates the agent itself — provisioned by AEGIS
-on Hedera — together with its **Agent Profile**, the protected registration
-inside AEGIS (metadata, policy hash, status, logs). Connecting an agent the
-user already runs elsewhere is a roadmap item, not available in this version.
+There is no `Agent signer` input field. Clicking **Create Agent** has AEGIS
+create the agent itself using the Hedera SDK — including its own Hedera
+account, the future Agent Signer owner on the Safe wallet (§3.3) — together
+with its **Agent Profile** (§5.4). The new agent is linked to the user's own
+connected wallet (§3.1) from the moment it's created — the Agent Profile
+records that owning `OperatorWallet` address, so an agent always belongs to
+the user who created it.
 
 ### 3.3 Create the agent's protected wallet
 
@@ -428,12 +427,12 @@ flowchart TD
 | Module | Responsibility | Production shape |
 |---|---|---|
 | `OperatorWallet` | the user's own wallet | wagmi/RainbowKit-connected wallet; multisig/DAO optional later |
-| `AgentProfile` | agent identity and metadata | AEGIS-native record (no ENS) anchored to `PolicyRegistry` |
+| `AgentProfile` | agent identity and metadata | AEGIS-native record (no ENS) anchored to `PolicyRegistry`; linked to the owning `OperatorWallet` from creation |
 | `ProtectedAgentWallet` (`AgentVault`) | the agent's operational wallet | Safe smart account, 2-of-3 (agent signer + AEGIS co-signer + recovery guardian; guardian only signs for recovery) |
 | `PolicyRegistry` | stores constraints and `policyHash` | on-chain contract; versioning and revocation |
 | `DecisionVerifier` | integrates 0G / fallback | 0G/TeeML real, signed local fallback declared as such |
-| `AegisCosigner` | signs accepted/denied receipts | always-local backend signer; no centralized/hosted custody; path to local HSM/MPC/TEE |
-| `SafeExecutionLayer` | requires both routine signatures | Safe module/guard enforcing 2-of-3 (guardian reserved for recovery) |
+| `AegisCosigner` | signs accepted/denied receipts | one AEGIS-operated key across every deployment/user (§9.2); always-local, never third-party-hosted; path to local HSM/MPC/TEE |
+| `SafeExecutionLayer` | requires both routine signatures | Safe Guard/Module enforcing 2-of-3 plus an on-chain 0G attestation before execution (§9.2); guardian reserved for recovery |
 | `HederaPaymentExecutor` | pays the provider | HBAR transfer on testnet; path to x402/HTS/escrow |
 | `IndexingLayer` | serves history to the dashboard | The Graph subgraph over `PolicyRegistry` + Safe + receipt events |
 
@@ -466,6 +465,12 @@ stalls. There's no centralized fallback instance to fail over to — it always
 runs locally. Mitigations: local HSM/MPC/TEE key custody, signer rotation,
 emergency recovery, timelock, and an always-available migration path so the
 user is never stuck.
+
+The co-signer key is centralized — it belongs to AEGIS, not the user — and it
+signs on a server AEGIS runs itself, not a shared third-party service. The
+Safe's Guard/Module (§7, `SafeExecutionLayer`) requires a verifiable 0G
+attestation on-chain before allowing execution, so the co-signer's signature
+alone — even paired with the agent's — isn't sufficient without it.
 
 ### 9.3 A stuck signer can lock the user out
 
