@@ -12,3 +12,7 @@ export function saveAgent(profile: AgentProfile, privateKey: string): void {
 export function getAgent(agentId: string): AgentProfile | undefined {
   return profiles.get(agentId);
 }
+
+export function getAgentPrivateKey(agentId: string): string | undefined {
+  return privateKeys.get(agentId);
+}

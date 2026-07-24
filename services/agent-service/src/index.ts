@@ -1,6 +1,7 @@
 import "dotenv/config";
 import express from "express";
 import { createAgent } from "./createAgent.js";
+import { proposeAction } from "./proposeAction.js";
 import { getAgent } from "./store.js";
 import type { AgentType } from "./types.js";
 
@@ -36,6 +37,24 @@ app.get("/agents/:agentId", (req, res) => {
   const profile = getAgent(req.params.agentId);
   if (!profile) return res.status(404).json({ error: "not_found" });
   res.json(profile);
+});
+
+app.post("/agents/:agentId/propose-actions", async (req, res) => {
+  const { task } = req.body ?? {};
+
+  if (typeof task !== "string" || !task) {
+    return res.status(400).json({ error: "task is required" });
+  }
+
+  try {
+    const proposal = await proposeAction(req.params.agentId, task);
+    res.json({ proposal });
+  } catch (error) {
+    if (error instanceof Error && error.message === "agent_not_found") {
+      return res.status(404).json({ error: "not_found" });
+    }
+    res.status(500).json({ error: error instanceof Error ? error.message : "propose_action_failed" });
+  }
 });
 
 const port = process.env.AGENT_SERVICE_PORT ?? 4200;
