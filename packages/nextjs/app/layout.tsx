@@ -1,25 +1,45 @@
+import { JetBrains_Mono, Manrope } from "next/font/google";
+import "./globals.css";
+import { ConnectWalletProvider } from "@/features/wallet/components/ConnectWalletProvider";
 import "@rainbow-me/rainbowkit/styles.css";
-import "@scaffold-hbar-ui/components/styles.css";
+import type { Metadata } from "next";
 import { ScaffoldHbarAppWithProviders } from "~~/components/ScaffoldHbarAppWithProviders";
 import { ThemeProvider } from "~~/components/ThemeProvider";
-import "~~/styles/globals.css";
-import { getMetadata } from "~~/utils/scaffold-hbar/getMetadata";
 
-export const metadata = getMetadata({
-  title: "AEGIS Agentic ID API",
-  description: "Backend integration for linking AEGIS agents to 0G Agentic IDs.",
+const manrope = Manrope({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "800"],
+  variable: "--font-manrope",
+  display: "swap",
 });
 
-const ScaffoldHbarApp = ({ children }: { children: React.ReactNode }) => {
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ["latin"],
+  weight: ["400", "500"],
+  variable: "--font-jetbrains-mono",
+  display: "swap",
+});
+
+export const metadata: Metadata = {
+  title: "AEGIS — A safety layer for agents that move value",
+  description:
+    "AEGIS wraps AI agents in a protected Safe wallet. Policy, TEE-verified decisions, and AEGIS co-signature must all line up — or nothing executes.",
+};
+
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
   return (
-    <html suppressHydrationWarning>
-      <body>
+    <html lang="en" suppressHydrationWarning className={`${manrope.variable} ${jetbrainsMono.variable} antialiased`}>
+      <body className="flex min-h-dvh flex-col">
         <ThemeProvider enableSystem>
-          <ScaffoldHbarAppWithProviders>{children}</ScaffoldHbarAppWithProviders>
+          <ScaffoldHbarAppWithProviders>
+            <ConnectWalletProvider>{children}</ConnectWalletProvider>
+          </ScaffoldHbarAppWithProviders>
         </ThemeProvider>
       </body>
     </html>
   );
-};
-
-export default ScaffoldHbarApp;
+}

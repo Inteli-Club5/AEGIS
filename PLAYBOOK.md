@@ -8,7 +8,10 @@ agents both follow it. Keep it short; if a rule stops helping, change it here.
 ## For AI agents - read this first, every session
 
 1. **Read** `PLAYBOOK.md` (this file), then `TASKS.md`, then the newest entry at
-   the bottom of `DEVLOG.md`. Read the relevant lane's code before editing.
+   the bottom of `DEVLOG.md`. On `feat/policy-engine-level-1`, also read
+   `docs/aegis-current-scope.md` and treat it as the branch scope override for
+   older architecture, bounty, demo, and implementation notes. Read the relevant
+   lane's code before editing.
 2. **Work** only inside the current owner's lane (see Ownership). Do not refactor
    another lane without a note in `TASKS.md`.
 3. **Commit small and often** with the convention below. ETHGlobal judges the
@@ -16,8 +19,8 @@ agents both follow it. Keep it short; if a rule stops helping, change it here.
 4. **At the end of the session, ALWAYS append a `DEVLOG.md` entry** (format below)
    and update `TASKS.md` (check off done items, set the new top task).
 5. If you changed a **shared interface** (receipt schema, an API contract, an
-   ABI, a deployed address), say so loudly in the DEVLOG entry and update
-   `docs/interfaces.md`.
+   ABI, a deployed address), say so loudly in the DEVLOG entry and update the
+   active scope/interface document for the branch.
 6. Never print or commit private keys. `.env` only, `.env.example` for shape.
 7. Write repository documentation, DEVLOG entries, PR descriptions, and
    agent-authored notes in English. Do not add Portuguese project docs unless a
@@ -48,20 +51,27 @@ task" - no ambiguous parallel blocks. Your top TASKS.md item is your focus.
 - **Rodrigo - product, pitch & demo.** Demo script, bounty checklists (Hedera,
   0G), sponsor relations, docs, the 3-min video, judging table narrative.
 
-## Interfaces - freeze these DAY 1 so lanes don't block each other
+## Interfaces - freeze these first so lanes don't block each other
 
-Define these in `docs/interfaces.md` before splitting up. They are the contracts
-between people; once frozen, each lane can build against them independently.
+Define the active contracts before splitting up. They are the contracts between
+people; once frozen, each lane can build against them independently.
 
-1. **Decision Receipt** JSON schema (arch doc 4.3) - fields, hashing, signature.
-2. **Verifier API** - `POST /verify` request/response (action in, signed
-   ALLOW/DENY + proofRef out).
-3. **Cosigner API** - `POST /cosign` request/response (Accepted/Denied receipt).
-4. **Contract ABIs + addresses** - committed to `packages/nextjs/contracts` and a
-   shared `deployments.json` so the UI always knows the current testnet addresses.
+For `feat/policy-engine-level-1`, the frozen contracts are the offchain Policy
+Engine Level 1 interfaces:
 
-If an interface must change, change `docs/interfaces.md` first, ping the other
-lane, then implement.
+1. Policy schema, lifecycle, canonicalization, and `policyHash` input.
+2. Create/update/activate/revoke Policy request and response shapes.
+3. Action Precheck request shape and idempotency behavior.
+4. `PASS_TO_TEEML` and `DENY_PRECHECK` response shapes.
+5. `PrecheckRecord`, `UsageHold`, sanitized audit event, and stable denial
+   codes.
+
+The Level 1 branch does not define a final `ALLOW`, signed final
+`DecisionReceipt`, TeeML/0G call, Safe execution, contract ABI, deployment, fee,
+or onchain event interface.
+
+If an interface must change, change the active scope/interface document first,
+ping the other lane, then implement.
 
 ---
 
@@ -79,7 +89,7 @@ lane, then implement.
 ### PR / merge checklist
 - [ ] builds locally (`yarn next:build` or `forge build`)
 - [ ] didn't touch another lane's files without a note
-- [ ] shared interface change documented in `docs/interfaces.md`
+- [ ] shared interface change documented in the active scope/interface document
 - [ ] DEVLOG entry added
 - [ ] no secrets committed
 
@@ -96,7 +106,9 @@ lane, then implement.
   agent-authored notes are written in English by default.
 - **docs/decisions.md** - one line per hard-to-reverse decision (ADR-lite).
   Example seeded: "All EVM contracts on Hedera testnet (single-chain MVP)."
-- **docs/interfaces.md** - the frozen contracts between lanes (see above).
+- **docs/aegis-current-scope.md** - current branch scope overlay. On
+  `feat/policy-engine-level-1`, it is also the single frozen interface and
+  handoff document for the branch.
 - Keep `README.md` runnable. Outdated docs are worse than none.
 
 ### DEVLOG entry format

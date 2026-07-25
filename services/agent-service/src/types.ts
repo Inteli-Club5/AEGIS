@@ -1,5 +1,7 @@
 export type AgentType = "Payment" | "API Buyer" | "DeFi" | "Treasury" | "Other";
 
+export * from "./policy-engine/types.js";
+
 export type CreateAgentInput = {
   ownerWallet: string;
   name: string;
@@ -23,6 +25,15 @@ export type AgentProfile = {
   status: "active" | "inactive";
   createdAt: string;
   safeAddress?: string;
+  wallet?: {
+    walletId: string;
+    safeAddress: string;
+    networkId: "hedera:testnet";
+    status: "PROTECTED";
+    owners: string[];
+    threshold: number;
+    transactionHash: string;
+  };
   agenticId?: {
     tokenId: string;
     contractAddress: string;
