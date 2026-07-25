@@ -5,7 +5,7 @@ import { createAgent as createAgentProfile } from "./createAgent.js";
 import { createWallet as createAgentWallet } from "./createWallet.js";
 import { proposeAction as proposeAgentAction } from "./proposeAction.js";
 import { HttpError, registerAgenticId } from "./registerAgenticId.js";
-import { getAgent as getStoredAgent, setAgentWallet } from "./store.js";
+import { deleteAgent as deleteStoredAgent, getAgent as getStoredAgent, setAgentWallet } from "./store.js";
 import type { AgentType } from "./types.js";
 import {
   createPostgresPolicyRepository,
@@ -270,6 +270,24 @@ export function createAgentServiceApp(options: AgentServiceAppOptions = {}) {
       res.status(500).json({
         error:
           error instanceof Error ? error.message : "register_agentic_id_failed",
+      });
+    }
+  });
+
+  app.delete("/agents/:agentId", async (req, res) => {
+    const agentId = req.params.agentId;
+    deleteStoredAgent(agentId);
+
+    if (!isPolicyDatabaseConfigured) {
+      return res.status(204).end();
+    }
+
+    try {
+      await policyRepository.deleteAgent(agentId);
+      res.status(204).end();
+    } catch (error) {
+      res.status(500).json({
+        error: error instanceof Error ? error.message : "delete_agent_failed",
       });
     }
   });

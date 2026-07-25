@@ -25,6 +25,10 @@ export async function proxyToAgentService(
     };
   }
 
+  if (upstream.status === 204) {
+    return { status: 204, body: undefined };
+  }
+
   const body = await upstream.json().catch(() => ({ error: "Invalid response from the agent service" }));
   return { status: upstream.status, body };
 }
@@ -33,7 +37,7 @@ export async function proxyAgentServiceRequest(
   req: Request,
   options: {
     path: string;
-    method: "GET" | "POST" | "PATCH";
+    method: "GET" | "POST" | "PATCH" | "DELETE";
     body: "json" | "none";
     forwardOperator?: boolean;
   },
@@ -51,5 +55,8 @@ export async function proxyAgentServiceRequest(
     headers,
     body: payload === undefined ? undefined : JSON.stringify(payload),
   });
+  if (status === 204) {
+    return new NextResponse(null, { status: 204 });
+  }
   return NextResponse.json(body, { status });
 }

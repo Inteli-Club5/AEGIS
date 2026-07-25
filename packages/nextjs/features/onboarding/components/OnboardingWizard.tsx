@@ -61,8 +61,8 @@ export function OnboardingWizard({ initialDraft }: { initialDraft: OnboardingDra
 
   const hasProgress = Boolean(agent || policy);
 
-  if (done && agent) {
-    return <SuccessScreen agent={agent} policy={policy} onRestart={handleRestart} />;
+  if (done && agent && wallet) {
+    return <SuccessScreen agent={agent} policy={policy} wallet={wallet} onRestart={handleRestart} />;
   }
 
   return (

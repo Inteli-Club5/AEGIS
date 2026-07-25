@@ -18,7 +18,7 @@ export class ApiError extends Error {
 export async function requestJson<T>(
   path: string,
   options: {
-    method?: "GET" | "POST" | "PATCH";
+    method?: "GET" | "POST" | "PATCH" | "DELETE";
     body?: unknown;
     operator?: OperatorHeaders;
   } = {},

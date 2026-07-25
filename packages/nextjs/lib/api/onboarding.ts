@@ -76,6 +76,10 @@ export async function getAgentServiceProfile(agentId: string): Promise<AgentServ
   return requestJson(`/api/agent-service/agents/${encodeURIComponent(agentId)}`);
 }
 
+export async function deleteAgentServiceProfile(agentId: string): Promise<void> {
+  await requestJson(`/api/agent-service/agents/${encodeURIComponent(agentId)}`, { method: "DELETE" });
+}
+
 export async function createAgent(input: {
   name: string;
   type: AgentType;

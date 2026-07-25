@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { ConnectModal } from "./ConnectModal";
 import { type Address, UserRejectedRequestError } from "viem";
 import { hederaTestnet } from "viem/chains";
-import { type Connector, useAccount, useConnect, useDisconnect } from "wagmi";
+import { type Connector, useAccount, useConnect, useConnections, useDisconnect } from "wagmi";
 
 export type WalletId = "metamask" | "walletconnect" | "coinbase";
 type Status = "disconnected" | "connecting" | "connected" | "error";
@@ -59,6 +59,7 @@ export function ConnectWalletProvider({ children }: { children: ReactNode }) {
   const { address, status: accountStatus } = useAccount();
   const { connectors, connectAsync, isPending } = useConnect();
   const { disconnectAsync } = useDisconnect();
+  const connections = useConnections();
 
   if (process.env.NODE_ENV !== "production" && connectors.length > 0) {
     const hasRkDetails = connectors.some(c => (c as RkConnector).rkDetails);
@@ -94,10 +95,10 @@ export function ConnectWalletProvider({ children }: { children: ReactNode }) {
   );
 
   const disconnect = useCallback(() => {
-    disconnectAsync()
+    Promise.all(connections.map(connection => disconnectAsync({ connector: connection.connector })))
       .catch(() => {})
       .finally(() => router.push("/"));
-  }, [disconnectAsync, router]);
+  }, [connections, disconnectAsync, router]);
 
   const status: Status = error
     ? "error"

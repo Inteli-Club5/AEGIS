@@ -3,16 +3,19 @@
 import Link from "next/link";
 import { ShieldCheck } from "lucide-react";
 import { Button } from "~~/components/ui/Button";
-import type { AgentProfile, Policy } from "~~/lib/types/aegis";
+import { FundWalletCard } from "~~/features/agents/components/FundWalletCard";
+import type { AgentProfile, Policy, ProtectedWalletInfo } from "~~/lib/types/aegis";
 import { truncateAddress } from "~~/lib/utils/format";
 
 export function SuccessScreen({
   agent,
   policy,
+  wallet,
   onRestart,
 }: {
   agent: AgentProfile;
   policy?: Policy;
+  wallet: ProtectedWalletInfo;
   onRestart: () => void;
 }) {
   return (
@@ -32,9 +35,14 @@ export function SuccessScreen({
         {policy && (
           <p className="mt-4 font-mono text-mono-sm text-subtle">policy {truncateAddress(policy.policyHash)}</p>
         )}
+
+        <div className="mt-6 w-full text-left">
+          <FundWalletCard safeAddress={wallet.address as `0x${string}`} />
+        </div>
+
         <div className="mt-8 flex flex-wrap justify-center gap-3">
-          <Link href="/dashboard">
-            <Button size="lg">Go to dashboard</Button>
+          <Link href={`/agents/${agent.id}`}>
+            <Button size="lg">Go to agent</Button>
           </Link>
           <Button size="lg" variant="secondary" onClick={onRestart}>
             Protect another agent
