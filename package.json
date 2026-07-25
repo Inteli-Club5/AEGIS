@@ -10,6 +10,11 @@
     ]
   },
   "scripts": {
+    "postgres:config": "docker compose config",
+    "postgres:down": "docker compose down",
+    "postgres:health": "docker compose ps postgres",
+    "postgres:logs": "docker compose logs -f postgres",
+    "postgres:up": "docker compose up -d postgres",
     "foundry:account": "yarn workspace @sh/foundry account",
     "foundry:account:generate": "yarn workspace @sh/foundry account:generate",
     "foundry:account:import": "yarn workspace @sh/foundry account:import",
