@@ -7,6 +7,11 @@ to clear a user-defined policy, 0G/TeeML decision verification, and AEGIS
 co-signature before it can execute. The Graph indexes the resulting history
 for the dashboard and audit log.
 
+> On `feat/policy-engine-level-1`, the active scope is
+> [`docs/aegis-current-scope.md`](docs/aegis-current-scope.md). It overrides
+> older architecture, demo, bounty, and implementation notes when they conflict
+> with Policy Engine Level 1.
+
 ![AEGIS architecture](docs/AEGIS_ARCHITECTURE.png)
 ![AEGIS user flow](docs/AEGIS_USER_FLOW.png)
 
@@ -17,6 +22,7 @@ Built during ETHGlobal Lisbon on public starter kits: [scaffold-hbar](https://gi
 co-signature flow - was written during the event.
 
 - **Architecture:** [`docs/AEGIS_ARCHITECTURE.md`](docs/AEGIS_ARCHITECTURE.md) - full production architecture, user flow, transaction flow, and hackathon scope.
+- **Current scope:** [`docs/aegis-current-scope.md`](docs/aegis-current-scope.md) - active Policy Engine Level 1 branch scope, interfaces, handoff, and local PostgreSQL commands.
 - **Decisions:** [`docs/decisions.md`](docs/decisions.md) - ADR-lite log of locked product/technical decisions.
 - **Workflow:** [`PLAYBOOK.md`](PLAYBOOK.md) - how the team builds, ownership, conventions.
 
@@ -27,7 +33,7 @@ packages/nextjs             dashboard (Next.js + RainbowKit + wagmi)
 packages/foundry            contracts (PolicyRegistry, AgentVault...)
 services/decision-verifier  0G TEE inference -> signed ALLOW/DENY
 services/cosigner           policy re-check + co-signature (Safe SDK)
-docs/                       architecture, decisions
+docs/                       architecture, scope, decisions
 ```
 
 ---
@@ -195,4 +201,3 @@ Network and RPC URLs are in `packages/hardhat/hardhat.config.ts` or `packages/fo
 - [Hashscan](https://hashscan.io/) — block explorer
 - [Hedera Token Service (HTS)](https://docs.hedera.com/hedera/core-concepts/hedera-token-service-hts)
 - [create-scaffold-hbar](https://github.com/buidler-labs/create-scaffold-hbar) — CLI to scaffold Hedera dApps
-

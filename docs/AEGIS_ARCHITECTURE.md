@@ -71,7 +71,7 @@ Blocking can simply mean withholding the required co-signature.
 But it does make sense to sign/log a **Denial Receipt** for audit purposes.
 
 - **Accepted Receipt:** enables co-signature and execution.
-- **Denied Receipt:** records the rejection reason, appears in the dashboard,
+- **Denied Receipt:** records the rejection code, appears in the dashboard,
   does not execute.
 
 ### 2.4 "Only accept with our private key too"
@@ -205,7 +205,7 @@ The real or simulated agent proposes an action:
   "destination": "0.0.serviceProvider",
   "token": "HBAR",
   "amount": "1",
-  "reason": "Pay approved API provider for market data",
+  "semanticContext": "Pay approved API provider for market data",
   "policyHash": "0x...",
   "nonce": 12,
   "deadline": "2026-07-26T08:00:00Z"
@@ -226,14 +226,14 @@ Input to 0G/TeeML:
 
 - policy;
 - proposed action;
-- context;
+- private semantic context, passed directly and not persisted;
 - agent identity;
 - business rule.
 
 Expected output:
 
 - `ALLOW` or `DENY`;
-- a short reason;
+- `reasonCode`;
 - `receiptHash`;
 - `proofRef` / `ogRef`;
 - execution metadata.
@@ -266,14 +266,14 @@ Minimum fields:
   "nonce": 12,
   "deadline": "2026-07-26T08:00:00Z",
   "verdict": "ALLOW",
-  "reason": "Destination approved and amount under max",
+  "reasonCode": "DESTINATION_AND_AMOUNT_APPROVED",
+  "semanticContextHash": "0x...",
   "proofRef": {
     "provider": "0G",
     "mode": "real | fallback",
     "receiptHash": "0x...",
     "rawLogUrl": "optional",
-    "timestamp": "ISO-8601",
-    "notes": "short explanation"
+    "timestamp": "ISO-8601"
   },
   "signature": "0x..."
 }
@@ -299,7 +299,7 @@ If anything fails:
 
 - generate a `DeniedReceipt`;
 - withhold co-signature;
-- log the reason;
+- log the reason code;
 - update the dashboard (via the subgraph, §5.3).
 
 If everything passes:

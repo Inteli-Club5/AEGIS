@@ -28,3 +28,8 @@ add a new line noting the change and why — don't edit history away.
   requiring an on-chain 0G attestation before execution — is a known TODO,
   blocked on 0G being wired into the cosign flow. See
   `docs/AEGIS_ARCHITECTURE.md` §9.2, `services/cosigner/src/index.ts`.
+- 2026-07-25 — On `feat/policy-engine-level-1`,
+  `docs/aegis-current-scope.md` is the single branch scope, interface, and
+  handoff document. It overrides older architecture, bounty, demo, and
+  implementation notes when they conflict with the Level 1 Policy Engine
+  boundary.

@@ -1,4 +1,4 @@
-> **START HERE, EVERY SESSION:** read `PLAYBOOK.md`, then `TASKS.md`, then the latest entry in `DEVLOG.md` before doing anything. Follow the playbook workflow and log your work to `DEVLOG.md` at the end of the session.
+> **START HERE, EVERY SESSION:** read `PLAYBOOK.md`, then `TASKS.md`, then the latest entry in `DEVLOG.md` before doing anything. On `feat/policy-engine-level-1`, also read `docs/aegis-current-scope.md`; it overrides older architecture, bounty, demo, and implementation notes for this branch. Follow the playbook workflow and log your work to `DEVLOG.md` at the end of the session.
 
 # CLAUDE.md
 
@@ -10,9 +10,9 @@ This repo is AEGIS, built at ETHGlobal Lisbon on top of scaffold-hbar (Hedera)
 - `PLAYBOOK.md` - workflow, ownership lanes, commit/DEVLOG conventions (source of truth).
 - `TASKS.md` - each owner's priority-ordered task list; top unchecked item = current focus.
 - `DEVLOG.md` - append-only session log; read the newest entries before working.
+- `docs/aegis-current-scope.md` - current `feat/policy-engine-level-1` scope overlay; it wins over older docs on this branch.
 - `docs/AEGIS_ARCHITECTURE.md` - product/technical architecture (EN, production-locked: Safe, The Graph, no ENS for agent identity).
 - `docs/decisions.md` - ADR-lite log of locked decisions.
-- `docs/interfaces.md` - frozen cross-lane contracts (created once the team freezes Day 1 interfaces; not yet done, see TASKS.md).
 
 ```
 packages/nextjs             dashboard (Next.js + RainbowKit + wagmi)

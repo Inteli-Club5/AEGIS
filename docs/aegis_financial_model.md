@@ -1,7 +1,7 @@
 # AEGIS — Financial Model v1
 
 > **Status:** pricing and unit economics proposal for discussion.  
-> **Current reality:** AEGIS is a pre-transaction security layer for agents. There is no insurance, payout, recovery reserve, fee for rejected transactions, or percentage charged on protected funds.
+> **Current reality:** AEGIS is a pre-transaction security layer for agents. There is no insurance, payout, recovery fund, fee for rejected transactions, or percentage charged on protected funds.
 
 ---
 
