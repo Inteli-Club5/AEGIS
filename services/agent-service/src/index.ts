@@ -3,6 +3,7 @@ import express from "express";
 import { createAgent } from "./createAgent.js";
 import { createWallet } from "./createWallet.js";
 import { proposeAction } from "./proposeAction.js";
+import { HttpError, registerAgenticId } from "./registerAgenticId.js";
 import { getAgent } from "./store.js";
 import type { AgentType } from "./types.js";
 
@@ -90,6 +91,24 @@ app.post("/agents/:agentId/create-wallets", async (req, res) => {
       return res.status(404).json({ error: "not_found" });
     }
     res.status(500).json({ error: error instanceof Error ? error.message : "create_wallet_failed" });
+  }
+});
+
+app.post("/agents/:agentId/register-agentic-id", async (req, res) => {
+  try {
+    const profile = await registerAgenticId(req.params.agentId);
+    res.status(201).json(profile);
+  } catch (error) {
+    if (error instanceof Error && error.message === "agent_not_found") {
+      return res.status(404).json({ error: "not_found" });
+    }
+    if (error instanceof Error && error.message === "agent_wallet_not_created") {
+      return res.status(409).json({ error: "agent must have a Safe wallet (create-wallets) before registering an Agentic ID" });
+    }
+    if (error instanceof HttpError) {
+      return res.status(error.status).json({ error: error.message });
+    }
+    res.status(500).json({ error: error instanceof Error ? error.message : "register_agentic_id_failed" });
   }
 });
 

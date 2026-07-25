@@ -24,3 +24,14 @@ export function setAgentSafeAddress(agentId: string, safeAddress: string): Agent
   profiles.set(agentId, updated);
   return updated;
 }
+
+export function setAgentAgenticId(
+  agentId: string,
+  agenticId: NonNullable<AgentProfile["agenticId"]>,
+): AgentProfile | undefined {
+  const profile = profiles.get(agentId);
+  if (!profile) return undefined;
+  const updated = { ...profile, agenticId };
+  profiles.set(agentId, updated);
+  return updated;
+}
