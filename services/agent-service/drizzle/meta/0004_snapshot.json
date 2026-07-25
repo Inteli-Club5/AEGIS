@@ -1,0 +1,1977 @@
+{
+  "id": "6e52ddec-3b33-4cfa-9322-be4d3f8b78be",
+  "prevId": "652937c5-b949-4c9e-9489-84befe842eb6",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.aegis_action_requests": {
+      "name": "aegis_action_requests",
+      "schema": "",
+      "columns": {
+        "request_id": {
+          "name": "request_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "agent_id": {
+          "name": "agent_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "wallet_id": {
+          "name": "wallet_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "idempotency_key_hash": {
+          "name": "idempotency_key_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "request_payload_hash": {
+          "name": "request_payload_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "semantic_context_hash": {
+          "name": "semantic_context_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "action_hash_schema_version": {
+          "name": "action_hash_schema_version",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "action_type": {
+          "name": "action_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "destination_kind": {
+          "name": "destination_kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "destination_value": {
+          "name": "destination_value",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "destination_chain_id": {
+          "name": "destination_chain_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "asset_id": {
+          "name": "asset_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "amount": {
+          "name": "amount",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "action_deadline": {
+          "name": "action_deadline",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "aegis_nonce": {
+          "name": "aegis_nonce",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "policy_id": {
+          "name": "policy_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "policy_version": {
+          "name": "policy_version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "policy_hash": {
+          "name": "policy_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "action_hash": {
+          "name": "action_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "aegis_action_request_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "functional_response": {
+          "name": "functional_response",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "aegis_action_requests_idempotency_unique": {
+          "name": "aegis_action_requests_idempotency_unique",
+          "columns": [
+            {
+              "expression": "agent_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "idempotency_key_hash",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "aegis_action_requests_wallet_nonce_unique": {
+          "name": "aegis_action_requests_wallet_nonce_unique",
+          "columns": [
+            {
+              "expression": "wallet_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "aegis_nonce",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "aegis_action_requests_agent_wallet_idx": {
+          "name": "aegis_action_requests_agent_wallet_idx",
+          "columns": [
+            {
+              "expression": "agent_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "wallet_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "aegis_action_requests_policy_idx": {
+          "name": "aegis_action_requests_policy_idx",
+          "columns": [
+            {
+              "expression": "policy_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "aegis_action_requests_action_commitment_check": {
+          "name": "aegis_action_requests_action_commitment_check",
+          "value": "(\n        \"action_hash_schema_version\" IS NULL\n        AND \"action_type\" IS NULL\n        AND \"destination_kind\" IS NULL\n        AND \"destination_value\" IS NULL\n        AND \"destination_chain_id\" IS NULL\n        AND \"asset_id\" IS NULL\n        AND \"amount\" IS NULL\n        AND \"action_deadline\" IS NULL\n      ) OR (\n        \"action_hash_schema_version\" = 'aegis.action.level1.v2'\n        AND \"action_type\" IS NOT NULL\n        AND btrim(\"action_type\") <> ''\n        AND \"destination_kind\" IN ('EVM_ADDRESS', 'HEDERA_ACCOUNT_ID', 'URL_ORIGIN')\n        AND \"destination_value\" IS NOT NULL\n        AND btrim(\"destination_value\") <> ''\n        AND \"asset_id\" IS NOT NULL\n        AND btrim(\"asset_id\") <> ''\n        AND \"amount\" ~ '^[1-9][0-9]*$'\n        AND \"action_deadline\" >= 0\n        AND (\n          (\"destination_kind\" = 'EVM_ADDRESS' AND \"destination_chain_id\" = 296)\n          OR (\"destination_kind\" = 'HEDERA_ACCOUNT_ID' AND (\"destination_chain_id\" IS NULL OR \"destination_chain_id\" = 296))\n          OR (\"destination_kind\" = 'URL_ORIGIN' AND \"destination_chain_id\" IS NULL)\n        )\n      )"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.aegis_agent_semantic_profiles": {
+      "name": "aegis_agent_semantic_profiles",
+      "schema": "",
+      "columns": {
+        "agent_id": {
+          "name": "agent_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "agentic_id": {
+          "name": "agentic_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "contract_address": {
+          "name": "contract_address",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "token_id": {
+          "name": "token_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "metadata_hash": {
+          "name": "metadata_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "capability_ids": {
+          "name": "capability_ids",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "registered_at": {
+          "name": "registered_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "aegis_agent_semantic_profiles_agentic_id_unique": {
+          "name": "aegis_agent_semantic_profiles_agentic_id_unique",
+          "columns": [
+            {
+              "expression": "agentic_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "aegis_agent_semantic_profiles_agent_id_aegis_agents_agent_id_fk": {
+          "name": "aegis_agent_semantic_profiles_agent_id_aegis_agents_agent_id_fk",
+          "tableFrom": "aegis_agent_semantic_profiles",
+          "tableTo": "aegis_agents",
+          "columnsFrom": [
+            "agent_id"
+          ],
+          "columnsTo": [
+            "agent_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "aegis_agent_semantic_profiles_identity_check": {
+          "name": "aegis_agent_semantic_profiles_identity_check",
+          "value": "(\n        \"contract_address\" ~ '^0x[0-9a-f]{40}$'\n        AND \"token_id\" ~ '^(0|[1-9][0-9]*)$'\n        AND \"metadata_hash\" ~ '^0x[0-9a-f]{64}$'\n        AND jsonb_typeof(\"capability_ids\") = 'array'\n        AND jsonb_array_length(\"capability_ids\") BETWEEN 1 AND 20\n      )"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.aegis_agents": {
+      "name": "aegis_agents",
+      "schema": "",
+      "columns": {
+        "agent_id": {
+          "name": "agent_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "owner_address": {
+          "name": "owner_address",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "aegis_agent_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.aegis_asset_catalog": {
+      "name": "aegis_asset_catalog",
+      "schema": "",
+      "columns": {
+        "asset_id": {
+          "name": "asset_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "network_id": {
+          "name": "network_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'hedera:testnet'"
+        },
+        "kind": {
+          "name": "kind",
+          "type": "aegis_asset_catalog_kind",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "hedera_token_id": {
+          "name": "hedera_token_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "symbol": {
+          "name": "symbol",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "decimals": {
+          "name": "decimals",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "aegis_asset_catalog_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "aegis_asset_catalog_network_check": {
+          "name": "aegis_asset_catalog_network_check",
+          "value": "\"network_id\" = 'hedera:testnet'"
+        },
+        "aegis_asset_catalog_decimals_check": {
+          "name": "aegis_asset_catalog_decimals_check",
+          "value": "\"decimals\" >= 0 AND \"decimals\" <= 30"
+        },
+        "aegis_asset_catalog_hbar_check": {
+          "name": "aegis_asset_catalog_hbar_check",
+          "value": "(\"kind\" <> 'HBAR') OR (\"asset_id\" = 'hedera:testnet:hbar' AND \"hedera_token_id\" IS NULL AND \"decimals\" = 8)"
+        },
+        "aegis_asset_catalog_hts_check": {
+          "name": "aegis_asset_catalog_hts_check",
+          "value": "(\"kind\" <> 'HTS_FUNGIBLE') OR (\"asset_id\" LIKE 'hedera:testnet:hts:%' AND \"hedera_token_id\" IS NOT NULL)"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.aegis_audit_events": {
+      "name": "aegis_audit_events",
+      "schema": "",
+      "columns": {
+        "event_id": {
+          "name": "event_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "schema_version": {
+          "name": "schema_version",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "event_type": {
+          "name": "event_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "occurred_at": {
+          "name": "occurred_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "request_id": {
+          "name": "request_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "precheck_id": {
+          "name": "precheck_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "agent_id": {
+          "name": "agent_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "wallet_id": {
+          "name": "wallet_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "policy_id": {
+          "name": "policy_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "policy_version": {
+          "name": "policy_version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "policy_hash": {
+          "name": "policy_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "action_hash": {
+          "name": "action_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "stage": {
+          "name": "stage",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "outcome": {
+          "name": "outcome",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reason_code": {
+          "name": "reason_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "network_id": {
+          "name": "network_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "idempotency_key_hash": {
+          "name": "idempotency_key_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "request_payload_hash": {
+          "name": "request_payload_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "usage_hold_id": {
+          "name": "usage_hold_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "actor_type": {
+          "name": "actor_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "retention_until": {
+          "name": "retention_until",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "aegis_audit_events_request_idx": {
+          "name": "aegis_audit_events_request_idx",
+          "columns": [
+            {
+              "expression": "request_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "aegis_audit_events_precheck_idx": {
+          "name": "aegis_audit_events_precheck_idx",
+          "columns": [
+            {
+              "expression": "precheck_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "aegis_audit_events_stage_check": {
+          "name": "aegis_audit_events_stage_check",
+          "value": "\"stage\" = 'PRECHECK'"
+        },
+        "aegis_audit_events_actor_type_check": {
+          "name": "aegis_audit_events_actor_type_check",
+          "value": "\"actor_type\" = 'AGENT'"
+        },
+        "aegis_audit_events_network_check": {
+          "name": "aegis_audit_events_network_check",
+          "value": "\"network_id\" = 'hedera:testnet'"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.aegis_policies": {
+      "name": "aegis_policies",
+      "schema": "",
+      "columns": {
+        "policy_id": {
+          "name": "policy_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "policy_series_id": {
+          "name": "policy_series_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "agent_id": {
+          "name": "agent_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "wallet_id": {
+          "name": "wallet_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "policy_version": {
+          "name": "policy_version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "policy_hash": {
+          "name": "policy_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "aegis_policy_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "valid_from": {
+          "name": "valid_from",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "valid_until": {
+          "name": "valid_until",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "rules": {
+          "name": "rules",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "semantic_rules": {
+          "name": "semantic_rules",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "operator_address": {
+          "name": "operator_address",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "operator_signature": {
+          "name": "operator_signature",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "operator_message": {
+          "name": "operator_message",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "operator_commitment": {
+          "name": "operator_commitment",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "activated_at": {
+          "name": "activated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "revoked_at": {
+          "name": "revoked_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "superseded_at": {
+          "name": "superseded_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "superseded_by_policy_id": {
+          "name": "superseded_by_policy_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "aegis_policies_one_active_per_wallet": {
+          "name": "aegis_policies_one_active_per_wallet",
+          "columns": [
+            {
+              "expression": "agent_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "wallet_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"status\" = 'ACTIVE'",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "aegis_policies_agent_wallet_idx": {
+          "name": "aegis_policies_agent_wallet_idx",
+          "columns": [
+            {
+              "expression": "agent_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "wallet_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "aegis_policies_series_version_unique": {
+          "name": "aegis_policies_series_version_unique",
+          "columns": [
+            {
+              "expression": "policy_series_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "policy_version",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "aegis_policies_agent_id_aegis_agents_agent_id_fk": {
+          "name": "aegis_policies_agent_id_aegis_agents_agent_id_fk",
+          "tableFrom": "aegis_policies",
+          "tableTo": "aegis_agents",
+          "columnsFrom": [
+            "agent_id"
+          ],
+          "columnsTo": [
+            "agent_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "aegis_policies_wallet_id_aegis_wallets_wallet_id_fk": {
+          "name": "aegis_policies_wallet_id_aegis_wallets_wallet_id_fk",
+          "tableFrom": "aegis_policies",
+          "tableTo": "aegis_wallets",
+          "columnsFrom": [
+            "wallet_id"
+          ],
+          "columnsTo": [
+            "wallet_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "aegis_policies_agent_wallet_fk": {
+          "name": "aegis_policies_agent_wallet_fk",
+          "tableFrom": "aegis_policies",
+          "tableTo": "aegis_wallets",
+          "columnsFrom": [
+            "agent_id",
+            "wallet_id"
+          ],
+          "columnsTo": [
+            "agent_id",
+            "wallet_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.aegis_precheck_records": {
+      "name": "aegis_precheck_records",
+      "schema": "",
+      "columns": {
+        "precheck_id": {
+          "name": "precheck_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "request_id": {
+          "name": "request_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "agent_id": {
+          "name": "agent_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "wallet_id": {
+          "name": "wallet_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "policy_id": {
+          "name": "policy_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "policy_version": {
+          "name": "policy_version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "policy_hash": {
+          "name": "policy_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "action_hash": {
+          "name": "action_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "aegis_nonce": {
+          "name": "aegis_nonce",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "evaluated_at": {
+          "name": "evaluated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "aegis_precheck_record_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reason_code": {
+          "name": "reason_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "usage_hold_id": {
+          "name": "usage_hold_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "evaluator_version": {
+          "name": "evaluator_version",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "aegis_precheck_records_request_unique": {
+          "name": "aegis_precheck_records_request_unique",
+          "columns": [
+            {
+              "expression": "request_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "aegis_precheck_records_agent_wallet_idx": {
+          "name": "aegis_precheck_records_agent_wallet_idx",
+          "columns": [
+            {
+              "expression": "agent_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "wallet_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "aegis_precheck_records_request_id_aegis_action_requests_request_id_fk": {
+          "name": "aegis_precheck_records_request_id_aegis_action_requests_request_id_fk",
+          "tableFrom": "aegis_precheck_records",
+          "tableTo": "aegis_action_requests",
+          "columnsFrom": [
+            "request_id"
+          ],
+          "columnsTo": [
+            "request_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.aegis_teeml_audit_events": {
+      "name": "aegis_teeml_audit_events",
+      "schema": "",
+      "columns": {
+        "event_id": {
+          "name": "event_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "verification_id": {
+          "name": "verification_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "request_id": {
+          "name": "request_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "precheck_id": {
+          "name": "precheck_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "agent_id": {
+          "name": "agent_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "policy_hash": {
+          "name": "policy_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "action_hash": {
+          "name": "action_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "semantic_context_hash": {
+          "name": "semantic_context_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "teeml_request_hash": {
+          "name": "teeml_request_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "outcome": {
+          "name": "outcome",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reason_code": {
+          "name": "reason_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "occurred_at": {
+          "name": "occurred_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "retention_until": {
+          "name": "retention_until",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "aegis_teeml_audit_events_request_unique": {
+          "name": "aegis_teeml_audit_events_request_unique",
+          "columns": [
+            {
+              "expression": "request_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "aegis_teeml_audit_events_verification_id_aegis_teeml_verifications_verification_id_fk": {
+          "name": "aegis_teeml_audit_events_verification_id_aegis_teeml_verifications_verification_id_fk",
+          "tableFrom": "aegis_teeml_audit_events",
+          "tableTo": "aegis_teeml_verifications",
+          "columnsFrom": [
+            "verification_id"
+          ],
+          "columnsTo": [
+            "verification_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "aegis_teeml_audit_events_outcome_check": {
+          "name": "aegis_teeml_audit_events_outcome_check",
+          "value": "(\n        (\"outcome\" IN ('TEEML_ALLOWED', 'TEEML_DENIED')\n          AND \"verification_id\" IS NOT NULL\n          AND \"semantic_context_hash\" ~ '^0x[0-9a-f]{64}$'\n          AND \"teeml_request_hash\" ~ '^0x[0-9a-f]{64}$')\n        OR\n        (\"outcome\" = 'TEEML_FAILED'\n          AND ((\"semantic_context_hash\" IS NULL AND \"teeml_request_hash\" IS NULL)\n            OR (\"semantic_context_hash\" ~ '^0x[0-9a-f]{64}$'\n              AND \"teeml_request_hash\" ~ '^0x[0-9a-f]{64}$')))\n      )"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.aegis_teeml_verifications": {
+      "name": "aegis_teeml_verifications",
+      "schema": "",
+      "columns": {
+        "verification_id": {
+          "name": "verification_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "request_id": {
+          "name": "request_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "precheck_id": {
+          "name": "precheck_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "agent_id": {
+          "name": "agent_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "agentic_id": {
+          "name": "agentic_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "policy_id": {
+          "name": "policy_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "policy_version": {
+          "name": "policy_version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "policy_hash": {
+          "name": "policy_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "action_hash": {
+          "name": "action_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "semantic_context_hash": {
+          "name": "semantic_context_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "teeml_request_hash": {
+          "name": "teeml_request_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "aegis_teeml_verification_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "verdict": {
+          "name": "verdict",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reason_code": {
+          "name": "reason_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "technical_reason_code": {
+          "name": "technical_reason_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "provider_address": {
+          "name": "provider_address",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "model_id": {
+          "name": "model_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "trust_mode": {
+          "name": "trust_mode",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tee_verified": {
+          "name": "tee_verified",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "response_id": {
+          "name": "response_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "response_hash": {
+          "name": "response_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "trace_hash": {
+          "name": "trace_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "prompt_tokens": {
+          "name": "prompt_tokens",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "completion_tokens": {
+          "name": "completion_tokens",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "latency_ms": {
+          "name": "latency_ms",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "evaluated_at": {
+          "name": "evaluated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "aegis_teeml_verifications_request_unique": {
+          "name": "aegis_teeml_verifications_request_unique",
+          "columns": [
+            {
+              "expression": "request_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "aegis_teeml_verifications_precheck_unique": {
+          "name": "aegis_teeml_verifications_precheck_unique",
+          "columns": [
+            {
+              "expression": "precheck_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "aegis_teeml_verifications_request_id_aegis_action_requests_request_id_fk": {
+          "name": "aegis_teeml_verifications_request_id_aegis_action_requests_request_id_fk",
+          "tableFrom": "aegis_teeml_verifications",
+          "tableTo": "aegis_action_requests",
+          "columnsFrom": [
+            "request_id"
+          ],
+          "columnsTo": [
+            "request_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "aegis_teeml_verifications_precheck_id_aegis_precheck_records_precheck_id_fk": {
+          "name": "aegis_teeml_verifications_precheck_id_aegis_precheck_records_precheck_id_fk",
+          "tableFrom": "aegis_teeml_verifications",
+          "tableTo": "aegis_precheck_records",
+          "columnsFrom": [
+            "precheck_id"
+          ],
+          "columnsTo": [
+            "precheck_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "aegis_teeml_verifications_context_commitment_check": {
+          "name": "aegis_teeml_verifications_context_commitment_check",
+          "value": "(\n        \"policy_hash\" ~ '^0x[0-9a-f]{64}$'\n        AND \"action_hash\" ~ '^0x[0-9a-f]{64}$'\n        AND \"semantic_context_hash\" ~ '^0x[0-9a-f]{64}$'\n        AND \"teeml_request_hash\" ~ '^0x[0-9a-f]{64}$'\n      )"
+        },
+        "aegis_teeml_verifications_result_check": {
+          "name": "aegis_teeml_verifications_result_check",
+          "value": "(\n        (\"status\" = 'PROCESSING'\n          AND \"verdict\" IS NULL\n          AND \"reason_code\" IS NULL\n          AND \"technical_reason_code\" IS NULL\n          AND \"response_hash\" IS NULL)\n        OR\n        (\"status\" IN ('ALLOWED', 'DENIED')\n          AND \"verdict\" = CASE WHEN \"status\" = 'ALLOWED' THEN 'ALLOW' ELSE 'DENY' END\n          AND \"reason_code\" IS NOT NULL\n          AND \"technical_reason_code\" IS NULL\n          AND \"model_id\" IS NOT NULL\n          AND \"trust_mode\" = 'private'\n          AND \"tee_verified\" = true\n          AND \"response_hash\" ~ '^0x[0-9a-f]{64}$'\n          AND \"latency_ms\" >= 0\n          AND \"evaluated_at\" IS NOT NULL)\n        OR\n        (\"status\" = 'FAILED'\n          AND \"verdict\" IS NULL\n          AND \"reason_code\" IS NULL\n          AND \"technical_reason_code\" IS NOT NULL)\n      )"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.aegis_usage_holds": {
+      "name": "aegis_usage_holds",
+      "schema": "",
+      "columns": {
+        "usage_hold_id": {
+          "name": "usage_hold_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "request_id": {
+          "name": "request_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "precheck_id": {
+          "name": "precheck_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "agent_id": {
+          "name": "agent_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "wallet_id": {
+          "name": "wallet_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "policy_id": {
+          "name": "policy_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "policy_version": {
+          "name": "policy_version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "policy_hash": {
+          "name": "policy_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "asset_id": {
+          "name": "asset_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "amount": {
+          "name": "amount",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "action_count": {
+          "name": "action_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "aegis_usage_hold_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "held_at": {
+          "name": "held_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "released_at": {
+          "name": "released_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "expired_at": {
+          "name": "expired_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "committed_at": {
+          "name": "committed_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "aegis_usage_holds_request_unique": {
+          "name": "aegis_usage_holds_request_unique",
+          "columns": [
+            {
+              "expression": "request_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "aegis_usage_holds_precheck_unique": {
+          "name": "aegis_usage_holds_precheck_unique",
+          "columns": [
+            {
+              "expression": "precheck_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "aegis_usage_holds_policy_wallet_idx": {
+          "name": "aegis_usage_holds_policy_wallet_idx",
+          "columns": [
+            {
+              "expression": "agent_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "wallet_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "policy_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "aegis_usage_holds_active_idx": {
+          "name": "aegis_usage_holds_active_idx",
+          "columns": [
+            {
+              "expression": "wallet_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "policy_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "expires_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "aegis_usage_holds_request_id_aegis_action_requests_request_id_fk": {
+          "name": "aegis_usage_holds_request_id_aegis_action_requests_request_id_fk",
+          "tableFrom": "aegis_usage_holds",
+          "tableTo": "aegis_action_requests",
+          "columnsFrom": [
+            "request_id"
+          ],
+          "columnsTo": [
+            "request_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "aegis_usage_holds_precheck_id_aegis_precheck_records_precheck_id_fk": {
+          "name": "aegis_usage_holds_precheck_id_aegis_precheck_records_precheck_id_fk",
+          "tableFrom": "aegis_usage_holds",
+          "tableTo": "aegis_precheck_records",
+          "columnsFrom": [
+            "precheck_id"
+          ],
+          "columnsTo": [
+            "precheck_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "aegis_usage_holds_asset_id_aegis_asset_catalog_asset_id_fk": {
+          "name": "aegis_usage_holds_asset_id_aegis_asset_catalog_asset_id_fk",
+          "tableFrom": "aegis_usage_holds",
+          "tableTo": "aegis_asset_catalog",
+          "columnsFrom": [
+            "asset_id"
+          ],
+          "columnsTo": [
+            "asset_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "aegis_usage_holds_amount_check": {
+          "name": "aegis_usage_holds_amount_check",
+          "value": "\"amount\" ~ '^(0|[1-9][0-9]*)$' AND \"amount\" <> '0'"
+        },
+        "aegis_usage_holds_action_count_check": {
+          "name": "aegis_usage_holds_action_count_check",
+          "value": "\"action_count\" = 1"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.aegis_wallet_nonces": {
+      "name": "aegis_wallet_nonces",
+      "schema": "",
+      "columns": {
+        "wallet_id": {
+          "name": "wallet_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "next_nonce": {
+          "name": "next_nonce",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "1"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "aegis_wallet_nonces_wallet_id_aegis_wallets_wallet_id_fk": {
+          "name": "aegis_wallet_nonces_wallet_id_aegis_wallets_wallet_id_fk",
+          "tableFrom": "aegis_wallet_nonces",
+          "tableTo": "aegis_wallets",
+          "columnsFrom": [
+            "wallet_id"
+          ],
+          "columnsTo": [
+            "wallet_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.aegis_wallets": {
+      "name": "aegis_wallets",
+      "schema": "",
+      "columns": {
+        "wallet_id": {
+          "name": "wallet_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "agent_id": {
+          "name": "agent_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "network_id": {
+          "name": "network_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'hedera:testnet'"
+        },
+        "safe_address": {
+          "name": "safe_address",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "aegis_wallet_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "aegis_wallets_agent_idx": {
+          "name": "aegis_wallets_agent_idx",
+          "columns": [
+            {
+              "expression": "agent_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "aegis_wallets_agent_wallet_unique": {
+          "name": "aegis_wallets_agent_wallet_unique",
+          "columns": [
+            {
+              "expression": "agent_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "wallet_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "aegis_wallets_network_safe_unique": {
+          "name": "aegis_wallets_network_safe_unique",
+          "columns": [
+            {
+              "expression": "network_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "safe_address",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "aegis_wallets_agent_id_aegis_agents_agent_id_fk": {
+          "name": "aegis_wallets_agent_id_aegis_agents_agent_id_fk",
+          "tableFrom": "aegis_wallets",
+          "tableTo": "aegis_agents",
+          "columnsFrom": [
+            "agent_id"
+          ],
+          "columnsTo": [
+            "agent_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "aegis_wallets_network_check": {
+          "name": "aegis_wallets_network_check",
+          "value": "\"network_id\" = 'hedera:testnet'"
+        }
+      },
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {
+    "public.aegis_action_request_status": {
+      "name": "aegis_action_request_status",
+      "schema": "public",
+      "values": [
+        "RECEIVED",
+        "DENIED_PRECHECK",
+        "PENDING_TEEML",
+        "TEEML_PROCESSING",
+        "TEEML_ALLOWED",
+        "TEEML_DENIED",
+        "TEEML_FAILED"
+      ]
+    },
+    "public.aegis_agent_status": {
+      "name": "aegis_agent_status",
+      "schema": "public",
+      "values": [
+        "ACTIVE",
+        "PAUSED",
+        "RETIRED"
+      ]
+    },
+    "public.aegis_asset_catalog_kind": {
+      "name": "aegis_asset_catalog_kind",
+      "schema": "public",
+      "values": [
+        "HBAR",
+        "HTS_FUNGIBLE"
+      ]
+    },
+    "public.aegis_asset_catalog_status": {
+      "name": "aegis_asset_catalog_status",
+      "schema": "public",
+      "values": [
+        "ACTIVE",
+        "DISABLED"
+      ]
+    },
+    "public.aegis_policy_status": {
+      "name": "aegis_policy_status",
+      "schema": "public",
+      "values": [
+        "DRAFT",
+        "ACTIVE",
+        "SUPERSEDED",
+        "REVOKED"
+      ]
+    },
+    "public.aegis_precheck_record_status": {
+      "name": "aegis_precheck_record_status",
+      "schema": "public",
+      "values": [
+        "PASS_TO_TEEML",
+        "DENY_PRECHECK"
+      ]
+    },
+    "public.aegis_teeml_verification_status": {
+      "name": "aegis_teeml_verification_status",
+      "schema": "public",
+      "values": [
+        "PROCESSING",
+        "ALLOWED",
+        "DENIED",
+        "FAILED"
+      ]
+    },
+    "public.aegis_usage_hold_status": {
+      "name": "aegis_usage_hold_status",
+      "schema": "public",
+      "values": [
+        "HELD",
+        "RELEASED",
+        "EXPIRED",
+        "COMMITTED"
+      ]
+    },
+    "public.aegis_wallet_status": {
+      "name": "aegis_wallet_status",
+      "schema": "public",
+      "values": [
+        "PROTECTED",
+        "PAUSED",
+        "RETIRED",
+        "DEAD"
+      ]
+    }
+  },
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}

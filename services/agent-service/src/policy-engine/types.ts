@@ -2,6 +2,11 @@ export const POLICY_HASH_SCHEMA = "aegis.policy.level1.v1";
 export const OPERATOR_MESSAGE_SCHEMA = "aegis.policy.commitment.v1";
 export const NETWORK_ID = "hedera:testnet";
 export const HEDERA_TESTNET_CHAIN_ID = 296;
+export const TRUSTED_SERVICE_DESCRIPTOR_RULE_KIND = "TRUSTED_SERVICE_DESCRIPTOR_V1";
+export const MAX_SEMANTIC_RULES = 20;
+export const MAX_SEMANTIC_RULE_STRING_LENGTH = 256;
+export const MAX_SEMANTIC_RULES_PAYLOAD_BYTES = 16_384;
+export const MAX_TRUSTED_SERVICE_SET_ITEMS = 20;
 
 export type BaseUnitAmount = string;
 export type UnixSeconds = number;
@@ -39,6 +44,19 @@ export type SemanticRule = {
   ruleId: string;
   kind: string;
   params: Record<string, unknown>;
+};
+
+export type TrustedServiceDescriptorV1 = Record<string, unknown> & {
+  schemaVersion: "1.0";
+  providerId: string;
+  serviceId: string;
+  productId?: string;
+  networkId: typeof NETWORK_ID;
+  destinationIds: string[];
+  categoryIds: string[];
+  capabilityIds: string[];
+  metadataHash: Hex32;
+  shortDescription?: string;
 };
 
 export type PolicyRules = {

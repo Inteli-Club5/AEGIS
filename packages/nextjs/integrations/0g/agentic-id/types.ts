@@ -32,11 +32,14 @@ export type CreateAgenticIdForAegisAgentInput = {
   capabilities: string[];
   agentWalletAddress: Address;
   policyHash: Hex;
+  expectedChainId: number;
+  expectedAgenticIdContractAddress: Address;
   metadata?: Record<string, unknown>;
 };
 
 export type CreateAgenticIdForAegisAgentResult = {
   aegisAgentId: string;
+  chainId: number;
   agenticIdTokenId: string;
   agenticIdContractAddress: Address;
   metadataHash: Hex;

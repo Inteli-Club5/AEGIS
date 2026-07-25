@@ -430,3 +430,197 @@ oldest at the top, newest at the bottom. Use English AM/PM timestamps. Format:
 - blockers: none.
 - interfaces touched: no runtime API or migration SQL behavior changed in this
   step; Drizzle generation metadata and schema serialization were corrected.
+
+## 2026-07-25 03:55 PM - Codex - 0G TeeML semantic-verifier discovery
+- did: created `feat/0g-teeml-semantic-verifier`, read the current Level 1
+  sources and existing Agentic ID/Hedera paths, audited the free-text semantic
+  context and persistence model, and consulted the required official 0G Router,
+  Private Computer, SDK, and skill sources. Documented the current Router
+  contract and the missing trusted-evidence prerequisite in
+  `docs/0g/teeml-sources.md` and
+  `docs/0g/teeml-semantic-verifier.md`. No runtime integration, dependency,
+  migration, fallback, signer, Safe execution, or Hedera execution was added.
+- next: implement a separately approved, operator-signed
+  `TrustedServiceDescriptorV1` Policy contract and durable verified Agentic ID
+  capability source, then explicitly version the Level 1 action commitment
+  without caller-controlled semantic prose.
+- blockers: `TEEML_SCOPE_BLOCKED_TRUSTED_SEMANTIC_EVIDENCE_MISSING`. The
+  repository has no trusted service/product descriptor or signed task source,
+  and persisted action requests cannot reconstruct the structured
+  Level 1-approved action after restart.
+- interfaces touched: documentation only; no runtime interface changed.
+
+## 2026-07-25 04:00 PM - Codex - 0G TeeML semantic verifier implementation
+- did: implemented the fail-closed 0G Router/private TeeML flow in
+  `services/agent-service`, including strict transient semantic context,
+  deterministic context/request commitments, strict verdict parsing, live
+  private-provider catalog validation, Router TEE verification, independent
+  SDK signature/content verification, sanitized PostgreSQL artifacts, state and
+  UsageHold transitions, concurrency locks, and no automatic retry. Added the
+  operator-signed trusted service descriptor, durable Agentic ID capability and
+  registration ledgers, authenticated Agentic ID coordination, shared
+  canonical metadata commitments, and migrations `0003` through `0005`.
+  Removed caller-controlled semantic prose from Level 1 requests and
+  persistence, documented current trust boundaries and inherited limitations,
+  and added the opt-in real 0G evidence command. Validation passed: Drizzle
+  generation (no drift), migrations, 170 unit tests, 39 PostgreSQL integration
+  tests, agent-service typecheck/lint/build, Next.js typecheck/lint/production
+  build, privacy/fallback greps, and `git diff --check`.
+- next: configure a funded Router key and a live private TeeML model, run
+  `npm run test:0g:teeml` through real ALLOW and DENY cases, review the
+  sanitized evidence, and obtain human approval before any commit.
+- blockers: `TEEML_REAL_INTEGRATION_BLOCKED`; `ZG_ROUTER_API_KEY` and
+  `ZG_TEEML_MODEL` are not configured, so provider availability, real cost,
+  latency, token usage, and `docs/evidence/0g-teeml-verification.json` cannot be
+  verified. Separate inherited work remains for agent credential/profile
+  provisioning, the legacy fixed Safe owner/guardian configuration, and a
+  versioned live-Policy Agentic ID update.
+- interfaces touched: strict Level 1 precheck v2; signed
+  `TRUSTED_SERVICE_DESCRIPTOR_V1`; `TrustedSemanticContext`;
+  `TeeMlSemanticVerdict`; `VerifiedTeeMlArtifact`; Agentic ID registration
+  commitment/ledger; agent and internal-service authentication; TeeML HTTP
+  route, statuses, technical codes, and UsageHold behavior.
+
+## 2026-07-25 04:15 PM - Codex - 0G Router testnet profile and credential guard
+- did: investigated the supplied 0G configuration without printing secrets,
+  found a wallet-shaped 64-hex value in the Router API-key slot, stopped further
+  inference attempts, restricted the local env file to mode `0600`, and added a
+  constructor guard that accepts only `sk-` inference keys before any network
+  use. Added exact allowlisted mainnet/testnet Router profiles with paired RPCs
+  and explicit chain IDs, selected the official testnet Router for this branch,
+  aligned provider discovery with the documented `model_id` parameter, and
+  kept local exact-model filtering. The public testnet catalog was consulted
+  without credentials: its chatbot is TeeTLS and its only TeeML entry is an
+  image editor, so no semantic inference or evidence was fabricated. Updated
+  current 0G documentation and env examples. Validation passed: 176 unit tests,
+  agent-service typecheck/lint/build, focused 0G adapter tests, and
+  `git diff --check`.
+- next: create a testnet Router inference key beginning with `sk-` through
+  `pc.testnet.0g.ai`, fund the Router deposit, and recheck the live catalog. Run
+  the two-case opt-in evidence test only when testnet exposes a private TeeML
+  chatbot; otherwise use a separately funded mainnet Router profile with human
+  approval.
+- blockers: `TEEML_REAL_INTEGRATION_BLOCKED`; the current local credential is
+  not a Router inference key, and the 2026-07-25 public testnet catalog has no
+  private TeeML chatbot. AEGIS does not downgrade to TeeTLS or use the TeeML
+  image editor as a semantic-verifier fallback.
+- interfaces touched: `ZG_ROUTER_BASE_URL` now selects one of two exact Router
+  network profiles; the corresponding Compute RPC and chain ID are derived and
+  cannot be independently overridden. Router inference keys now require the
+  official `sk-` prefix before catalog or completion dispatch.
+
+## 2026-07-25 04:30 PM - Codex - 0G testnet private TeeML live preflight
+- did: validated the updated local secret only through non-sensitive metadata:
+  the value has the required `sk-` prefix, the env file remains ignored with
+  mode `0600`, and the selected Router is the exact official testnet profile.
+  Re-queried the public testnet model catalog and ran the opt-in live command.
+  Both executions failed closed with `TEEML_NOT_PRIVATE` before completion
+  dispatch because the configured TeeML chatbot is absent from testnet and the
+  only available chatbot is TeeTLS. Enhanced the sanitized live-test result to
+  report `requestDispatched`; the confirmed value is `false`. No inference,
+  charge evidence, semantic plaintext, raw response, or evidence file was
+  produced. Updated the operational documentation to distinguish local key
+  format validation from unexercised remote Router authentication. Validation
+  passed: 176 unit tests, agent-service typecheck/lint/build, migrations on
+  real PostgreSQL, 39 PostgreSQL integration tests, and `git diff --check`.
+  Independent review found no high or medium issue; its one low operational
+  reporting gap was fixed so post-completion live-test failures report
+  `requestDispatched: true` instead of an unknown value.
+- next: wait for the official testnet Router catalog to expose a private TeeML
+  chatbot, or obtain human approval and a funded mainnet Router profile. Then
+  run exactly one real ALLOW and one real DENY case and review the sanitized
+  evidence before declaring the branch ready.
+- blockers: `TEEML_REAL_INTEGRATION_BLOCKED`; the official testnet catalog has
+  no private TeeML chatbot. The local `sk-` shape is valid, but remote
+  authentication, Router credit, `tee_verified`, provider signature, model
+  verdicts, cost, latency, and token usage cannot be exercised without an
+  eligible provider.
+- interfaces touched: the opt-in command now includes the sanitized
+  `requestDispatched` classification in blocked output. Runtime HTTP and
+  persistence contracts are unchanged.
+
+## 2026-07-25 05:05 PM - Codex - 0G hackathon TeeTLS semantic verifier
+- did: implemented an explicit two-profile 0G security contract without a
+  downgrade path. `production-private-teeml` is the default, requires mainnet,
+  private routing, TeeML, and sealed inference. The temporary
+  `hackathon-testnet-teetls` profile requires testnet, verified routing, TeeTLS,
+  and records `sealedInference: false`; its centralized broker-signer handling
+  is isolated from production. Both profiles pin the catalog-selected provider,
+  set Router fallbacks to false, request `verify_tee: true`, validate
+  `x_0g_trace.tee_verified`, compare signed content byte-for-byte, and verify the
+  signature through `@0gfoundation/0g-compute-ts-sdk@0.9.0`. Added migrations
+  `0006` and `0007` for exact, non-null profile tuples, profile-aware HTTP and
+  sanitized evidence contracts, no-retry live diagnostics, privacy/fallback
+  documentation, and coverage scripts. Validation passed: 193 unit tests, 41
+  PostgreSQL integration tests, coverage at 85.34% lines / 86.94% branches /
+  87.49% functions, migration on real PostgreSQL, Drizzle no-drift generation,
+  typecheck, lint, build, and independent security review with no high or medium
+  findings. A single authorized live TeeTLS run selected the real provider and
+  received sanitized HTTP 402 after dispatch; no retry or evidence file was
+  produced.
+- next: fund the Router testnet Payment Layer account, then run exactly one real
+  TeeTLS ALLOW and DENY pair and review
+  `docs/evidence/0g-teetls-hackathon-verification.json` before human approval.
+- blockers: `TEEML_REAL_INTEGRATION_BLOCKED`; the 0G Router testnet Payment
+  Layer account returned HTTP 402 for insufficient credit. Real `tee_verified`,
+  signed-content verification, verdict hashes, latency, token usage, and the
+  sanitized ALLOW/DENY evidence cannot be recorded until that account is
+  funded. Production Private/TeeML mainnet evidence remains a separate future
+  deployment requirement.
+- interfaces touched: added `ZG_TEEML_SECURITY_PROFILE`, the exact production
+  and hackathon security tuples, `securityProfile`, `verificationMode`, and
+  `sealedInference` to final artifacts and HTTP responses, migrations `0006`
+  and `0007`, and separate opt-in commands/evidence paths for production TeeML
+  and hackathon TeeTLS.
+
+## 2026-07-25 05:46 PM - Codex - 0G verifier final integrity hardening
+- did: completed the production Private/TeeML and explicit hackathon testnet
+  TeeTLS separation. Reserved `TEEML_ALLOWED` for the exact production tuple,
+  introduced `TEETLS_HACKATHON_ALLOWED` for demo evidence, and released the
+  UsageHold for every hackathon result so it cannot reach the future signer or
+  execution handoff. Added upgrade-safe migrations through `0011`, including
+  reconciliation of legacy nullable proof rows, exact profile constraints, an
+  action handoff trigger, immutable final verification artifacts, and an
+  audit-to-verification/action binding trigger. Added direct SQL tampering,
+  empty-database, transactional upgrade, restart, concurrency, privacy, and
+  hold tests. Final validation passed: PostgreSQL migrations; 194 unit tests;
+  44 PostgreSQL integration tests; 85.31% line, 87.00% branch, and 87.53%
+  function coverage; agent-service typecheck, lint, and build; Drizzle no-drift
+  generation; Next.js typecheck, lint, and production build; privacy/fallback
+  audits; and two independent reviews after the reported database integrity
+  findings were fixed. The production opt-in preflight against the local
+  testnet configuration failed closed with `TEEML_CONFIG_ERROR` and
+  `requestDispatched: false`, confirming that no profile/network downgrade is
+  possible.
+- next: fund the 0G Router testnet Payment Layer account, run exactly one real
+  TeeTLS ALLOW and DENY pair, inspect the sanitized evidence, and obtain human
+  approval before any commit. For production deployment, switch to the default
+  mainnet `production-private-teeml` profile and obtain separate real
+  Private/TeeML evidence.
+- blockers: `TEEML_REAL_INTEGRATION_BLOCKED`; the only attempted real
+  hackathon call selected and reached the actual testnet TeeTLS provider but
+  returned Router HTTP 402 for insufficient Payment Layer credit. No retry,
+  model verdict, verified signed response, or evidence file was fabricated.
+- interfaces touched: distinct production and hackathon ALLOW states across
+  verification, action, HTTP, and sanitized audit contracts; hackathon ALLOW
+  now releases the UsageHold; final database artifacts are immutable and audit
+  rows must match the linked final verification and action tuple exactly.
+
+## 2026-07-25 07:08 PM - Codex - funded 0G TeeTLS live retry and branch handoff
+- did: re-ran the explicitly authorized hackathon test after the Router testnet
+  Payment Layer was funded. The real completion request was dispatched to the
+  selected TeeTLS provider, resolving the prior HTTP 402 blocker. The provider's
+  subsequent signed-response endpoint returned HTTP 400, and AEGIS failed
+  closed with `TEEML_NOT_VERIFIED / SIGNATURE_UNAVAILABLE`. No automatic retry,
+  unsigned verdict acceptance, raw artifact, or evidence file was produced.
+  Updated current-status documentation and prepared the full branch for the
+  human-approved commit and remote push.
+- next: confirm signed-response availability for the selected testnet TeeTLS
+  provider, then run one newly authorized ALLOW and DENY pair and inspect the
+  sanitized evidence.
+- blockers: `TEEML_REAL_INTEGRATION_BLOCKED`; real completion dispatch is
+  funded and functional, but the provider signature endpoint returns HTTP 400,
+  so no cryptographically verified ALLOW/DENY evidence exists yet. Production
+  Private/TeeML mainnet evidence remains a separate deployment requirement.
+- interfaces touched: none; runtime, HTTP, database, and evidence contracts are
+  unchanged by the live retry.

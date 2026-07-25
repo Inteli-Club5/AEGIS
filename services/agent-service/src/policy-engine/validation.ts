@@ -1,6 +1,10 @@
 import {
   HEDERA_TESTNET_CHAIN_ID,
+  MAX_SEMANTIC_RULES,
+  MAX_SEMANTIC_RULES_PAYLOAD_BYTES,
+  MAX_SEMANTIC_RULE_STRING_LENGTH,
   NETWORK_ID,
+  TRUSTED_SERVICE_DESCRIPTOR_RULE_KIND,
   type ActivatePolicyRequest,
   type AssetIdentity,
   type BaseUnitAmount,
@@ -14,6 +18,7 @@ import {
 } from "./types.js";
 import { badRequest } from "./errors.js";
 import { stableStringify } from "./canonicalize.js";
+import { normalizeTrustedServiceDescriptor } from "./trusted-service-descriptor.js";
 
 const EVM_ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/;
 const HEDERA_ACCOUNT_ID_RE = /^\d+\.\d+\.\d+$/;
@@ -129,18 +134,32 @@ export function normalizePolicyRules(input: unknown): PolicyRules {
 }
 
 export function normalizeSemanticRules(input: unknown[]): SemanticRule[] {
-  return uniqueSortedByCanonical(
+  if (input.length > MAX_SEMANTIC_RULES) {
+    badRequest("semantic_rules_too_many", `semanticRules must contain at most ${MAX_SEMANTIC_RULES} rules`);
+  }
+  const normalized = uniqueSortedByCanonical(
     input.map((value, index) => {
       const rule = objectOf(value, `semanticRules[${index}]`);
       rejectUnknownKeys(rule, ["ruleId", "kind", "params"], `semanticRules[${index}]`);
 
+      const kind = boundedSemanticString(rule.kind, `semanticRules[${index}].kind`);
       return {
-        ruleId: requiredIdentifier(rule.ruleId, `semanticRules[${index}].ruleId`),
-        kind: requiredString(rule.kind, `semanticRules[${index}].kind`),
-        params: jsonRecord(rule.params, `semanticRules[${index}].params`),
+        ruleId: boundedSemanticString(rule.ruleId, `semanticRules[${index}].ruleId`).toLowerCase(),
+        kind: kind.toUpperCase() === TRUSTED_SERVICE_DESCRIPTOR_RULE_KIND ? TRUSTED_SERVICE_DESCRIPTOR_RULE_KIND : kind,
+        params:
+          kind.toUpperCase() === TRUSTED_SERVICE_DESCRIPTOR_RULE_KIND
+            ? normalizeTrustedServiceDescriptor(rule.params, `semanticRules[${index}].params`)
+            : jsonRecord(rule.params, `semanticRules[${index}].params`),
       };
     }),
   );
+  if (new TextEncoder().encode(stableStringify(normalized)).byteLength > MAX_SEMANTIC_RULES_PAYLOAD_BYTES) {
+    badRequest(
+      "semantic_rules_payload_too_large",
+      `semanticRules canonical payload must not exceed ${MAX_SEMANTIC_RULES_PAYLOAD_BYTES} bytes`,
+    );
+  }
+  return normalized;
 }
 
 export function getEffectivePolicyStatus(input: { status: string; validUntil: number | null }, now: number): string {
@@ -241,6 +260,14 @@ function requiredString(input: unknown, path: string): string {
 
 function requiredIdentifier(input: unknown, path: string): string {
   return requiredString(input, path).toLowerCase();
+}
+
+function boundedSemanticString(input: unknown, path: string): string {
+  const value = requiredString(input, path);
+  if (value.length > MAX_SEMANTIC_RULE_STRING_LENGTH) {
+    badRequest("semantic_rule_string_too_long", `${path} must not exceed ${MAX_SEMANTIC_RULE_STRING_LENGTH} characters`);
+  }
+  return value;
 }
 
 function actionType(input: unknown, path: string): string {
@@ -349,7 +376,13 @@ function jsonRecord(input: unknown, path: string): Record<string, unknown> {
 
 function validateJsonValue(input: unknown, path: string): void {
   if (input === null) return;
-  if (typeof input === "string" || typeof input === "boolean") return;
+  if (typeof input === "string") {
+    if (input.length > MAX_SEMANTIC_RULE_STRING_LENGTH) {
+      badRequest("semantic_rule_string_too_long", `${path} must not exceed ${MAX_SEMANTIC_RULE_STRING_LENGTH} characters`);
+    }
+    return;
+  }
+  if (typeof input === "boolean") return;
   if (typeof input === "number") {
     if (!Number.isFinite(input)) badRequest("invalid_json_value", `${path} must contain only finite JSON numbers`);
     return;
@@ -360,6 +393,9 @@ function validateJsonValue(input: unknown, path: string): void {
   }
   if (typeof input === "object") {
     for (const [key, value] of Object.entries(input as Record<string, unknown>)) {
+      if (key.length > MAX_SEMANTIC_RULE_STRING_LENGTH) {
+        badRequest("semantic_rule_string_too_long", `${path} property names must not exceed ${MAX_SEMANTIC_RULE_STRING_LENGTH} characters`);
+      }
       if (value === undefined) badRequest("invalid_json_value", `${path}.${key} must not be undefined`);
       validateJsonValue(value, `${path}.${key}`);
     }

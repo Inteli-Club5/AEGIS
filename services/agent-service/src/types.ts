@@ -26,8 +26,11 @@ export type AgentProfile = {
   createdAt: string;
   safeAddress?: string;
   agenticId?: {
+    agenticId: string;
     tokenId: string;
     contractAddress: string;
+    metadataHash: `0x${string}`;
+    capabilityIds: readonly string[];
     metadataURI: string;
     explorerUrl: string;
   };

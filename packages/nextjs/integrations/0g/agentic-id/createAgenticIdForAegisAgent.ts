@@ -32,7 +32,7 @@ const toBytes32 = (value: string, label: string): Hex => {
 const normalizePrivateKey = (value: string) => {
   const privateKey = value.startsWith("0x") ? value : `0x${value}`;
   if (!/^0x[a-fA-F0-9]{64}$/.test(privateKey)) {
-    throw new Error("ZERO_G_PRIVATE_KEY or PRIVATE_KEY must be a 32-byte hex private key.");
+    throw new Error("ZERO_G_PRIVATE_KEY must be a 32-byte hex private key.");
   }
 
   return privateKey;
@@ -60,6 +60,11 @@ export const normalizeCreateAgenticIdInput = (input: unknown): CreateAgenticIdFo
     capabilities,
     agentWalletAddress: toAddress(String(raw.agentWalletAddress || ""), "agentWalletAddress"),
     policyHash: toBytes32(String(raw.policyHash || ""), "policyHash"),
+    expectedChainId: Number(raw.expectedChainId),
+    expectedAgenticIdContractAddress: toAddress(
+      String(raw.expectedAgenticIdContractAddress || ""),
+      "expectedAgenticIdContractAddress",
+    ),
     metadata: raw.metadata && typeof raw.metadata === "object" ? (raw.metadata as Record<string, unknown>) : undefined,
   };
 
@@ -67,6 +72,9 @@ export const normalizeCreateAgenticIdInput = (input: unknown): CreateAgenticIdFo
     if (!normalized[field]) {
       throw new Error(`${field} is required.`);
     }
+  }
+  if (!Number.isSafeInteger(normalized.expectedChainId) || normalized.expectedChainId <= 0) {
+    throw new Error("expectedChainId must be a positive integer.");
   }
 
   return normalized;
@@ -111,12 +119,19 @@ export const createAgenticIdForAegisAgent = async (
   rawInput: CreateAgenticIdForAegisAgentInput,
 ): Promise<CreateAgenticIdForAegisAgentResult> => {
   const input = normalizeCreateAgenticIdInput(rawInput);
+  const contractAddress = toAddress(getZeroGAgenticIdContractAddress(), "ZERO_G_AGENTIC_ID_CONTRACT_ADDRESS");
+  if (input.expectedChainId !== ZERO_G_GALILEO_CHAIN_ID || input.expectedAgenticIdContractAddress !== contractAddress) {
+    throw new Error("Agentic ID chain or contract does not match the backend commitment.");
+  }
   const rpcUrl = getServerZeroGGalileoRpcUrl();
   const provider = new JsonRpcProvider(rpcUrl, ZERO_G_GALILEO_CHAIN_ID);
-  const wallet = new Wallet(normalizePrivateKey(getRequiredEnvValue(["ZERO_G_PRIVATE_KEY", "PRIVATE_KEY"])), provider);
+  const network = await provider.getNetwork();
+  if (Number(network.chainId) !== ZERO_G_GALILEO_CHAIN_ID) {
+    throw new Error("0G Agentic ID RPC chain does not match ZERO_G_GALILEO_CHAIN_ID.");
+  }
+  const wallet = new Wallet(normalizePrivateKey(getRequiredEnvValue(["ZERO_G_PRIVATE_KEY"])), provider);
   const serviceSignerAddress = getAddress(await wallet.getAddress()) as Address;
   const ownerAddress = input.ownerAddress;
-  const contractAddress = toAddress(getZeroGAgenticIdContractAddress(), "ZERO_G_AGENTIC_ID_CONTRACT_ADDRESS");
   const contract = new Contract(contractAddress, agenticIdAbi, wallet);
 
   const metadata = buildAgentProfileMetadata(input);
@@ -162,18 +177,38 @@ export const createAgenticIdForAegisAgent = async (
     throw new Error("0G Agentic ID tokenURI does not match uploaded 0G Storage metadata URI.");
   }
 
-  // TODO(persistence): persist this result in the real AEGIS backend database
-  // after the core app storage layer exists. This function intentionally does
-  // not write local browser state.
+  const onChainIntelligentData = (
+    (await contract.getIntelligentDatas(tokenId)) as Array<{
+      dataDescription: string;
+      dataHash: string;
+    }>
+  ).map(item => ({
+    dataDescription: String(item.dataDescription),
+    dataHash: toBytes32(String(item.dataHash), "Agentic ID intelligent data hash"),
+  }));
+  if (
+    onChainIntelligentData.length !== intelligentData.length ||
+    onChainIntelligentData.some(
+      (item, index) =>
+        item.dataDescription !== intelligentData[index]?.dataDescription ||
+        item.dataHash.toLowerCase() !== intelligentData[index]?.dataHash.toLowerCase(),
+    )
+  ) {
+    throw new Error("0G Agentic ID on-chain intelligent data does not match the requested commitments.");
+  }
+
+  // The authenticated agent-service coordinator validates this result and
+  // atomically persists only its sanitized commitments.
   return {
     aegisAgentId: input.aegisAgentId,
+    chainId: ZERO_G_GALILEO_CHAIN_ID,
     agenticIdTokenId: tokenId.toString(),
     agenticIdContractAddress: contractAddress,
     metadataHash,
     metadataRootHash: uploadedMetadata.rootHash,
     metadataURI: uploadedMetadata.uri,
     metadata,
-    intelligentData,
+    intelligentData: onChainIntelligentData,
     metadataUploadTxHash: uploadedMetadata.uploadTxHash,
     mintTxHash: mintTx.hash as Hex,
     txHash: mintTx.hash as Hex,

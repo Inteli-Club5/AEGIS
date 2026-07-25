@@ -9,9 +9,21 @@ the current focus for the next agent session.
 
 ## Current Focus
 
-- [ ] Review and merge the Policy Engine Level 1 PR into `main`.
+- [ ] Confirm why the selected testnet TeeTLS provider returns HTTP 400 from
+  its signed-response endpoint, then run one newly authorized ALLOW and DENY
+  pair and review the sanitized hackathon evidence.
 
 ## Done
+
+- [x] 2026-07-25: Implemented explicit 0G semantic-verification security
+  profiles: mainnet-only Private/TeeML for production and testnet-only TeeTLS
+  for the hackathon, with provider pinning, no Router or application fallback,
+  strict TEE/signature/content verification, honest persistence labels, profile
+  isolation, separate demo-only ALLOW state, PostgreSQL constraints and handoff
+  triggers, immutable final artifacts, audit-to-verification binding,
+  documentation, and full local tests. Router testnet funding is now
+  available and the real request reaches the provider; live evidence remains
+  externally blocked because its signed-response endpoint returns HTTP 400.
 
 - [x] 2026-07-25: Round -1 and Round 0 scope/audit findings were consolidated
   into `docs/aegis-current-scope.md`.
