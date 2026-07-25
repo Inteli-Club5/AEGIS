@@ -433,18 +433,17 @@ class PostgresPrecheckTransaction implements PrecheckTransaction {
     this.failIf("action_request");
     await this.client.query(
       `insert into aegis_action_requests (
-         request_id, agent_id, wallet_id, idempotency_key_hash, request_payload_hash, private_payload,
-         reason_hash, aegis_nonce, policy_id, policy_version, policy_hash, action_hash, status,
+         request_id, agent_id, wallet_id, idempotency_key_hash, request_payload_hash, semantic_context_hash,
+         aegis_nonce, policy_id, policy_version, policy_hash, action_hash, status,
          functional_response, created_at, updated_at
-       ) values ($1, $2, $3, $4, $5, $6::jsonb, $7, $8, $9, $10, $11, $12, $13, $14::jsonb, $15, $16)`,
+       ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::jsonb, $14, $15)`,
       [
         record.requestId,
         record.agentId,
         record.walletId,
         record.idempotencyKeyHash,
         record.requestPayloadHash,
-        JSON.stringify(record.privatePayload),
-        record.reasonHash,
+        record.semanticContextHash,
         record.aegisNonce,
         record.policyId,
         record.policyVersion,
@@ -689,8 +688,7 @@ function mapActionRequest(row: Record<string, any>): ActionRequestRecord {
     walletId: row.wallet_id,
     idempotencyKeyHash: row.idempotency_key_hash,
     requestPayloadHash: row.request_payload_hash,
-    privatePayload: row.private_payload,
-    reasonHash: row.reason_hash,
+    semanticContextHash: row.semantic_context_hash,
     aegisNonce: row.aegis_nonce?.toString() ?? null,
     policyId: row.policy_id,
     policyVersion: row.policy_version,
@@ -705,8 +703,15 @@ function mapActionRequest(row: Record<string, any>): ActionRequestRecord {
 
 function mapPgConflict(error: unknown): never {
   if (error instanceof PolicyEngineError) throw error;
-  if (typeof error === "object" && error !== null && "code" in error && (error as { code?: string }).code === "23505") {
+  if (getPgErrorCode(error) === "23505") {
     conflict("database_unique_constraint", "database unique constraint rejected the write");
   }
   throw error;
+}
+
+function getPgErrorCode(error: unknown): string | undefined {
+  if (typeof error !== "object" || error === null) return undefined;
+  const code = (error as { code?: unknown }).code;
+  if (typeof code === "string") return code;
+  return getPgErrorCode((error as { cause?: unknown }).cause);
 }

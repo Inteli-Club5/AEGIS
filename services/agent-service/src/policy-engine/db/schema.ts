@@ -114,7 +114,7 @@ export const walletNonces = pgTable("aegis_wallet_nonces", {
   walletId: text("wallet_id")
     .primaryKey()
     .references(() => wallets.walletId),
-  nextNonce: bigint("next_nonce", { mode: "bigint" }).notNull().default(1n),
+  nextNonce: bigint("next_nonce", { mode: "bigint" }).notNull().default(sql`1`),
   updatedAt: integer("updated_at").notNull(),
 });
 
@@ -126,8 +126,7 @@ export const actionRequests = pgTable(
     walletId: text("wallet_id").notNull(),
     idempotencyKeyHash: text("idempotency_key_hash").notNull(),
     requestPayloadHash: text("request_payload_hash").notNull(),
-    privatePayload: jsonb("private_payload").$type<Record<string, unknown>>().notNull(),
-    reasonHash: text("reason_hash"),
+    semanticContextHash: text("semantic_context_hash").notNull(),
     aegisNonce: bigint("aegis_nonce", { mode: "bigint" }),
     policyId: text("policy_id"),
     policyVersion: integer("policy_version"),

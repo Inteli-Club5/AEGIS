@@ -32,3 +32,16 @@ the current focus for the next agent session.
   PostgreSQL-backed idempotency, monotonic wallet nonces, action requests,
   precheck records, UsageHolds, sanitized audit events, real HTTP routing, and
   PostgreSQL integration tests for concurrency and rollback.
+- [x] 2026-07-25: Hardened precheck semantic-context privacy by replacing the
+  legacy action `reason` path with required `semanticContext`, removing
+  persisted private payload storage, adding an idempotent cleanup migration,
+  persisting only `semanticContextHash`, and documenting the future TeeML
+  persistence allowlist.
+- [x] 2026-07-25: Completed guided Policy Engine Level 1 validation and coverage
+  hardening, adding regression coverage for lifecycle validation, operator auth,
+  canonical hashing, evaluator URL handling, precheck idempotency/privacy,
+  HTTP errors, PostgreSQL conflict mapping, and legacy migration upgrade
+  behavior.
+- [x] 2026-07-25: Completed Step 8 PR-readiness cleanup by fixing Drizzle
+  migration metadata hygiene, making `db:generate` a clean no-op, preserving
+  runtime migration behavior, and rerunning the full release validation suite.

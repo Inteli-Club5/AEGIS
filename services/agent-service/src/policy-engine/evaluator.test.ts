@@ -184,6 +184,16 @@ describe("DeterministicPolicyEvaluator", () => {
 
       assert.equal(result.status, PASS_TO_TEEML);
     });
+
+    it("denies malformed URL destinations instead of throwing", () => {
+      const policy = basePolicy({
+        rules: baseRules({
+          allowedDestinations: [{ kind: "URL_ORIGIN", value: "https://api.example.com" }],
+        }),
+      });
+
+      assertDenied(baseInput({ policy, normalizedAction: { destination: { kind: "URL_ORIGIN", value: "not a url" } } }), "DESTINATION_NOT_ALLOWED");
+    });
   });
 
   describe("asset failures", () => {

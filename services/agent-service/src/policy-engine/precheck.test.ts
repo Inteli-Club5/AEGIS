@@ -9,17 +9,20 @@ import {
 import {
   computeActionHash,
   computePrecheckRequestPayloadHash,
+  computeSemanticContextHash,
   InMemoryPrecheckRepository,
   parsePrecheckActionRequest,
   PrecheckService,
   type AgentActorContext,
+  type UsageHoldRecord,
 } from "./precheck.js";
+import { PolicyEngineError } from "./errors.js";
 import { NETWORK_ID, type AgentRecord, type Hex32, type PolicyRecord, type PolicyRules, type WalletRecord } from "./types.js";
 
 const AGENT_ID = "018f0000-0000-7000-8000-000000000201";
 const WALLET_ID = "018f0000-0000-7000-8000-000000000202";
 const POLICY_HASH = `0x${"44".repeat(32)}` as Hex32;
-const GOLDEN_ACTION_HASH = "0x4dd5c9735e7b706a72415410018aeda884344b33b87969abd39fcc81e29e2d2b" as Hex32;
+const GOLDEN_ACTION_HASH = "0x1c8a5088c6bea1bacbd47e663d5132795a61ed68784e1d06b0c7f366a88a2f48" as Hex32;
 
 describe("PrecheckService", () => {
   it("calls the deterministic evaluator with explicit now and creates a UsageHold only on PASS_TO_TEEML", async () => {
@@ -91,6 +94,17 @@ describe("PrecheckService", () => {
     );
   });
 
+  it("rejects empty or oversized idempotency keys before persistence", async () => {
+    const repository = seededRepository();
+    const service = precheckService(repository);
+
+    await rejectsWithCode(() => service.precheck(validPrecheckInput("   ")), "missing_idempotency_key");
+    await rejectsWithCode(() => service.precheck(validPrecheckInput("x".repeat(513))), "missing_idempotency_key");
+    assert.equal(repository.actionRequests.size, 0);
+    assert.equal(repository.precheckRecords.size, 0);
+    assert.equal(repository.usageHolds.size, 0);
+  });
+
   it("does not allocate a second nonce or audit event on retry", async () => {
     const repository = seededRepository();
     const service = precheckService(repository);
@@ -118,19 +132,103 @@ describe("PrecheckService", () => {
     assert.equal(repository.nextNonces.size, 0);
   });
 
-  it("keeps sensitive values out of sanitized audit events", async () => {
+  it("keeps semantic context text out of persisted records", async () => {
     const repository = seededRepository();
     const service = precheckService(repository);
-    const rawReason = "Pay invoice 123 with private business context";
+    const rawSemanticContext = "Pay invoice 123 with private business context";
     const rawIdempotencyKey = "idem-sensitive-key";
 
-    await service.precheck(validPrecheckInput(rawIdempotencyKey, { reason: rawReason }));
+    await service.precheck(validPrecheckInput(rawIdempotencyKey, { semanticContext: rawSemanticContext }));
 
+    const persisted = JSON.stringify({
+      actionRequests: [...repository.actionRequests.values()],
+      precheckRecords: [...repository.precheckRecords.values()],
+      usageHolds: [...repository.usageHolds.values()],
+      auditEvents: [...repository.auditEvents.values()],
+    });
     const audit = JSON.stringify([...repository.auditEvents.values()]);
-    assert.equal(audit.includes(rawReason), false);
+    const [request] = [...repository.actionRequests.values()];
+    assert.ok(request);
+    assert.equal(request.semanticContextHash, computeSemanticContextHash(rawSemanticContext));
+    assert.equal(persisted.includes(rawSemanticContext), false);
     assert.equal(audit.includes(rawIdempotencyKey), false);
     assert.match(audit, /idempotencyKeyHash/);
     assert.match(audit, /requestPayloadHash/);
+  });
+
+  it("expires and counts held and committed usage in the in-memory repository", async () => {
+    const repository = seededRepository();
+    repository.usageHolds.set("hold-active", baseUsageHold({ usageHoldId: "hold-active", amount: "2", heldAt: 10, expiresAt: 1_000 }));
+    repository.usageHolds.set("hold-expired", baseUsageHold({ usageHoldId: "hold-expired", amount: "9", heldAt: 10, expiresAt: 50 }));
+    repository.usageHolds.set(
+      "hold-committed",
+      baseUsageHold({ usageHoldId: "hold-committed", amount: "3", status: "COMMITTED", heldAt: 20, expiresAt: 300, committedAt: 30 }),
+    );
+    repository.usageHolds.set("hold-other-policy", baseUsageHold({ usageHoldId: "hold-other-policy", policyId: "other-policy", amount: "100" }));
+
+    await repository.runInTransaction(async tx => {
+      await tx.expireUsageHolds(100);
+      const snapshot = await tx.getUsageSnapshot({
+        agentId: AGENT_ID,
+        walletId: WALLET_ID,
+        policyId: "policy-1",
+        windowStart: 0,
+        windowEnd: 1_000,
+        now: 100,
+      });
+
+      assert.deepEqual(snapshot, {
+        periodAmountUsed: "3",
+        periodAmountHeld: "2",
+        periodActionCountUsed: "1",
+        periodActionCountHeld: "1",
+      });
+    });
+
+    assert.equal(repository.usageHolds.get("hold-expired")?.status, "EXPIRED");
+    assert.equal(repository.usageHolds.get("hold-expired")?.expiredAt, 100);
+  });
+
+  it("rejects duplicate action request and precheck writes in the in-memory repository", async () => {
+    const repository = seededRepository();
+    const service = precheckService(repository);
+    await service.precheck(validPrecheckInput("idem-unique"));
+
+    const request = [...repository.actionRequests.values()][0];
+    const precheck = [...repository.precheckRecords.values()][0];
+    assert.ok(request);
+    assert.ok(precheck);
+
+    await repository.runInTransaction(async tx => {
+      await rejectsWithCode(() => tx.insertActionRequest({ ...request, requestId: "request-duplicate-idempotency" }), "database_unique_constraint");
+      await rejectsWithCode(
+        () => tx.insertActionRequest({ ...request, requestId: "request-duplicate-nonce", idempotencyKeyHash: `0x${"99".repeat(32)}` as Hex32 }),
+        "database_unique_constraint",
+      );
+      await rejectsWithCode(() => tx.insertPrecheckRecord({ ...precheck, precheckId: "precheck-duplicate-request" }), "database_unique_constraint");
+    });
+  });
+
+  it("rejects malformed action request bodies before evaluation", () => {
+    const cases: Array<[Record<string, unknown>, string]> = [
+      [{ ...baseBody(), destination: null }, "invalid_object"],
+      [{ ...baseBody(), actionType: "" }, "invalid_string"],
+      [{ ...baseBody(), amount: "0" }, "invalid_base_unit_amount"],
+      [{ ...baseBody(), actionDeadline: -1 }, "invalid_unix_seconds"],
+      [{ ...baseBody(), destination: { kind: "EVM_ADDRESS", value: "0xabc" } }, "invalid_evm_address"],
+      [{ ...baseBody(), destination: { kind: "HEDERA_ACCOUNT_ID", value: "123456" } }, "invalid_hedera_account_id"],
+      [{ ...baseBody(), destination: { kind: "HEDERA_ACCOUNT_ID", value: "0.0.123456", chainId: 297 } }, "unsupported_chain_id"],
+      [{ ...baseBody(), destination: { kind: "URL_ORIGIN", value: "ftp://api.example.com" } }, "invalid_url_origin"],
+      [{ ...baseBody(), destination: { kind: "URL_ORIGIN", value: "not a url" } }, "invalid_url_origin"],
+      [{ ...baseBody(), destination: { kind: "UNKNOWN", value: "0.0.123456" } }, "unsupported_destination_kind"],
+      [{ ...baseBody(), semanticContext: undefined }, "invalid_string"],
+      [{ ...baseBody(), semanticContext: "x".repeat(2_001) }, "invalid_semantic_context"],
+      [{ ...baseBody(), reason: "legacy private reason" }, "unknown_property"],
+    ];
+
+    for (const [body, code] of cases) {
+      throwsWithCode(() => parsePrecheckActionRequest({ agentId: AGENT_ID, walletId: WALLET_ID }, body), code);
+    }
   });
 
   it("computes deterministic actionHash golden values from normalized action context", () => {
@@ -215,6 +313,7 @@ function baseBody() {
     assetId: "hedera:testnet:hbar",
     amount: "1",
     actionDeadline: 1_784_900_300,
+    semanticContext: "Pay approved provider invoice",
   };
 }
 
@@ -288,4 +387,42 @@ function baseRules(overrides: Partial<PolicyRules> = {}): PolicyRules {
     amount: overrides.amount ?? { min: "1", max: "10", dailyLimit: "10" },
     actionCount: overrides.actionCount ?? { dailyLimit: 10 },
   };
+}
+
+function baseUsageHold(overrides: Partial<UsageHoldRecord> = {}): UsageHoldRecord {
+  return {
+    usageHoldId: "hold-1",
+    requestId: "request-1",
+    precheckId: "precheck-1",
+    agentId: AGENT_ID,
+    walletId: WALLET_ID,
+    policyId: "policy-1",
+    policyVersion: 1,
+    policyHash: POLICY_HASH,
+    assetId: "hedera:testnet:hbar",
+    amount: "1",
+    actionCount: 1,
+    status: "HELD",
+    heldAt: 1,
+    expiresAt: 300,
+    releasedAt: null,
+    expiredAt: null,
+    committedAt: null,
+    createdAt: 1,
+    updatedAt: 1,
+    ...overrides,
+  };
+}
+
+async function rejectsWithCode(operation: () => unknown | Promise<unknown>, code: string) {
+  await assert.rejects(
+    async () => {
+      await operation();
+    },
+    (error: unknown) => error instanceof PolicyEngineError && error.code === code,
+  );
+}
+
+function throwsWithCode(operation: () => unknown, code: string) {
+  assert.throws(operation, (error: unknown) => error instanceof PolicyEngineError && error.code === code);
 }

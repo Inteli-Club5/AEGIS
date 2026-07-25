@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
-import { buildPolicyCommitment, POLICY_COMMITMENT_DOMAIN, POLICY_COMMITMENT_TYPES } from "./auth.js";
-import { computePolicyHash, computePolicyRecordHash } from "./canonicalize.js";
+import { buildPolicyCommitment, extractOperatorAuth, POLICY_COMMITMENT_DOMAIN, POLICY_COMMITMENT_TYPES } from "./auth.js";
+import { computePolicyHash, computePolicyRecordHash, stableStringify } from "./canonicalize.js";
 import { PolicyEngineError } from "./errors.js";
 import { InMemoryPolicyRepository } from "./repository.js";
 import { createPolicyIdFromHash, PolicyLifecycleService } from "./service.js";
@@ -69,6 +69,90 @@ describe("Policy Engine Level 1 lifecycle", () => {
     await rejectsWithCode(() => service.createPolicy(body, { operatorAddress: owner.address, signature: "0x00" }), "unsupported_asset_kind");
   });
 
+  it("rejects malformed policy lifecycle request payloads", () => {
+    const cases: Array<[() => unknown, string]> = [
+      [() => parseCreatePolicyRequest(null), "invalid_object"],
+      [() => parseCreatePolicyRequest({ ...baseCreatePolicyRequest(), agentId: "" }), "invalid_string"],
+      [() => parseCreatePolicyRequest({ ...baseCreatePolicyRequest(), validFrom: -1 }), "invalid_unix_seconds"],
+      [() => parseCreatePolicyRequest(baseCreatePolicyRequest({ allowedActionTypes: [] })), "empty_allowed_action_types"],
+      [() => parseCreatePolicyRequest(baseCreatePolicyRequest({ allowedDestinations: [] })), "empty_allowed_destinations"],
+      [() => parseCreatePolicyRequest(baseCreatePolicyRequest({ allowedAssets: [] })), "empty_allowed_assets"],
+      [() => parseCreatePolicyRequest(baseCreatePolicyRequest({ allowedActionTypes: ["BAD_ACTION"] })), "unsupported_action_type"],
+      [() => parseCreatePolicyRequest(baseCreatePolicyRequest({ amount: { min: "20", max: "10", dailyLimit: "100" } })), "invalid_amount_range"],
+      [() => parseCreatePolicyRequest(baseCreatePolicyRequest({ actionCount: { dailyLimit: -1 } })), "invalid_non_negative_integer"],
+      [
+        () => parseCreatePolicyRequest(baseCreatePolicyRequest({ allowedDestinations: [{ kind: "EVM_ADDRESS", value: "0xabc", chainId: 296 } as never] })),
+        "invalid_evm_address",
+      ],
+      [
+        () =>
+          parseCreatePolicyRequest(
+            baseCreatePolicyRequest({ allowedDestinations: [{ kind: "HEDERA_ACCOUNT_ID", value: "0.0.123", chainId: 297 }] }),
+          ),
+        "unsupported_chain_id",
+      ],
+      [
+        () => parseCreatePolicyRequest(baseCreatePolicyRequest({ allowedDestinations: [{ kind: "URL_ORIGIN", value: "ftp://api.example.com" }] })),
+        "invalid_url_origin",
+      ],
+      [
+        () => parseCreatePolicyRequest(baseCreatePolicyRequest({ allowedAssets: [{ kind: "NATIVE", chainId: 296, assetId: "tinybar", decimals: 8 } as never] })),
+        "unsupported_native_asset",
+      ],
+      [
+        () => parseCreatePolicyRequest(baseCreatePolicyRequest({ allowedAssets: [{ kind: "NATIVE", chainId: 296, assetId: "hbar", decimals: 18 } as never] })),
+        "invalid_hbar_decimals",
+      ],
+      [
+        () => parseCreatePolicyRequest(baseCreatePolicyRequest({ allowedAssets: [{ kind: "HTS", chainId: 296, tokenId: "123", decimals: 6 } as never] })),
+        "invalid_hedera_account_id",
+      ],
+      [
+        () => parseCreatePolicyRequest(baseCreatePolicyRequest({ allowedAssets: [{ kind: "HTS", chainId: 296, tokenId: "0.0.12345", decimals: 31 } as never] })),
+        "invalid_integer_range",
+      ],
+      [
+        () => parseCreatePolicyRequest(baseCreatePolicyRequest({ semanticRules: [{ ruleId: "purpose", kind: "TEXT", params: { value: undefined } as never }] })),
+        "invalid_json_value",
+      ],
+      [
+        () => parseCreatePolicyRequest(baseCreatePolicyRequest({ semanticRules: [{ ruleId: "purpose", kind: "TEXT", params: { value: Infinity } }] })),
+        "invalid_json_value",
+      ],
+      [
+        () => parseActivatePolicyRequest("policy-id", { expectedPolicyVersion: 1, expectedPolicyHash: `0x${"AA".repeat(32)}` }),
+        "invalid_hex32",
+      ],
+      [() => parseUpdatePolicyRequest("policy-id", { expectedPolicyVersion: 0 }), "invalid_positive_integer"],
+      [
+        () => parseRevokePolicyRequest("policy-id", { expectedPolicyVersion: 1, expectedPolicyHash: GOLDEN_POLICY_HASH, reason: "" }),
+        "invalid_reason",
+      ],
+      [
+        () => parseRevokePolicyRequest("policy-id", { expectedPolicyVersion: 1, expectedPolicyHash: GOLDEN_POLICY_HASH, reason: "x".repeat(281) }),
+        "invalid_reason",
+      ],
+      [() => getEffectivePolicyStatus({ status: "ACTIVE", validUntil: null }, -1), "invalid_unix_seconds"],
+    ];
+
+    for (const [operation, code] of cases) {
+      throwsWithCode(operation, code);
+    }
+
+    assert.equal(
+      parseRevokePolicyRequest("policy-id", { expectedPolicyVersion: 1, expectedPolicyHash: GOLDEN_POLICY_HASH, reason: "  emergency stop  " }).reason,
+      "emergency stop",
+    );
+    assert.deepEqual(
+      parseCreatePolicyRequest(
+        baseCreatePolicyRequest({
+          semanticRules: [{ ruleId: "purpose", kind: "JSON", params: { tags: ["invoice", 1, true, null] } }],
+        }),
+      ).semanticRules?.[0]?.params,
+      { tags: ["invoice", 1, true, null] },
+    );
+  });
+
   it("rejects a non-owner operator", async () => {
     const { service } = await seededService();
     const body = baseCreatePolicyRequest();
@@ -95,6 +179,25 @@ describe("Policy Engine Level 1 lifecycle", () => {
       () => service.createPolicy(body, { operatorAddress: owner.address, signature: invalidSignature }),
       "invalid_operator_signature",
     );
+  });
+
+  it("normalizes operator headers and rejects malformed operator auth", async () => {
+    assert.deepEqual(
+      extractOperatorAuth({
+        "x-aegis-operator-address": [owner.address],
+        "x-aegis-operator-signature": ["0x1234"],
+      }),
+      { operatorAddress: owner.address, signature: "0x1234" },
+    );
+    assert.throws(
+      () => extractOperatorAuth({}),
+      (error: unknown) => error instanceof PolicyEngineError && error.code === "missing_operator_signature",
+    );
+
+    const { service } = await seededService();
+    const body = baseCreatePolicyRequest();
+    await rejectsWithCode(() => service.createPolicy(body, { operatorAddress: "not-an-address", signature: "0x00" }), "invalid_operator_address");
+    await rejectsWithCode(() => service.createPolicy(body, { operatorAddress: owner.address, signature: "not-hex" }), "invalid_operator_signature");
   });
 
   it("rejects replay when policyHash, walletId, agentId, version, or validity is altered", async () => {
@@ -187,6 +290,50 @@ describe("Policy Engine Level 1 lifecycle", () => {
     assert.equal(computePolicyRecordHash(created), computePolicyRecordHash(changedAuditFields));
   });
 
+  it("enforces in-memory repository uniqueness constraints", async () => {
+    const { repository, service } = await seededService();
+    await rejectsWithCode(
+      () =>
+        repository.saveWallet({
+          walletId: "018f0000-0000-7000-8000-000000000003",
+          agentId: AGENT_ID,
+          networkId: NETWORK_ID,
+          safeAddress: SAFE_ADDRESS,
+          status: "PROTECTED",
+          createdAt: 1,
+          updatedAt: 1,
+        }),
+      "wallet_safe_address_conflict",
+    );
+
+    const created = (await service.createPolicy(baseCreatePolicyRequest(), await signCreate(service, baseCreatePolicyRequest()), 1000)).policy;
+    const record = await repository.getPolicy(created.policyId);
+    assert.ok(record);
+
+    await rejectsWithCode(() => repository.insertPolicy(record), "policy_id_conflict");
+    await rejectsWithCode(() => repository.insertPolicy({ ...record, policyId: "policy-version-conflict" }), "policy_version_conflict");
+
+    const active = (
+      await service.activatePolicy(
+        created.policyId,
+        { expectedPolicyVersion: created.policyVersion, expectedPolicyHash: created.policyHash },
+        await signActivate(service, created),
+        1100,
+      )
+    ).policy;
+    const activeRecord = await repository.getPolicy(active.policyId);
+    assert.ok(activeRecord);
+    await rejectsWithCode(
+      () => repository.insertPolicy({ ...activeRecord, policyId: "policy-active-conflict", policySeriesId: "policy-active-conflict" }),
+      "active_policy_conflict",
+    );
+  });
+
+  it("rejects non-finite JSON numbers during canonicalization", () => {
+    assert.throws(() => stableStringify({ limit: Infinity }), /finite JSON number/);
+    assert.throws(() => stableStringify({ limit: Number.NaN }), /finite JSON number/);
+  });
+
   it("updates by creating a new version without mutating the previous policy", async () => {
     const { service } = await seededService();
     const created = await createAndActivate(service);
@@ -239,6 +386,53 @@ describe("Policy Engine Level 1 lifecycle", () => {
       async () => service.activatePolicy(policy.policyId, { expectedPolicyVersion: 1, expectedPolicyHash: policy.policyHash }, await signActivate(service, policy), 151),
       "policy_expired",
     );
+  });
+
+  it("rejects inactive agents and invalid lifecycle preconditions", async () => {
+    const inactive = await seededService({ agentStatus: "PAUSED" });
+    await rejectsWithCode(
+      () => inactive.service.createPolicy(baseCreatePolicyRequest(), { operatorAddress: owner.address, signature: "0x00" }),
+      "agent_not_active",
+    );
+
+    const { service } = await seededService();
+    await rejectsWithCode(() => service.getPolicy("missing-policy"), "policy_not_found");
+    await rejectsWithCode(
+      () => service.createPolicy(baseCreatePolicyRequest({ validFrom: 200, validUntil: 200 }), { operatorAddress: owner.address, signature: "0x00" }),
+      "invalid_validity_window",
+    );
+
+    const body = baseCreatePolicyRequest();
+    const created = (await service.createPolicy(body, await signCreate(service, body), 1000)).policy;
+    await rejectsWithCode(
+      () =>
+        service.activatePolicy(
+          created.policyId,
+          { expectedPolicyVersion: 2, expectedPolicyHash: created.policyHash },
+          { operatorAddress: owner.address, signature: "0x00" },
+        ),
+      "policy_version_stale",
+    );
+    await rejectsWithCode(
+      () =>
+        service.activatePolicy(
+          created.policyId,
+          { expectedPolicyVersion: created.policyVersion, expectedPolicyHash: `0x${"99".repeat(32)}` as Hex32 },
+          { operatorAddress: owner.address, signature: "0x00" },
+        ),
+      "policy_hash_stale",
+    );
+
+    const activated = await service.activatePolicy(
+      created.policyId,
+      { expectedPolicyVersion: created.policyVersion, expectedPolicyHash: created.policyHash },
+      await signActivate(service, created),
+      1100,
+    );
+    const revokeBody = { expectedPolicyVersion: activated.policy.policyVersion, expectedPolicyHash: activated.policy.policyHash };
+    const revokeAuth = await signRevoke(service, activated.policy, revokeBody);
+    await service.revokePolicy(activated.policy.policyId, revokeBody, revokeAuth, 1200);
+    await rejectsWithCode(() => service.revokePolicy(activated.policy.policyId, revokeBody, revokeAuth, 1300), "policy_already_revoked");
   });
 
   it("revokes a policy without reactivating a superseded version", async () => {
@@ -306,12 +500,12 @@ describe("Policy Engine Level 1 lifecycle", () => {
   });
 });
 
-async function seededService(input: { walletStatus?: "PROTECTED" | "PAUSED" | "RETIRED" | "DEAD" } = {}) {
+async function seededService(input: { agentStatus?: "ACTIVE" | "PAUSED" | "RETIRED"; walletStatus?: "PROTECTED" | "PAUSED" | "RETIRED" | "DEAD" } = {}) {
   const repository = new InMemoryPolicyRepository();
   await repository.saveAgent({
     agentId: AGENT_ID,
     ownerAddress: owner.address.toLowerCase() as `0x${string}`,
-    status: "ACTIVE",
+    status: input.agentStatus ?? "ACTIVE",
     createdAt: 1,
     updatedAt: 1,
   });
@@ -498,4 +692,8 @@ async function rejectsWithCode(operation: () => unknown | Promise<unknown>, code
     },
     (error: unknown) => error instanceof PolicyEngineError && error.code === code,
   );
+}
+
+function throwsWithCode(operation: () => unknown, code: string) {
+  assert.throws(operation, (error: unknown) => error instanceof PolicyEngineError && error.code === code);
 }

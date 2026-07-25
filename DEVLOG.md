@@ -338,3 +338,95 @@ oldest at the top, newest at the bottom. Use English AM/PM timestamps. Format:
 - next: open a PR from `feat/policy-engine-level-1` to `main`.
 - blockers: none.
 - interfaces touched: none.
+
+## 2026-07-25 10:07 AM - Codex - Policy Engine Level 1 privacy hardening
+- did: inspected the Phase 3/4 private-context path and removed persisted
+  private action payload storage from precheck orchestration. The precheck
+  request now requires normalized `semanticContext`, calculates
+  `semanticContextHash`, binds `requestPayloadHash` and `actionHash` to that
+  hash, passes only normalized action fields to the deterministic Level 1
+  evaluator, and discards the text after the precheck response. Replaced
+  `private_payload`/`reason_hash` with `semantic_context_hash` in Drizzle schema,
+  corrected migration `0001_level1_precheck_orchestration.sql` for fresh
+  databases, and added idempotent cleanup migration
+  `0002_precheck_semantic_context_privacy.sql` for databases that already
+  applied the old `0001`. Updated tests and docs to reject legacy action
+  `reason`, remove textual proof notes, assert private text is absent from
+  precheck tables, and document the future TeeML persistence allowlist.
+  Validation run: `npm --prefix services/agent-service test`, `npm --prefix
+  services/agent-service run typecheck`, `npm --prefix services/agent-service
+  run lint`, `npm --prefix services/agent-service run build`, and
+  `TEST_DATABASE_URL=postgresql://aegis:aegis_dev@localhost:55432/aegis_test npm
+  --prefix services/agent-service run test:integration`.
+- next: review the privacy-hardening diff before opening or updating the
+  Policy Engine Level 1 PR.
+- blockers: none.
+- interfaces touched: Precheck request body changed from optional action
+  `reason` to required `semanticContext`; `aegis_action_requests` persistence
+  changed from `private_payload` plus `reason_hash` to
+  `semantic_context_hash` only for private semantic context, with cleanup
+  migration `0002_precheck_semantic_context_privacy.sql`.
+
+## 2026-07-25 10:45 AM - Codex - Policy Engine Level 1 guided validation
+- did: completed the guided Step 7 validation pass for the branch diff against
+  `main` and covered the classified gaps in this step. Added focused regression
+  coverage for lifecycle payload validation, operator auth normalization and
+  replay checks, canonical hash ordering, malformed evaluator URL destinations,
+  in-memory uniqueness constraints, precheck parser/idempotency/privacy
+  behavior, HTTP policy/precheck error paths, PostgreSQL unique/error mapping,
+  and the legacy privacy cleanup migration upgrade path. Fixed
+  `mapPgConflict` so Drizzle/PostgreSQL unique violations wrapped in
+  `error.cause` still map to `database_unique_constraint`, and corrected
+  `0002_precheck_semantic_context_privacy.sql` so legacy rows receive an
+  explicit unavailable semantic-context hash sentinel instead of reusing the
+  request payload hash as semantically false data. Validation run:
+  `DATABASE_URL=postgresql://aegis:aegis_dev@localhost:55432/aegis_test npm
+  --prefix services/agent-service run db:migrate`, `npm --prefix
+  services/agent-service test` (56 passing unit tests),
+  `TEST_DATABASE_URL=postgresql://aegis:aegis_dev@localhost:55432/aegis_test npm
+  --prefix services/agent-service run test:integration` (15 passing
+  PostgreSQL integration tests), `npm --prefix services/agent-service run
+  typecheck`, `npm --prefix services/agent-service run lint`, `npm --prefix
+  services/agent-service run build`, `git diff --check`, and the Node
+  experimental coverage command for `src/policy-engine/*.test.ts` plus
+  `src/policy-engine/*.integration.ts` (71 passing tests, all-files 92.69%
+  lines / 88.86% branches / 91.78% functions; core Policy Engine runtime
+  modules are at 100% line coverage except `db/postgres.ts` reporting 99.72%
+  on the internal error-code fallback despite covered wrapped/null-cause
+  scenarios).
+- next: review the final diff and decide whether to regenerate Drizzle snapshot
+  metadata before opening or updating the Policy Engine Level 1 PR.
+- blockers: none. Low-risk tooling hygiene remains: `drizzle/meta/_journal.json`
+  lists `0001` and `0002`, while the repo currently has only
+  `0000_snapshot.json`; runtime migration through Drizzle and direct integration
+  migration both passed.
+- interfaces touched: no new runtime API was added in this validation pass; the
+  existing `semanticContext` precheck interface was exercised, and the
+  migration upgrade semantics for legacy private precheck columns were
+  clarified.
+
+## 2026-07-25 11:03 AM - Codex - Policy Engine Level 1 PR readiness
+- did: completed Step 8 PR-readiness cleanup. Investigated the remaining
+  Drizzle metadata hygiene gap by running `drizzle-kit generate` against
+  temporary migration folders, confirmed the missing `0001`/`0002` snapshots
+  would cause a duplicate generated `0003` migration, and fixed the metadata by
+  adding `drizzle/meta/0001_snapshot.json` and `drizzle/meta/0002_snapshot.json`
+  with the correct snapshot chain. Replaced the Drizzle bigint default
+  `default(1n)` with `default(sql\`1\`)` in the schema so `db:generate` can
+  serialize the schema while preserving the same SQL default. Validation run:
+  `npm --prefix services/agent-service run db:generate` (no schema changes),
+  `DATABASE_URL=postgresql://aegis:aegis_dev@localhost:55432/aegis_test npm
+  --prefix services/agent-service run db:migrate`, `npm --prefix
+  services/agent-service test` (56 passing unit tests),
+  `TEST_DATABASE_URL=postgresql://aegis:aegis_dev@localhost:55432/aegis_test npm
+  --prefix services/agent-service run test:integration` (15 passing
+  PostgreSQL integration tests), `npm --prefix services/agent-service run
+  typecheck`, `npm --prefix services/agent-service run lint`, `npm --prefix
+  services/agent-service run build`, `git diff --check`, and the Node
+  experimental coverage command for the Policy Engine tests (71 passing tests,
+  all-files 92.69% lines / 88.86% branches / 91.78% functions).
+- next: commit the ready branch changes, push, and open or update the Policy
+  Engine Level 1 PR against `main`; then verify remote CI.
+- blockers: none.
+- interfaces touched: no runtime API or migration SQL behavior changed in this
+  step; Drizzle generation metadata and schema serialization were corrected.

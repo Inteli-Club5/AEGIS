@@ -246,14 +246,23 @@ Precheck request body:
   "assetId": "hedera:testnet:hbar",
   "amount": "100000000",
   "actionDeadline": 1784900300,
-  "reason": "Optional private reason for future TeeML"
+  "semanticContext": "Pay approved API provider invoice 123"
 }
 ```
 
 The client does not provide request IDs, precheck IDs, Policy identity,
 `aegisNonce`, `actionHash`, `UsageHold`, status, result, fee, decimals, or
-arbitrary network fields. `reason` is stored privately for the future TeeML step
-and is excluded from sanitized audit events.
+arbitrary network fields. `semanticContext` is the minimum private context for a
+future TeeML step. The backend validates and normalizes it, computes
+`semanticContextHash`, passes only the normalized action fields into the Level 1
+deterministic evaluator, and does not interpret the text.
+
+Until TeeML is implemented on a later branch, the semantic context text is
+discarded after the precheck response. It is never stored in PostgreSQL, audit
+events, action records, prompts, or detailed model-output fields. Future TeeML
+persistence may store only `semanticContextHash`, `teemlVerdict`,
+`teemlReasonCode`, `teemlRequestHash`, `teemlResponseHash`, `teeVerified`,
+`providerId`, `modelId`, `artifactHash`, and `evaluatedAt`.
 
 `PENDING_TEEML` uses HTTP `202 Accepted`; functional `DENY_PRECHECK` uses HTTP
 `200 OK`; technical validation/auth/idempotency/database errors use the existing

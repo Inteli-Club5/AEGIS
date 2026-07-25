@@ -15,6 +15,13 @@
       "when": 1784956920000,
       "tag": "0001_level1_precheck_orchestration",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1784985172792,
+      "tag": "0002_precheck_semantic_context_privacy",
+      "breakpoints": true
     }
   ]
 }
