@@ -119,6 +119,11 @@ function OverviewTab({ agent }: { agent: AgentDetail }) {
           <Row label="Type">
             <span className="text-body-sm">{agent.type}</span>
           </Row>
+          {agent.hederaAccountId && (
+            <Row label="Hedera account">
+              <span className="font-mono text-mono-sm">{agent.hederaAccountId}</span>
+            </Row>
+          )}
           <Row label="Connected">
             <span className="font-mono text-mono-sm text-muted">{formatDateTime(agent.createdAt)}</span>
           </Row>
@@ -128,6 +133,16 @@ function OverviewTab({ agent }: { agent: AgentDetail }) {
         </dl>
         {agent.description && (
           <p className="mt-4 border-t border-border pt-4 text-body-sm text-muted">{agent.description}</p>
+        )}
+        {agent.agenticId && (
+          <a
+            href={agent.agenticId.explorerUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="mt-4 inline-block border-t border-border pt-4 text-body-sm font-medium text-brand-strong underline-offset-4 hover:underline"
+          >
+            View 0G Agentic ID (token #{agent.agenticId.tokenId})
+          </a>
         )}
       </Card>
 

@@ -51,12 +51,21 @@ export interface PolicyRecord {
   fields: Record<string, string>;
 }
 
+export interface AgenticIdInfo {
+  tokenId: string;
+  contractAddress: string;
+  metadataURI: string;
+  explorerUrl: string;
+}
+
 export interface AgentDetail extends Agent {
   description?: string;
   capabilities: Capability[];
   createdAt: string;
   walletInfo: ProtectedWalletInfo | null;
   policy: PolicyRecord | null;
+  hederaAccountId?: string;
+  agenticId?: AgenticIdInfo;
 }
 
 export type StatsPeriod = 7 | 30 | 90 | "all";

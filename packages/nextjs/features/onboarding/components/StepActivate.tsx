@@ -2,10 +2,15 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
-import { activateProtection } from "@/lib/api/onboarding";
+import { type ActivationPhase, activateProtection } from "@/lib/api/onboarding";
 import { type AgentProfile, CAPABILITY_LABELS, type PolicyRecord } from "@/lib/types/aegis";
 import { truncateAddress } from "@/lib/utils/format";
 import { ArrowLeft, Bot, Loader2, ScrollText, ShieldCheck } from "lucide-react";
+
+const PHASE_LABEL: Record<ActivationPhase, string> = {
+  wallet: "Deploying protected wallet (Safe 2-of-3)…",
+  "agentic-id": "Registering 0G Agentic ID…",
+};
 
 export function StepActivate({
   agent,
@@ -19,18 +24,17 @@ export function StepActivate({
   onActivated: () => void;
 }) {
   const [acknowledged, setAcknowledged] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
+  const [phase, setPhase] = useState<ActivationPhase | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function handleActivate() {
-    setSubmitting(true);
     setError(null);
     try {
-      await activateProtection(agent.id);
+      await activateProtection(agent.id, setPhase);
       onActivated();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Activation failed. Try again.");
-      setSubmitting(false);
+      setPhase(null);
     }
   }
 
@@ -84,13 +88,13 @@ export function StepActivate({
           Back
         </Button>
         <span className="flex items-center gap-4">
-          {submitting && (
+          {phase && (
             <span role="status" className="flex items-center gap-2 font-mono text-mono-sm text-muted">
               <Loader2 className="h-4 w-4 animate-spin" />
-              Activating protection…
+              {PHASE_LABEL[phase]}
             </span>
           )}
-          <Button size="lg" onClick={handleActivate} disabled={!acknowledged || submitting}>
+          <Button size="lg" onClick={handleActivate} disabled={!acknowledged || phase !== null}>
             <ShieldCheck className="h-4 w-4" />
             Activate protection
           </Button>

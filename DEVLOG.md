@@ -407,3 +407,200 @@ oldest at the top, newest at the bottom. Use English AM/PM timestamps. Format:
   (Victor's lane per PLAYBOOK.md): `/debug` and `/blockexplorer` are gone,
   not hidden - restoring them means re-adding the deleted files from git
   history, not just re-wiring a route.
+
+## 2026-07-25 10:15 AM - Claude Code (CryptoVictor) - dashboard
+
+- did: at the user's direct request, wired the "Connect wallet" flow to a
+  real wagmi/RainbowKit connection - the biggest outstanding `TODO(backend)`
+  called out repeatedly since the 2026-07-24 10:31 PM entry. This touches
+  `packages/nextjs` (nominally Leunam's lane per `PLAYBOOK.md`); noting it
+  here since the user drove it directly this session. Rewrote
+  `features/wallet/components/ConnectWalletProvider.tsx` to drop the fake
+  localStorage/`setTimeout` session entirely in favor of real
+  `useAccount`/`useConnect`/`useDisconnect`, keeping the exact same context
+  shape (`status`/`address`/`openModal`/`connect`/`disconnect`) so none of
+  its eight consumers (`ConnectGate`, `AppTopbar`, `Nav`, `Hero`, the
+  dashboard/onboarding/agent-detail gates) needed changes. Added
+  `coinbaseWallet` to `services/web3/wagmiConnectors.tsx`'s wallet list so
+  all three tiles the existing `ConnectModal.tsx` UI already offered
+  (MetaMask/WalletConnect/Coinbase - per `docs/screen-specification.md`
+  S01/S02, which this session confirmed is the frozen spec for this custom
+  modal, not RainbowKit's default one) have a real connector behind them.
+  Hardest part, worth flagging loudly for whoever touches this next:
+  RainbowKit's `connectorsForWallets()` tags each connector with an
+  undocumented `rkDetails.id` carrying the wallet's *true* identity - a
+  connector's own top-level `id`/`name` instead reflect whichever protocol
+  it fell back to (MetaMask with no extension installed silently becomes a
+  bare `id: "walletConnect"` connector). Matching on `id` directly (the
+  first attempt) made every "MetaMask" click silently resolve to the wrong
+  connector. Found this by dumping the live connector list in a running
+  browser, not from any doc; the fix (`findConnector()` in
+  `ConnectWalletProvider.tsx`) is now commented in-place with the exact
+  rainbowkit version (2.2.9) it was verified against, plus a dev-only
+  `console.warn` canary that fires if a future `@rainbow-me/rainbowkit`
+  bump ever removes `rkDetails`. Sent the diff through
+  `grumpy-carlos-code-reviewer`, which independently re-verified the
+  `rkDetails` mechanism against the installed package source and confirmed
+  it's correct, then caught a real bug: the connected panel's HBAR balance
+  (`useBalance` + viem's `formatUnits`, added to satisfy S02's "address,
+  balance, Disconnect" spec) raced a fixed 900ms auto-redirect-to-dashboard
+  timer, so on a slow RPC the balance could silently never render before
+  the modal closed. Fixed by dropping the auto-redirect entirely - the user
+  now clicks the existing "Open dashboard" button once actually connected,
+  which also just reads simpler. Also applied the review's smaller findings:
+  `disconnect()` was missing error handling on `disconnectAsync()`; `address`
+  was widened from wagmi's branded type to a plain `string` for no reason,
+  forcing an unnecessary cast in `ConnectModal.tsx`; the rejected-connection
+  check matched `err.name` by string instead of `viem`'s exported
+  `UserRejectedRequestError` class; and `wagmiConnectors.tsx`'s
+  `appName: "scaffold-hbar"` was about to become real users' first
+  wallet-popup impression of the app (now `"AEGIS"`). Verified with a
+  Playwright driver against a live `yarn next:dev`: MetaMask with no
+  extension (unavoidable in headless Chromium) now fails fast with a clear,
+  honest error instead of hanging forever; WalletConnect genuinely mounts
+  RainbowKit's real `w3m-modal` web component; Coinbase Wallet's SDK starts
+  a real connection attempt; `/dashboard` and `/onboarding` still gate
+  correctly when disconnected; zero console/page errors across all of it.
+  `check-types`, lint, and a full production build all pass. Also updated
+  `docs/screen-specification.md`'s §6 "Out of scope" line, which still said
+  real wallet connection wasn't done.
+- next: two candidates, pick based on how close demo day is - (1) a manual
+  pass with an actual MetaMask browser extension installed (not headless -
+  structurally impossible to test in this session's sandboxed Chromium),
+  since that's the most common real path and the one this session's
+  automated testing could not exercise; or (2) continue the integration the
+  user asked for by wiring `lib/api/*`/`lib/fixtures/*` to real contract
+  calls now that a real connected address exists to call them with. Also
+  still open from prior entries: `TASKS.md` remains missing repo-wide (every
+  session back to 2026-07-24 has flagged this - PLAYBOOK.md's "read this
+  first" instruction points at a file that doesn't exist), and
+  `AEGIS_ARCHITECTURE.md`/`decisions.md` under `packages/nextjs/docs/` still
+  need reconciling against the root's locked versions.
+- blockers: none.
+- interfaces touched: none of the four frozen lane interfaces in
+  `docs/interfaces.md`'s definition (that file still doesn't exist either).
+  `docs/screen-specification.md` §6 updated as noted above - not a frozen
+  interface, but stale enough to mislead the next reader if left alone.
+
+## 2026-07-25 11:10 AM - Claude Code (CryptoVictor) - dashboard
+
+- did: at the user's request ("integrate with whatever the backend already
+  has, leave the rest mocked"), surveyed the actual state of every
+  contract/service/route in the repo before touching anything (an Explore
+  agent read every `.sol` file, both backend services, and every
+  `lib/api/*`/`lib/fixtures/*` function). Findings worth recording since nothing
+  else in the repo currently documents them: `PolicyRegistry` and `AgentVault`
+  don't exist as contracts anywhere - the only deployed contracts
+  (`HederaToken`, `HtsTokenCreator`, both on Hedera testnet, addresses in
+  `packages/nextjs/contracts/deployedContracts.ts`) are unrelated scaffold-eth
+  leftovers nothing in the UI calls. `services/cosigner` is a real skeleton -
+  one endpoint, `/cosign` hardcoded to `501 not_implemented`, Safe SDK listed
+  in `package.json` but never imported. `services/decision-verifier` has real
+  0G Compute broker plumbing but no AEGIS-specific ALLOW/DENY logic on top.
+  The Graph indexing layer doesn't exist as a line of code anywhere, despite
+  `decisions.md` marking it core. But **`services/agent-service` - not in
+  `PLAYBOOK.md`'s repo map, not mentioned in any prior DEVLOG entry - turned
+  out to be the most complete real backend piece in the repo**: it creates a
+  genuine Hedera testnet account per agent (`@hiero-ledger/sdk`), deploys a
+  genuine Safe 2-of-3 smart account (`@safe-global/protocol-kit`, owners =
+  [agent's own EVM address, the fixed AEGIS cosigner address, a recovery
+  guardian]), and already calls this same dashboard's own working
+  `/api/0g/agentic-id` route to mint a real Agentic ID once the wallet
+  exists. It had a real (gitignored) `.env` with funded Hedera testnet
+  operator credentials already configured - nothing in the dashboard called
+  any of it. Presented this map to the user, who confirmed prioritizing
+  onboarding -> `services/agent-service` over the narrower "0G-only" option.
+  Built the integration: a new server-only `lib/server/agentService.ts`
+  (`import "server-only"`, matching the convention already set by
+  `integrations/0g/agentic-id/env.ts`) proxies to
+  `AGENT_SERVICE_URL` (defaults `http://localhost:4200`, added to
+  `.env.example`); three new routes under `app/api/agent-service/` forward to
+  agent-service's `POST /create-agents`, `POST /agents/:id/create-wallets`,
+  and `POST /agents/:id/register-agentic-id` (all carry the same
+  `TODO(auth)` acknowledgment `/api/0g/agentic-id` already has - none of this
+  is authenticated yet, testnet/hackathon-tolerable but not production-safe).
+  Rewrote `lib/api/onboarding.ts`: `createAgent()` now takes the real
+  connected wallet address as `ownerWallet` (mapping the dashboard's own
+  `AgentType` strings to agent-service's different ones) and persists the
+  real `agentId`/`hederaAccountId` returned into the existing
+  localStorage-backed store - `createPolicy()` is untouched, correctly,
+  since no PolicyRegistry exists to call. `activateProtection()` now makes
+  two real sequential calls (deploy the Safe, then register the Agentic ID)
+  and reports phase via an `onPhase` callback so `StepActivate.tsx` can show
+  "Deploying protected wallet..." / "Registering 0G Agentic ID..." instead of
+  a static label - this step now takes real seconds, not a fake 900ms delay.
+  Fixed `StepRegisterAgent.tsx`'s copy, which said "Connect an agent you
+  already run... AEGIS doesn't create or host the agent for you" - leftover
+  from the front-aegis-main prototype's conflicting "bring your own agent"
+  thesis, flagged as unresolved in every DEVLOG entry since 2026-07-24
+  10:31 PM. It directly contradicted both the root's locked
+  `docs/decisions.md` ("AEGIS creates the agent") and what the newly-wired
+  real backend actually does (mints a brand-new Hedera account every time;
+  there is no connect-existing-agent code path). Added
+  `hederaAccountId`/`agenticId` to `AgentDetail` and surfaced both in
+  `AgentDetailView.tsx`'s Overview tab. Verified the entire chain for real -
+  not just type-checked - by curling the three new routes directly against a
+  live `services/agent-service`: got back a genuine new Hedera account
+  (`0.0.9745300`), a genuine deployed Safe (`0x37d32e87DDB851A6232BBce3f1fDfC669988464E`,
+  with a real transaction hash), and a genuine minted 0G Agentic ID (token
+  `#105`, real 0G Galileo explorer link). Sent the diff through
+  `grumpy-carlos-code-reviewer`, which traced the actual `@safe-global/protocol-kit`
+  source and caught a real bug before it could bite mid-demo: Safe deployment
+  to a CREATE2 address is deterministic and neither `createWallet.ts` nor its
+  route checks if one already exists, so if the wallet step succeeds but the
+  agentic-id step fails (any transient hiccup) and the user clicks "Activate
+  protection" again - the only recovery affordance the UI offers - the retry
+  redeploys to the same address and hits a permanent "Safe already deployed"
+  wall. Reproduced this live (confirmed the exact error) before fixing it:
+  `activateProtection()` now checks its own local `walletInfo` first and
+  skips straight to the agentic-id call if a wallet's already recorded.
+  Also applied the review's smaller findings: added `import "server-only"`
+  to the new proxy helper (matching existing convention), aligned all three
+  routes' body-parsing so a malformed/empty POST can't throw before it even
+  reaches the proxy, added a defensive `owners.length !== 3` check (the
+  Safe's three owners come back as a bare array positionally, not named
+  fields - correct today per the actual `OwnerManager.sol` contract behavior,
+  but nothing enforces that contract, so a mismatch would otherwise
+  silently corrupt `ProtectedWalletInfo` instead of failing loudly), removed
+  an unused `evmAddress` field, and added a comment clarifying the
+  client-side duplicate-name check is a same-browser UX nicety now that IDs
+  are backend-issued UUIDs, not a global-uniqueness guarantee. One review
+  finding intentionally left unfixed, flagged loudly instead: the 0G Agentic
+  ID mint itself (`integrations/0g/agentic-id/createAgenticIdForAegisAgent.ts`,
+  pre-existing code from an earlier session, not touched by this diff) has
+  no idempotency check either - a retry after a partial failure there would
+  mint a second, orphaned token. This was unreachable before today (nothing
+  called it from the UI); it's reachable now. Fixing it means touching 0G
+  integration code outside this task's scope, not a dashboard-only change.
+  `check-types` and lint pass clean on every changed file. Also caught and
+  reverted an unrelated, unexplained diff in `lib/fixtures/store.ts` (two
+  comments missing, no logic change) that appeared in the working tree
+  without any corresponding edit from this session - restored via
+  `git checkout --` after confirming nothing intentional was lost.
+- next: same real-MetaMask-extension manual-test gap as the prior entry
+  (still can't exercise a real wallet in this sandbox), now doubled for the
+  onboarding flow specifically - nobody has clicked "Register agent" ->
+  "Activate protection" through a real browser with a real connected wallet
+  yet, only curl'd the underlying routes directly. After that: the two
+  biggest remaining pieces per the demo north star in `PLAYBOOK.md` are a
+  real `PolicyRegistry` (so `createPolicy()` has something real to call) and
+  real `/cosign` logic in `services/cosigner` (currently hardcoded
+  `501 not_implemented`) - without both, the gate/block/payout steps 3-5 of
+  the demo have nothing real to run against. Still open from prior entries:
+  `TASKS.md` remains missing repo-wide, and
+  `packages/nextjs/docs/AEGIS_ARCHITECTURE.md`/`decisions.md` still need
+  reconciling against the root's locked versions (this session's copy fix in
+  `StepRegisterAgent.tsx` resolves the *product-thesis* half of that
+  disagreement in practice, but the docs themselves are still unreconciled).
+- blockers: none. Everything needed to run this live (agent-service's real
+  Hedera operator key, Groq key, cosigner address) was already configured in
+  `services/agent-service/.env` from an earlier, undocumented session -
+  worth someone confirming that funded operator account has a healthy HBAR
+  balance before demo day, since every agent creation spends real (testnet)
+  HBAR from it.
+- interfaces touched: **new** - the HTTP contract between `packages/nextjs`
+  and `services/agent-service` (three routes under `app/api/agent-service/`,
+  documented above; `AGENT_SERVICE_URL` env var). `docs/interfaces.md` still
+  doesn't exist to formally record this in, per every prior entry's same
+  note - this is now the second real cross-service contract (after
+  `/api/0g/agentic-id`) waiting for that file to exist.

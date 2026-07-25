@@ -548,7 +548,8 @@ and swapping fixtures for HTTP is changing the body of these functions.
 
 Recorded so it doesn't turn into an expectation:
 
-- Real wallet connection (wagmi/RainbowKit), real signing, Safe deployment.
+- Real signing, Safe deployment. (Wallet connection is now real
+  wagmi/RainbowKit as of 2026-07-25.)
 - Calls to 0G, to the co-signer, or to Hedera.
 - Real GraphQL queries against the subgraph.
 - Server auth/session, multi-tenant, role-based permissions.

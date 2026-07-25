@@ -4,8 +4,10 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { type WalletId, useConnectWallet } from "./ConnectWalletProvider";
 import { Button } from "@/components/ui/Button";
-import { truncateAddress } from "@/lib/utils/format";
-import { Check, Copy, Loader2, ShieldCheck, X } from "lucide-react";
+import { formatHbar, truncateAddress } from "@/lib/utils/format";
+import { AlertCircle, Check, Copy, Loader2, ShieldCheck, X } from "lucide-react";
+import { formatUnits } from "viem";
+import { useBalance } from "wagmi";
 
 const WALLETS: Array<{ id: WalletId; name: string; initials: string }> = [
   { id: "metamask", name: "MetaMask", initials: "MM" },
@@ -16,9 +18,10 @@ const WALLETS: Array<{ id: WalletId; name: string; initials: string }> = [
 export function ConnectModal({ open }: { open: boolean }) {
   const router = useRouter();
   const dialogRef = useRef<HTMLDialogElement>(null);
-  const { status, address, closeModal, connect } = useConnectWallet();
+  const { status, address, error, closeModal, connect, disconnect } = useConnectWallet();
   const [pendingWallet, setPendingWallet] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const { data: balance, isLoading: balanceLoading } = useBalance({ address: address ?? undefined });
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -76,7 +79,7 @@ export function ConnectModal({ open }: { open: boolean }) {
         <div className="mt-6 space-y-4">
           <div className="flex items-center gap-3 rounded-lg bg-success-soft p-4">
             <ShieldCheck className="h-5 w-5 shrink-0 text-success" />
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <p className="text-label text-success">Connected</p>
               <p className="mt-0.5 flex items-center gap-2 font-mono text-mono-md">
                 <span title={address}>{truncateAddress(address)}</span>
@@ -89,12 +92,29 @@ export function ConnectModal({ open }: { open: boolean }) {
                 </button>
               </p>
             </div>
+            <div className="text-right">
+              <p className="text-label text-success">Balance</p>
+              <p className="mt-0.5 flex items-center justify-end gap-1.5 font-mono text-mono-md font-medium tabular-nums text-success">
+                {balance ? (
+                  formatHbar(Number(formatUnits(balance.value, balance.decimals)))
+                ) : balanceLoading ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  "—"
+                )}
+              </p>
+            </div>
           </div>
-          {/* TODO(backend): remove once the real wagmi connection lands. */}
-          <p className="text-caption text-subtle">
-            This session is simulated locally — wallet connection isn’t wired to a real provider yet.
-          </p>
-          <div className="flex justify-end">
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="ghost"
+              onClick={() => {
+                handleDialogClose();
+                disconnect();
+              }}
+            >
+              Disconnect
+            </Button>
             <Button
               onClick={() => {
                 handleDialogClose();
@@ -106,31 +126,39 @@ export function ConnectModal({ open }: { open: boolean }) {
           </div>
         </div>
       ) : (
-        <ul className="mt-6 space-y-2">
-          {WALLETS.map(wallet => {
-            const isPending = status === "connecting" && pendingWallet === wallet.name;
-            return (
-              <li key={wallet.id}>
-                <button
-                  onClick={() => handlePick(wallet)}
-                  disabled={status === "connecting"}
-                  className="flex h-14 w-full items-center gap-3 rounded-lg border border-border bg-surface-raised px-4 text-left transition-colors duration-[120ms] hover:border-border-strong hover:bg-brand-soft/40 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-soft font-mono text-mono-sm font-medium text-brand-strong">
-                    {wallet.initials}
-                  </span>
-                  <span className="flex-1 text-body-sm font-semibold">{wallet.name}</span>
-                  {isPending && (
-                    <span className="flex items-center gap-2 text-caption text-muted">
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Waiting…
+        <>
+          {status === "error" && error && (
+            <div className="mt-4 flex items-center gap-3 rounded-lg bg-danger-soft p-4">
+              <AlertCircle className="h-5 w-5 shrink-0 text-danger" />
+              <p className="text-body-sm text-danger">{error}</p>
+            </div>
+          )}
+          <ul className="mt-6 space-y-2">
+            {WALLETS.map(wallet => {
+              const isPending = status === "connecting" && pendingWallet === wallet.name;
+              return (
+                <li key={wallet.id}>
+                  <button
+                    onClick={() => handlePick(wallet)}
+                    disabled={status === "connecting"}
+                    className="flex h-14 w-full items-center gap-3 rounded-lg border border-border bg-surface-raised px-4 text-left transition-colors duration-[120ms] hover:border-border-strong hover:bg-brand-soft/40 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <span className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-soft font-mono text-mono-sm font-medium text-brand-strong">
+                      {wallet.initials}
                     </span>
-                  )}
-                </button>
-              </li>
-            );
-          })}
-        </ul>
+                    <span className="flex-1 text-body-sm font-semibold">{wallet.name}</span>
+                    {isPending && (
+                      <span className="flex items-center gap-2 text-caption text-muted">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Waiting…
+                      </span>
+                    )}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </>
       )}
     </dialog>
   );

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
+import { useConnectWallet } from "@/features/wallet/components/ConnectWalletProvider";
 import { createAgent } from "@/lib/api/onboarding";
 import { type AgentProfile, type AgentType, CAPABILITY_LABELS, type Capability } from "@/lib/types/aegis";
 import { Loader2 } from "lucide-react";
@@ -23,6 +24,7 @@ export function StepRegisterAgent({
   initial?: AgentProfile;
   onCreated: (agent: AgentProfile) => void;
 }) {
+  const { address } = useConnectWallet();
   const [name, setName] = useState(initial?.name ?? "");
   const [type, setType] = useState<AgentType>(initial?.type ?? "Payment Agent");
   const [description, setDescription] = useState(initial?.description ?? "");
@@ -44,8 +46,11 @@ export function StepRegisterAgent({
     if (capabilities.length === 0) {
       nextErrors.capabilities = "Select at least one capability.";
     }
+    if (!address) {
+      nextErrors.submit = "Your wallet disconnected -- reconnect to register an agent.";
+    }
     setErrors(nextErrors);
-    if (Object.keys(nextErrors).length > 0) return;
+    if (Object.keys(nextErrors).length > 0 || !address) return;
 
     setSubmitting(true);
     try {
@@ -54,6 +59,7 @@ export function StepRegisterAgent({
         type,
         description: description || undefined,
         capabilities,
+        ownerWallet: address,
       });
       onCreated(profile);
     } catch (err) {
@@ -69,8 +75,8 @@ export function StepRegisterAgent({
       <section className="rounded-lg bg-surface p-6 shadow-md">
         <h2 className="text-h4">Agent details</h2>
         <p className="mt-1 text-body-sm text-muted">
-          Connect an agent you already run. AEGIS applies policy, verified decisions and co-signature to its actions —
-          it doesn’t create or host the agent for you.
+          AEGIS creates and hosts this agent for you — a dedicated Hedera account, then a protected Safe wallet once you
+          activate protection. Bringing an agent you already run is on the roadmap, not this version.
         </p>
 
         <div className="mt-6 grid gap-5 sm:grid-cols-2">
@@ -153,7 +159,7 @@ export function StepRegisterAgent({
         {submitting && (
           <span role="status" className="flex items-center gap-2 font-mono text-mono-sm text-muted">
             <Loader2 className="h-4 w-4 animate-spin" />
-            Connecting agent…
+            Creating agent on Hedera…
           </span>
         )}
         <Button type="submit" disabled={submitting}>
