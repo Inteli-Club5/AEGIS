@@ -4,10 +4,9 @@
 
 AEGIS is a safety layer for agents that move value.
 
-The user always brings their own agent — the AI/bot that decides and
-proposes trades. AEGIS never authors or operates that decision-making
-agent. What AEGIS does is wrap it in a **protected operational wallet**,
-bound to it, where every transaction the agent proposes must pass through:
+AEGIS creates the AI agent itself, built on Hedera, as part 
+of onboarding. Either way, AEGIS wraps the agent in a **protected
+operational wallet**, bound to it, where every transaction must pass through:
 
 1. a policy defined by the user;
 2. verification of the agent's identity;
@@ -19,10 +18,10 @@ bound to it, where every transaction the agent proposes must pass through:
 
 In plain language:
 
-> The user connects their own agent and grants it operational power, but
-> that agent never gets a free-spending key. It gets a protected wallet that
-> can only act if the policy, the decision, the identity, and the
-> co-signature all line up.
+> The user grants operational power to an agent — created by AEGIS on Hedera
+> today, bring-your-own later — but that agent never gets a free-spending
+> key. It gets a protected wallet that can only act if the policy, the
+> decision, the identity, and the co-signature all line up.
 
 ---
 
@@ -72,7 +71,7 @@ Blocking can simply mean withholding the required co-signature.
 But it does make sense to sign/log a **Denial Receipt** for audit purposes.
 
 - **Accepted Receipt:** enables co-signature and execution.
-- **Denied Receipt:** records the rejection reason, appears in the dashboard,
+- **Denied Receipt:** records the rejection code, appears in the dashboard,
   does not execute.
 
 ### 2.4 "Only accept with our private key too"
@@ -122,25 +121,22 @@ Mitigation:
 4. The app shows the empty dashboard: "No protected agents yet."
 5. User clicks **+ Protect Agent**.
 
-### 3.2 Register the agent
+### 3.2 Create agent
 
-The user fills out a form for the agent they already have:
+The user fills out a form:
 
 - `Agent name`: e.g. `TreasuryBot`.
 - `Agent type`: Payment / API Buyer / DeFi / Treasury / Other.
 - `Agent endpoint`: optional.
 - `Agent description`: short description.
 
-There is no `Agent signer` input field, and there is no step where AEGIS
-authors or operates the agent's decision-making logic — the agent that
-decides and proposes trades is always the user's own. Clicking **Create
-Agent** has AEGIS provision the on-chain protection infrastructure for that
-agent using the Hedera SDK — including its own Hedera account, the future
-Agent Signer owner on the Safe wallet (§3.3) — together with its **Agent
-Profile** (§5.4). The registered agent is linked to the user's own connected
-wallet (§3.1) from the moment it's registered — the Agent Profile records
-that owning `OperatorWallet` address, so an agent always belongs to the user
-who registered it.
+There is no `Agent signer` input field. Clicking **Create Agent** has AEGIS
+create the agent itself using the Hedera SDK — including its own Hedera
+account, the future Agent Signer owner on the Safe wallet (§3.3) — together
+with its **Agent Profile** (§5.4). The new agent is linked to the user's own
+connected wallet (§3.1) from the moment it's created — the Agent Profile
+records that owning `OperatorWallet` address, so an agent always belongs to
+the user who created it.
 
 ### 3.3 Create the agent's protected wallet
 
@@ -209,7 +205,7 @@ The real or simulated agent proposes an action:
   "destination": "0.0.serviceProvider",
   "token": "HBAR",
   "amount": "1",
-  "reason": "Pay approved API provider for market data",
+  "semanticContext": "Pay approved API provider for market data",
   "policyHash": "0x...",
   "nonce": 12,
   "deadline": "2026-07-26T08:00:00Z"
@@ -230,14 +226,14 @@ Input to 0G/TeeML:
 
 - policy;
 - proposed action;
-- context;
+- private semantic context, passed directly and not persisted;
 - agent identity;
 - business rule.
 
 Expected output:
 
 - `ALLOW` or `DENY`;
-- a short reason;
+- `reasonCode`;
 - `receiptHash`;
 - `proofRef` / `ogRef`;
 - execution metadata.
@@ -270,14 +266,14 @@ Minimum fields:
   "nonce": 12,
   "deadline": "2026-07-26T08:00:00Z",
   "verdict": "ALLOW",
-  "reason": "Destination approved and amount under max",
+  "reasonCode": "DESTINATION_AND_AMOUNT_APPROVED",
+  "semanticContextHash": "0x...",
   "proofRef": {
     "provider": "0G",
     "mode": "real | fallback",
     "receiptHash": "0x...",
     "rawLogUrl": "optional",
-    "timestamp": "ISO-8601",
-    "notes": "short explanation"
+    "timestamp": "ISO-8601"
   },
   "signature": "0x..."
 }
@@ -303,7 +299,7 @@ If anything fails:
 
 - generate a `DeniedReceipt`;
 - withhold co-signature;
-- log the reason;
+- log the reason code;
 - update the dashboard (via the subgraph, §5.3).
 
 If everything passes:
@@ -566,10 +562,9 @@ execution path on subgraph state — only the read/history side depends on it.
 - AEGIS is not just a simple Safety Vault.
 - AEGIS is an **Agent Protected Wallet (Safe) + Policy Gate + 0G Decision
   Verification + AEGIS Co-signature + Graph-indexed Dashboard**.
-- The user always brings their own agent — the AI/bot that decides and
-  proposes trades. AEGIS never creates, authors, or operates that agent; it
-  provisions the on-chain protected wallet and identity around it, and gates
-  every proposed action against the user's policy.
+- AEGIS creates the AI agent itself, built on Hedera, as part of onboarding
+  in this version; connecting a user's own external agent is a roadmap item,
+  not shipped now.
 - AEGIS never exposes its private key.
 - The protected wallet requires co-signature to prevent execution outside the
   platform.
