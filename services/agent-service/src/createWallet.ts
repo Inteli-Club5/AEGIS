@@ -3,6 +3,7 @@ import { hederaTestnet } from "viem/chains";
 import { contractNetworks } from "./safeContracts.js";
 import { getAgent, getAgentPrivateKey, setAgentSafeAddress } from "./store.js";
 import type { AgentProfile } from "./types.js";
+import { buildSafeAccountConfig } from "./walletConfig.js";
 
 export type CreateWalletResult = {
   safeAddress: string;
@@ -32,13 +33,17 @@ export async function createWallet(
   const agentKey = getAgentPrivateKey(agentId);
   if (!profile || !agentKey) throw new Error("agent_not_found");
 
-  const owners = [profile.evmAddress, getCosignerAddress(), recoveryGuardianAddress];
+  const safeAccountConfig = buildSafeAccountConfig(
+    profile.evmAddress,
+    getCosignerAddress(),
+    recoveryGuardianAddress,
+  );
 
   let protocolKit = await Safe.init({
     provider: rpcUrl,
     signer: normalizeKey(agentKey),
     predictedSafe: {
-      safeAccountConfig: { owners, threshold: 2 },
+      safeAccountConfig,
     },
     contractNetworks,
   });

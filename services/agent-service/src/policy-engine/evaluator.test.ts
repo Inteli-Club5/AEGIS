@@ -185,6 +185,25 @@ describe("DeterministicPolicyEvaluator", () => {
       assert.equal(result.status, PASS_TO_TEEML);
     });
 
+    it("allows any valid destination when no destination restriction is configured", () => {
+      const policy = basePolicy({
+        rules: baseRules({ allowedDestinations: [] }),
+      });
+      const result = evaluateDeterministicPolicy(
+        baseInput({
+          policy,
+          normalizedAction: {
+            destination: {
+              kind: "HEDERA_ACCOUNT_ID",
+              value: "0.0.987654",
+            },
+          },
+        }),
+      );
+
+      assert.equal(result.status, PASS_TO_TEEML);
+    });
+
     it("denies malformed URL destinations instead of throwing", () => {
       const policy = basePolicy({
         rules: baseRules({

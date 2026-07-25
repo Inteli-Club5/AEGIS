@@ -1,10 +1,10 @@
 import { connectorsForWallets } from "@rainbow-me/rainbowkit";
-import { metaMaskWallet, walletConnectWallet } from "@rainbow-me/rainbowkit/wallets";
+import { coinbaseWallet, metaMaskWallet, walletConnectWallet } from "@rainbow-me/rainbowkit/wallets";
 import { rainbowkitBurnerWallet } from "burner-connector";
 import * as chains from "viem/chains";
 import scaffoldConfig from "~~/scaffold.config";
 
-const wallets = [metaMaskWallet, walletConnectWallet];
+const wallets = [metaMaskWallet, walletConnectWallet, coinbaseWallet];
 
 const DEV_CHAIN_IDS = new Set<number>([chains.hardhat.id, chains.foundry.id, chains.hederaTestnet.id]);
 
@@ -30,7 +30,7 @@ export const wagmiConnectors = () => {
   }
 
   return connectorsForWallets(walletGroups, {
-    appName: "scaffold-hbar",
+    appName: "AEGIS",
     projectId: scaffoldConfig.walletConnectProjectId,
   });
 };
