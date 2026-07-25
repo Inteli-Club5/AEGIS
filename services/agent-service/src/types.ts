@@ -1,5 +1,7 @@
 export type AgentType = "Payment" | "API Buyer" | "DeFi" | "Treasury" | "Other";
 
+export * from "./policy-engine/types.js";
+
 export type CreateAgentInput = {
   ownerWallet: string;
   name: string;

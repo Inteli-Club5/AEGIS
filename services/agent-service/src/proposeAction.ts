@@ -19,7 +19,8 @@ ${walletNote}
 You can query Hedera state freely. Any transaction tool you call only returns
 unsigned transaction bytes - it does not execute on-chain. Your job is to
 propose one clear action: state the action type, destination, token, amount,
-and your reason. AEGIS decides separately whether to approve and execute it.`;
+and the minimum semantic context. AEGIS decides separately whether to approve
+and execute it.`;
 }
 
 type CreateAgentConfig = Parameters<typeof createAgent>[0];
