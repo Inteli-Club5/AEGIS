@@ -1,6 +1,6 @@
 import { getServerZeroGGalileoRpcUrl, getZeroGStorageIndexerUrl, getZeroGStorageUriPrefix } from "./chain";
 import { stableStringify } from "./metadata";
-import { Indexer, ZgFile } from "@0glabs/0g-ts-sdk";
+import { Indexer, ZgFile } from "@0gfoundation/0g-storage-ts-sdk";
 import { randomUUID } from "crypto";
 import type { Wallet } from "ethers";
 import { mkdtemp, readFile, unlink, writeFile } from "fs/promises";
@@ -11,6 +11,26 @@ export type UploadedAgentMetadata = {
   rootHash: string;
   uri: string;
   uploadTxHash: string;
+};
+
+type UploadResult = Awaited<ReturnType<Indexer["upload"]>>[0];
+
+const normalizeUploadResult = (uploadResult: UploadResult) => {
+  if ("rootHash" in uploadResult) {
+    return {
+      rootHash: uploadResult.rootHash,
+      txHash: uploadResult.txHash,
+    };
+  }
+
+  if (uploadResult.rootHashes.length !== 1 || uploadResult.txHashes.length !== 1) {
+    throw new Error("0G Storage metadata upload returned multiple fragments for a single metadata file.");
+  }
+
+  return {
+    rootHash: uploadResult.rootHashes[0],
+    txHash: uploadResult.txHashes[0],
+  };
 };
 
 export const uploadAgentMetadataToZeroGStorage = async (
@@ -43,11 +63,13 @@ export const uploadAgentMetadataToZeroGStorage = async (
       throw new Error(`0G Storage upload failed: ${uploadError?.message || "missing upload result"}`);
     }
 
-    if (!uploadResult.rootHash) {
+    const normalizedUpload = normalizeUploadResult(uploadResult);
+
+    if (!normalizedUpload.rootHash) {
       throw new Error("0G Storage upload did not return a root hash.");
     }
 
-    if (uploadResult.rootHash.toLowerCase() !== rootHash.toLowerCase()) {
+    if (normalizedUpload.rootHash.toLowerCase() !== rootHash.toLowerCase()) {
       throw new Error("0G Storage upload root hash does not match locally computed Merkle root.");
     }
 
@@ -64,7 +86,7 @@ export const uploadAgentMetadataToZeroGStorage = async (
     return {
       rootHash,
       uri: `${getZeroGStorageUriPrefix()}${rootHash}`,
-      uploadTxHash: uploadResult.txHash,
+      uploadTxHash: normalizedUpload.txHash,
     };
   } finally {
     await file.close();

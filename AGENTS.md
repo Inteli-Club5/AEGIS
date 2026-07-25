@@ -1,4 +1,4 @@
-> **START HERE, EVERY SESSION:** read `PLAYBOOK.md`, then `TASKS.md`, then the latest entry at the bottom of `DEVLOG.md` before doing anything. Follow the playbook workflow and log your work to `DEVLOG.md` at the end of the session using English AM/PM timestamps and chronological order.
+> **START HERE, EVERY SESSION:** read `PLAYBOOK.md`, then `TASKS.md`, then the latest entry at the bottom of `DEVLOG.md` before doing anything. Follow the playbook workflow and log your work to `DEVLOG.md` at the end of the session using English AM/PM timestamps and chronological order. All repository documentation and agent-written notes must be written in English.
 
 # [AGENTS.md](http://AGENTS.md)
 

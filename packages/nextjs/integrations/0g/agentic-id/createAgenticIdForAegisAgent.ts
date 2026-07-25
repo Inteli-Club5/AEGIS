@@ -5,20 +5,13 @@ import {
   getZeroGAgenticIdContractAddress,
   getZeroGExplorerTxUrl,
 } from "./chain";
+import { getRequiredEnvValue } from "./env";
 import { buildAgentProfileMetadata, buildAgenticIdIntelligentData, buildMetadataHash } from "./metadata";
 import { uploadAgentMetadataToZeroGStorage } from "./storage";
 import type { CreateAgenticIdForAegisAgentInput, CreateAgenticIdForAegisAgentResult } from "./types";
 import { Contract, Interface, JsonRpcProvider, Wallet, ZeroAddress, getAddress, isAddress } from "ethers";
 import "server-only";
 import type { Address, Hex } from "viem";
-
-const getRequiredEnv = (name: string) => {
-  const value = process.env[name]?.trim();
-  if (!value) {
-    throw new Error(`${name} is required for real 0G Agentic ID registration.`);
-  }
-  return value;
-};
 
 const toAddress = (value: string, label: string): Address => {
   if (!isAddress(value)) {
@@ -34,6 +27,15 @@ const toBytes32 = (value: string, label: string): Hex => {
   }
 
   return value as Hex;
+};
+
+const normalizePrivateKey = (value: string) => {
+  const privateKey = value.startsWith("0x") ? value : `0x${value}`;
+  if (!/^0x[a-fA-F0-9]{64}$/.test(privateKey)) {
+    throw new Error("ZERO_G_PRIVATE_KEY or PRIVATE_KEY must be a 32-byte hex private key.");
+  }
+
+  return privateKey;
 };
 
 export const normalizeCreateAgenticIdInput = (input: unknown): CreateAgenticIdForAegisAgentInput => {
@@ -111,7 +113,7 @@ export const createAgenticIdForAegisAgent = async (
   const input = normalizeCreateAgenticIdInput(rawInput);
   const rpcUrl = getServerZeroGGalileoRpcUrl();
   const provider = new JsonRpcProvider(rpcUrl, ZERO_G_GALILEO_CHAIN_ID);
-  const wallet = new Wallet(getRequiredEnv("ZERO_G_PRIVATE_KEY"), provider);
+  const wallet = new Wallet(normalizePrivateKey(getRequiredEnvValue(["ZERO_G_PRIVATE_KEY", "PRIVATE_KEY"])), provider);
   const serviceSignerAddress = getAddress(await wallet.getAddress()) as Address;
   const ownerAddress = input.ownerAddress;
   const contractAddress = toAddress(getZeroGAgenticIdContractAddress(), "ZERO_G_AGENTIC_ID_CONTRACT_ADDRESS");

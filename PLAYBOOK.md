@@ -19,6 +19,9 @@ agents both follow it. Keep it short; if a rule stops helping, change it here.
    ABI, a deployed address), say so loudly in the DEVLOG entry and update
    `docs/interfaces.md`.
 6. Never print or commit private keys. `.env` only, `.env.example` for shape.
+7. Write repository documentation, DEVLOG entries, PR descriptions, and
+   agent-authored notes in English. Do not add Portuguese project docs unless a
+   human explicitly requests a localized artifact.
 
 ---
 
@@ -89,6 +92,8 @@ lane, then implement.
   AM/PM timestamps in the format `YYYY-MM-DD hh:mm AM/PM`. This is what makes
   shared, async work possible: the next person (or agent) reads the last entries
   and knows exactly where things stand.
+- **Language** - repository documentation, DEVLOG entries, PR descriptions, and
+  agent-authored notes are written in English by default.
 - **docs/decisions.md** - one line per hard-to-reverse decision (ADR-lite).
   Example seeded: "All EVM contracts on Hedera testnet (single-chain MVP)."
 - **docs/interfaces.md** - the frozen contracts between lanes (see above).

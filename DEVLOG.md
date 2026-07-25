@@ -139,3 +139,49 @@ oldest at the top, newest at the bottom. Use English AM/PM timestamps. Format:
 - blockers: `TASKS.md` is still missing, so no task checklist update was
   possible.
 - interfaces touched: none.
+
+## 2026-07-24 09:06 PM - Codex - env docs
+- did: expanded the root `.env.example` into an English consolidated local
+  environment example with Next.js, Hedera, 0G Agentic ID, decision verifier,
+  cosigner, and contract tooling sections. Updated `packages/nextjs/.env.example` with
+  English placeholders for the dashboard, Hedera mirror URLs, build flags, and
+  preferred `ZERO_G_*` Agentic ID variables.
+- next: restore `TASKS.md` or decide the current replacement for task tracking,
+  because `PLAYBOOK.md` still requires it.
+- blockers: `TASKS.md` is still missing, so no task checklist update was
+  possible.
+- interfaces touched: none.
+
+## 2026-07-24 09:13 PM - Codex - build triage
+- did: reproduced `yarn next:build` from the repo root and confirmed the normal
+  Next.js production build completes successfully, including static page
+  generation and `.next/server/pages-manifest.json`. Also tested
+  `NEXT_PUBLIC_IPFS_BUILD=true yarn next:build`; that path fails separately
+  because API routes are incompatible with `output: "export"`.
+- next: keep the default build path for the dashboard unless/until the API
+  routes are split from the static IPFS export target.
+- blockers: `TASKS.md` is still missing, so no task checklist update was
+  possible.
+- interfaces touched: none.
+
+## 2026-07-24 09:44 PM - Codex - 0G Agentic ID validation
+- did: migrated Storage upload from deprecated `@0glabs/0g-ts-sdk` to
+  `@0gfoundation/0g-storage-ts-sdk@1.2.10`, aligned root `ethers` to `6.13.1`,
+  and confirmed a live 0G Storage smoke upload on Galileo
+  (`0x3898c18847355075c64a6fc1e99958f2532f1f3b23cbaee79dba6cd00a176c6f`).
+  Rebuilt/restarted the Next.js backend and successfully registered AEGIS demo
+  agent `aegis-agent-demo-001` as Agentic ID token `102` on
+  `0x2700F6A3e505402C9daB154C5c6ab9cAEC98EF1F`. Live txs:
+  metadata upload
+  `0xdf0bd7f4daa62bf5a0f7baf1c3246e4c1ea9414b66197eb46f6f560f3ca1310a`,
+  mint `0x9f132d14dd4071eea5b7bb29eee83d76631b00c0aab8234c3fefddf093a69a51`,
+  and `setTokenURI`
+  `0x983206304c90fa39d657c223348fb163b8f2109a8a9f0750b8527ca40ab34984`.
+  Independent onchain reads confirmed `ownerOf(102)`, `tokenURI(102)`, and
+  eight intelligent data hashes.
+- next: persist successful Agentic ID registration results in the real AEGIS
+  backend store once that storage layer exists.
+- blockers: `TASKS.md` and `docs/interfaces.md` are still absent, so no task
+  checklist or shared interface document update was possible.
+- interfaces touched: backend API `POST /api/0g/agentic-id` behavior is now
+  live-validated against 0G Galileo; no Hedera deployment artifacts changed.

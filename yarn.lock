@@ -5,16 +5,19 @@ __metadata:
   version: 6
   cacheKey: 8
 
-"@0glabs/0g-ts-sdk@npm:^0.3.3":
-  version: 0.3.3
-  resolution: "@0glabs/0g-ts-sdk@npm:0.3.3"
+"@0gfoundation/0g-storage-ts-sdk@npm:^1.2.10":
+  version: 1.2.10
+  resolution: "@0gfoundation/0g-storage-ts-sdk@npm:1.2.10"
   dependencies:
     "@ethersproject/bytes": ^5.7.0
     "@ethersproject/keccak256": ^5.7.0
+    "@noble/ciphers": ^1.3.0
+    "@noble/curves": ^1.9.7
+    "@noble/hashes": ^1.8.0
     open-jsonrpc-provider: ^0.2.1
   peerDependencies:
     ethers: 6.13.1
-  checksum: 7c33d3478e4a78c16a8842ff58f086b2d0591f59020db5434f0b78ce55c746a0b7b0714a601d0efda7b7bae50cbbabfc433a2ea03017485996210afbccc70350
+  checksum: 170d5ff724a4cb8228987fdb50267717ca6253e9782cfd1ffb6c2e61030449b508436bd8d689b993edc45bba8e48a78a9c8cdea006b798b4ce046233450b6d97
   languageName: node
   linkType: hard
 
@@ -25,7 +28,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@adraffy/ens-normalize@npm:1.11.1, @adraffy/ens-normalize@npm:^1.10.1, @adraffy/ens-normalize@npm:^1.11.0":
+"@adraffy/ens-normalize@npm:^1.10.1, @adraffy/ens-normalize@npm:^1.11.0":
   version: 1.11.1
   resolution: "@adraffy/ens-normalize@npm:1.11.1"
   checksum: e8b17fcc730ccc45a956e1fbb09edfe42be41c291079512082e9964f8ef4287e67913183cdd02fff71d2e215340d5b98a9bbbd9be32c5d36fad4ba2c1ec33ff2
@@ -4744,7 +4747,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@sh/nextjs@workspace:packages/nextjs"
   dependencies:
-    "@0glabs/0g-ts-sdk": ^0.3.3
+    "@0gfoundation/0g-storage-ts-sdk": ^1.2.10
     "@heroicons/react": ^2.1.5
     "@hiero-ledger/sdk": ^2.80.0
     "@rainbow-me/rainbowkit": 2.2.9
@@ -11710,21 +11713,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"ethers@npm:^6.17.0":
-  version: 6.17.0
-  resolution: "ethers@npm:6.17.0"
-  dependencies:
-    "@adraffy/ens-normalize": 1.11.1
-    "@noble/curves": 1.2.0
-    "@noble/hashes": 1.3.2
-    "@types/node": 22.7.5
-    aes-js: 4.0.0-beta.5
-    tslib: 2.7.0
-    ws: 8.21.0
-  checksum: 0ba314af2ae25622c60886caf83d825ce543262685961667d166b825c9dbfc66f905e0d7a2e3d8d4ccfa58b6ac20326e7f9a897b5580879efa758a50067ad082
-  languageName: node
-  linkType: hard
-
 "ethers@npm:~5.7.0, ethers@npm:~5.7.1":
   version: 5.7.2
   resolution: "ethers@npm:5.7.2"
@@ -18387,9 +18375,9 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "sh@workspace:."
   dependencies:
-    "@0glabs/0g-ts-sdk": ^0.3.3
+    "@0gfoundation/0g-storage-ts-sdk": ^1.2.10
     dotenv: ^17.4.2
-    ethers: ^6.17.0
+    ethers: 6.13.1
     husky: ^9.1.6
     lint-staged: ^15.2.10
   languageName: unknown
@@ -21025,21 +21013,6 @@ __metadata:
     utf-8-validate:
       optional: true
   checksum: d64ef1631227bd0c5fe21b3eb3646c9c91229402fb963d12d87b49af0a1ef757277083af23a5f85742bae1e520feddfb434cb882ea59249b15673c16dc3f36e0
-  languageName: node
-  linkType: hard
-
-"ws@npm:8.21.0":
-  version: 8.21.0
-  resolution: "ws@npm:8.21.0"
-  peerDependencies:
-    bufferutil: ^4.0.1
-    utf-8-validate: ">=5.0.2"
-  peerDependenciesMeta:
-    bufferutil:
-      optional: true
-    utf-8-validate:
-      optional: true
-  checksum: 83ff89ae011bc5c3c5605a45a0d50e12589143c7500ca4de83a8d43b3cd26e71f422cb3206fd1a9e6d541d666eeb66255c30d095d62d413b3c7afe5d2c5cb928
   languageName: node
   linkType: hard
 

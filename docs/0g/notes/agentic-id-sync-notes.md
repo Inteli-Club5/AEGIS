@@ -43,7 +43,8 @@ error.
 - Isolated integration in `packages/nextjs/integrations/0g/agentic-id/`.
 - `AgentProfile` type and integration function input/output types.
 - Offchain metadata generation and `metadataHash`.
-- Real metadata upload to 0G Storage through `@0glabs/0g-ts-sdk`.
+- Real metadata upload to 0G Storage through
+  `@0gfoundation/0g-storage-ts-sdk`.
 - Merkle tree generation before upload.
 - Verification of the root hash returned by upload against the local root.
 - Verified download of the metadata sent to 0G Storage.
@@ -61,7 +62,43 @@ error.
 - Real token transfer to `ownerAddress` when `ownerAddress` differs from the
   backend signer.
 - Final `ownerOf(tokenId)` and `tokenURI(tokenId)` verification.
-- 0G Galileo and 0G Storage variables in `packages/nextjs/.env.example`.
+- 0G Galileo and 0G Storage variables in `.env.example` and
+  `packages/nextjs/.env.example`. The backend can read `ZERO_G_*` names, or
+  the shorter root `.env` aliases used by the 0G examples:
+  `PRIVATE_KEY`, `RPC_URL`, `CHAIN_ID`, `STORAGE_INDEXER`,
+  `AGENTIC_ID_CONTRACT`, `EXPLORER_BASE_URL`, and `STORAGE_URI_PREFIX`.
+
+## Live Galileo Validation
+
+Validated on 0G Galileo testnet with a funded backend signer on
+2026-07-24.
+
+- Storage SDK: `@0gfoundation/0g-storage-ts-sdk@1.2.10`.
+- Storage smoke-test tx:
+  `0x3898c18847355075c64a6fc1e99958f2532f1f3b23cbaee79dba6cd00a176c6f`.
+- Storage smoke-test root:
+  `0x02c1121d25ebc1f81f731acc2a1b3c072f10182cd9c2431a0aca2f24a45c35ff`.
+- Agentic ID token id: `102`.
+- Agentic ID contract:
+  `0x2700F6A3e505402C9daB154C5c6ab9cAEC98EF1F`.
+- Metadata upload tx:
+  `0xdf0bd7f4daa62bf5a0f7baf1c3246e4c1ea9414b66197eb46f6f560f3ca1310a`.
+- Metadata root:
+  `0x69158f7794b985cb6ffb9eead9df7a71dfa32f053ae62113b615b2c936623cf0`.
+- Metadata URI:
+  `0g-storage://0x69158f7794b985cb6ffb9eead9df7a71dfa32f053ae62113b615b2c936623cf0`.
+- Metadata hash:
+  `0x8adffe45df38a4e448b59c751aff7a9ea76e76843acae4a59230762e31476304`.
+- Mint tx:
+  `0x9f132d14dd4071eea5b7bb29eee83d76631b00c0aab8234c3fefddf093a69a51`.
+- `setTokenURI` tx:
+  `0x983206304c90fa39d657c223348fb163b8f2109a8a9f0750b8527ca40ab34984`.
+- Final owner:
+  `0x7F9FD465790184955cc9B8bf3B5e0AAabdfD8c97`.
+- Independent onchain read confirmed `ownerOf(102)`, `tokenURI(102)`, and
+  eight intelligent data hashes for `aegisAgentId`, `agentName`,
+  `agentDescription`, `agentType`, `capabilities`, `agentWalletAddress`,
+  `policyHash`, and `metadataHash`.
 
 ## Real vs not implemented
 
@@ -92,7 +129,6 @@ error.
 
 ## Not Done In This Branch
 
-- Real mint test with a funded wallet on 0G Galileo.
 - Database/indexer to persist the result after success.
 - API route authentication/authorization.
 - Later onchain read in a separate routine to compare

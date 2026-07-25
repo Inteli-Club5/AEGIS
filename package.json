@@ -73,8 +73,8 @@
     "node": ">=20.18.3"
   },
   "dependencies": {
-    "@0glabs/0g-ts-sdk": "^0.3.3",
+    "@0gfoundation/0g-storage-ts-sdk": "^1.2.10",
     "dotenv": "^17.4.2",
-    "ethers": "^6.17.0"
+    "ethers": "6.13.1"
   }
 }
