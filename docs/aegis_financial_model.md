@@ -1,11 +1,35 @@
 # AEGIS — Financial Model v1
 
-> **Status:** pricing and unit economics proposal for discussion.  
-> **Current reality:** AEGIS is a pre-transaction security layer for agents. There is no insurance, payout, recovery reserve, fee for rejected transactions, or percentage charged on protected funds.
+## 1. Costs considered
 
----
+| Cost | Estimate | Note |
+|---|---:|---|
+| **0G decision verification** | ~US$0.0005–US$0.003 per simple action | Depends on token count, model, and real/fallback mode. |
+| **Hedera HBAR transfer** | ~US$0.0001 | Low network fee; it should be paid by the user together with network/gas costs. |
+| **The Graph** | US$0 for up to 100k queries/month; low cost afterward | Use only if there is actual indexing. |
+| **RPC/EVM** | variable | Can start on a free tier; increases with reliability and volume. |
+| **Cloud/backend/logs** | fixed + low variable cost | Probably the largest actual cost at the beginning. |
 
-## 1. Defined revenue model
+For the projection, I use an **average variable cost of US$0.0025 per transaction** and the following estimated fixed costs:
+
+- short term: **US$100/month**;
+- medium term: **US$300/month**.
+
+These costs do not include team salaries, legal expenses, a formal audit, or enterprise support.
+
+## 2. Revenue model
+
+### 2.1. Market benchmarking
+
+| Player | Public model | Implications for AEGIS |
+|---|---|---|
+| **BananaCrystal** | Free start; **0.3% transfer**, **0.5% swap**; no setup/monthly/minimum fees; OTP for transfers; caps and permissions. | BananaCrystal is a payment rail for agents. AEGIS charges more because it sells pre-transaction security, policy, verdicts, co-signing, and auditing. If the user only wants to transfer funds, Banana is cheaper. |
+| **Coinbase CDP** | Wallet operations at **US$0.005/operation** with a free tier; Commerce charges **1%** per transaction; the Trade API charges **0.15%** for stablecoins/USDC/EURC and **0.85%** for all others. | Coinbase is infrastructure at scale. AEGIS should not compete on wallet-operation pricing; it should compete on agentic security. The 1% fee has a precedent in crypto payments, but it must deliver clear value. |
+| **Hedera** | Predictable fees in USD; a simple HBAR transfer costs around **US$0.0001**. | Network cost is low and should be shown separately from the AEGIS fee. |
+| **0G Compute** | GLM-5/GLM-5.2 costs are in the thousandths-of-a-dollar range for a small verification. | The variable cost of a verdict is low, but it depends on the model, token count, and real/fallback mode. |
+| **The Graph** | 100k queries/month free; low cost afterward. | It only applies if there is actual indexing. In the MVP, the cost may be zero. |
+
+### 2.2 How AEGIS does it
 
 | Source | Rule | Who pays | Why it exists |
 |---|---:|---|---|
@@ -17,44 +41,50 @@
 
 ---
 
-## 2. How can BananaCrystal offer a free start?
+## 3. Revenue sources in detail
 
-BananaCrystal offers a free start because free onboarding is part of its funnel: an instant API key and wallet, no setup fee, and charges only when the agent transacts. However, this does not mean “without controls”: it uses API keys, explicit permissions, spending caps, OTP for transfers, idempotency keys to block duplicates, and immutable logs on Hedera.
+Each row of the table in 2.2 is a distinct revenue source with its own trigger, payer, and rules. This section describes how each one works in practice; section 4 discusses whether the price is defensible.
 
-This makes it possible to offer free access without leaving the system completely open to abuse. The cost of creating an account/wallet is subsidized or treated as a customer acquisition cost; revenue comes later from transfers and swaps.
+### 3.1. Activation fee — 0.20 USDC per agent + wallet
 
-### What this teaches AEGIS
+AEGIS can charge **0.20 USDC** because it does not aim to be a free payment rail. AEGIS creates a protected agent/wallet, policy, verification, and security trail. Even so, to reduce friction, the fee is converted into **execution credit** for the agent's first transactions.
 
-AEGIS can charge **0.20 USDC** because it does not aim to be a free payment rail. AEGIS creates a protected agent/wallet, policy, verification, and security trail. Even so, to reduce friction:
+Rules for this credit:
 
-> **Recommended future option:** convert the 0.20 USDC into **non-withdrawable credit** for the first executions.
+- It can only be used to pay the **AEGIS execution fee**;
+- It does not cover the gas/network fee;
+- It does not cover the provider/network fee;
+- It cannot be withdrawn;
+- It expires after 30 days;
+- If the wallet is exported or deactivated, the remaining credit expires.
 
-Suggested rules for this credit:
+This way, the activation fee remains an anti-spam mechanism without looking like a “dead money” for the user.
 
-- it can only be used to pay the **AEGIS execution fee**;
-- it does not cover the gas/network fee;
-- it does not cover the provider/network fee;
-- it cannot be withdrawn;
-- it expires after 30 or 60 days;
-- if the wallet is exported or deactivated, the remaining credit expires.
+### 3.2. Execution fee — 1% per executed transaction
 
-This way, the activation fee remains an anti-spam mechanism without looking like a “dead fee.”
+AEGIS charges **1% of the transaction amount**, with a **minimum of 0.01 USDC** and a **maximum of 2.00 USDC**, on every action that is approved by the gate and actually executed on-chain. It is the payment for the work AEGIS performs on that specific action: policy check, 0G verdict, co-signature, and the receipt that closes the audit trail.
 
----
+Rules for this fee:
 
-## 3. Market comparison
+- It is charged only when the action is **approved and executed**; a denied action, a reverted execution, or an expired mandate generates no fee;
+- It is calculated on the transaction amount, not on the balance protected by the vault;
+- The floor of 0.01 USDC exists so that micro-actions still cover the variable cost of a verdict;
+- The cap of 2.00 USDC exists so that a single large transfer is not priced as a percentage of the funds at risk;
+- It is settled in USDC in the same batched Safe transaction as the payment itself, so the operator signs once;
+- It is paid by the operator/agent and shown as a separate line item, never bundled into gas;
+- Available activation credit (3.1) is consumed before charging the operator.
 
-| Player | Public model | Implications for AEGIS |
-|---|---|---|
-| **BananaCrystal** | Free start; **0.3% transfer**, **0.5% swap**; no setup/monthly/minimum fees; OTP for transfers; caps and permissions. | BananaCrystal is a payment rail for agents. AEGIS charges more because it sells pre-transaction security, policy, verdicts, co-signing, and auditing. If the user only wants to transfer funds, Banana is cheaper. |
-| **Coinbase CDP** | Wallet operations at **US$0.005/operation** with a free tier; Commerce charges **1%** per transaction; the Trade API charges **0.15%** for stablecoins/USDC/EURC and **0.85%** for all others. | Coinbase is infrastructure at scale. AEGIS should not compete on wallet-operation pricing; it should compete on agentic security. The 1% fee has a precedent in crypto payments, but it must deliver clear value. |
-| **Hedera** | Predictable fees in USD; a simple HBAR transfer costs around **US$0.0001**. | Network cost is low and should be shown separately from the AEGIS fee. |
-| **0G Compute** | GLM-5/GLM-5.2 costs are in the thousandths-of-a-dollar range for a small verification. | The variable cost of a verdict is low, but it depends on the model, token count, and real/fallback mode. |
-| **The Graph** | 100k queries/month free; low cost afterward. | It only applies if there is actual indexing. In the MVP, the cost may be zero. |
+### 3.3. Provider/network fee — 0.5% on a service/API/provider
 
-### Why does BananaCrystal charge different fees for transfers and swaps?
+AEGIS charges the **provider** 0.5% of the amount it receives, but only when AEGIS is the reason that demand arrived: routing, discovery, agent verification, or the trust layer that made the provider acceptable to the operator's policy. It is a distribution fee, not a transfer fee.
 
-A transfer only moves value. A swap adds quoting, conversion, liquidity, pricing, spread, execution, and market/routing risk. That is why it makes sense for a swap to cost more. This also supports charging the AEGIS provider/network fee only when network/trust value exists, rather than on a generic transfer.
+Rules for this fee:
+
+- It applies only to **service/API/provider** transactions; generic transfers, wallet-to-wallet payments, and treasury movements are exempt;
+- It requires an explicit agreement with the provider — it is never deducted from an unaware counterparty;
+- It is charged on top of the execution fee (3.2), which the operator pays; the two are always displayed as separate line items so the total take rate is visible;
+- It is withheld at execution and settled with the provider periodically, so a single call does not require an extra transaction;
+- If AEGIS did not generate the demand — the operator hardcoded the provider and reached it directly — the fee is not charged.
 
 ---
 
@@ -127,26 +157,7 @@ Solution:
 
 ---
 
-## 5. Costs considered
-
-| Cost | Estimate | Note |
-|---|---:|---|
-| **0G decision verification** | ~US$0.0005–US$0.003 per simple action | Depends on token count, model, and real/fallback mode. |
-| **Hedera HBAR transfer** | ~US$0.0001 | Low network fee; it should be paid by the user together with network/gas costs. |
-| **The Graph** | US$0 for up to 100k queries/month; low cost afterward | Use only if there is actual indexing. |
-| **RPC/EVM** | variable | Can start on a free tier; increases with reliability and volume. |
-| **Cloud/backend/logs** | fixed + low variable cost | Probably the largest actual cost at the beginning. |
-
-For the projection, I use an **average variable cost of US$0.0025 per transaction** and the following estimated fixed costs:
-
-- short term: **US$100/month**;
-- medium term: **US$300/month**.
-
-These costs do not include team salaries, legal expenses, a formal audit, or enterprise support.
-
----
-
-## 6. Revenue scenarios
+## 5. Financial projection
 
 Assumed volume:
 
@@ -190,7 +201,7 @@ The provider fee applies only to API/service transactions.
 
 ---
 
-## 7. Bottlenecks and solutions
+## 6. Bottlenecks and solutions
 
 | Bottleneck | Why it matters | Solution |
 |---|---|---|
@@ -205,7 +216,7 @@ The provider fee applies only to API/service transactions.
 
 ---
 
-## 8. How to display pricing in the product
+## 7. How we display pricing in the product
 
 Never hide everything under “gas.” Show separate line items:
 
@@ -220,50 +231,9 @@ Provider/network fee
 Paid by the provider when AEGIS generates demand/network/trust.
 ```
 
-This avoids the perception of hidden fees.
-
 ---
 
-## 9. Recommended decision
-
-Recommended v1 model:
-
-```text
-Activation fee:
-0.20 USDC per agent + wallet created
-+ gas/network paid by the user.
-
-Execution fee:
-1% per approved and executed transaction
-minimum: 0.01 USDC
-maximum: 2.00 USDC.
-
-Provider/network fee:
-0.5% on a service/API/provider
-only when AEGIS generates demand, network, trust, or routing.
-```
-
-Do not charge:
-
-```text
-separate SaaS;
-separate hosted dashboard;
-separate Trust Badge;
-% of protected funds;
-coverage;
-insurance;
-recovery;
-rejected transactions;
-generic provider transfers.
-```
-
-The pricing thesis is simple:
-
-> BananaCrystal is cheaper for payments. AEGIS charges more because it does not sell payments alone: it sells pre-transaction verification, policy enforcement, co-signing, and auditing for agents that move value.
-
----
-
-## Public sources used
+## 8. Public sources used
 
 - BananaCrystal: https://www.bananacrystal.com/ and https://agents.bananacrystal.com/
 - Coinbase Developer Platform pricing: https://www.coinbase.com/developer-platform/pricing

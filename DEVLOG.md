@@ -185,3 +185,17 @@ oldest at the top, newest at the bottom. Use English AM/PM timestamps. Format:
   checklist or shared interface document update was possible.
 - interfaces touched: backend API `POST /api/0g/agentic-id` behavior is now
   live-validated against 0G Galileo; no Hedera deployment artifacts changed.
+
+## 2026-07-25 12:00 PM - Claude - Rodrigo (product/docs)
+- did: restructured `docs/aegis_financial_model.md` section 3 into
+  "Revenue sources in detail", turning the standalone "Activation fee" section
+  into subsection 3.1 and adding 3.2 (Execution fee) and 3.3
+  (Provider/network fee) with trigger, payer, and rules for each. Also closed
+  the dangling sentence in 3.1 by stating explicitly that the activation fee
+  converts into execution credit. Sections 4-8 keep their numbering.
+- next: confirm with the team whether the provider-fee settlement cadence
+  described in 3.3 matches what the cosigner/executor will actually implement.
+- blockers: `TASKS.md` is still absent, so no task checklist update was
+  possible.
+- interfaces touched: none.
+
