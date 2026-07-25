@@ -186,6 +186,70 @@ oldest at the top, newest at the bottom. Use English AM/PM timestamps. Format:
 - interfaces touched: backend API `POST /api/0g/agentic-id` behavior is now
   live-validated against 0G Galileo; no Hedera deployment artifacts changed.
 
+## 2026-07-25 12:00 PM - Claude - Rodrigo (product/docs)
+- did: restructured `docs/aegis_financial_model.md` section 3 into
+  "Revenue sources in detail", turning the standalone "Activation fee" section
+  into subsection 3.1 and adding 3.2 (Execution fee) and 3.3
+  (Provider/network fee) with trigger, payer, and rules for each. Also closed
+  the dangling sentence in 3.1 by stating explicitly that the activation fee
+  converts into execution credit. Sections 4-8 keep their numbering.
+- next: confirm with the team whether the provider-fee settlement cadence
+  described in 3.3 matches what the cosigner/executor will actually implement.
+- blockers: `TASKS.md` is still absent, so no task checklist update was
+  possible.
+- interfaces touched: none.
+
+
+## 2026-07-25 12:40 PM - Claude - Rodrigo (product/docs)
+- did: created `docs/roadmap.md`, a phased roadmap (Phase 0 hackathon MVP
+  through Phase 5 long-horizon open questions) built by cross-referencing
+  every already-documented "later"/TODO item across `docs/AEGIS_ARCHITECTURE.md`
+  §9, `docs/decisions.md`, `docs/aegis_financial_model.md` §4/§6, the
+  `services/cosigner` and Agentic ID route TODOs, and the recurring
+  `docs/interfaces.md`/`TASKS.md` blockers from past DEVLOG entries. Added
+  three product asks as explicit phases: a capped-user private beta (Phase 1),
+  agent-provider partnerships (Phase 3, marked Proposed - no prior doc
+  mention), and a financial-roadmap section (§9) that reproduces the real
+  Short term / Medium term projection tables from
+  `docs/aegis_financial_model.md` §5 and explicitly flags that no month-1,
+  month-6, year-1, or 5-year projection exists yet rather than inventing one.
+  Linked the new doc from `README.md`'s doc-pointer list.
+- next: team decision on Phase 3's shape (integration SDK vs. something else)
+  and on modeling the real month-1/month-6/year-1/5-year financial projection
+  once Phase 1 beta usage data exists.
+- blockers: `TASKS.md` is still absent, so no task checklist update was
+  possible.
+- interfaces touched: none.
+
+## 2026-07-25 01:20 PM - Claude - Rodrigo (product/docs)
+- did: corrected a product-thesis error that had propagated across
+  `docs/AEGIS_ARCHITECTURE.md` (§1, §3.2, §14) and `docs/decisions.md`: the
+  docs claimed "AEGIS creates the AI agent itself... as part of onboarding,"
+  but per Rodrigo's correction the user has always brought their own agent
+  (the AI/bot that decides and proposes trades) - AEGIS never authored or
+  operated that decision logic, only the on-chain protected wallet/identity
+  around it and the policy verification gate. Reworded `docs/AEGIS_
+  ARCHITECTURE.md` §1's product thesis and pull-quote, renamed and reworded
+  §3.2 "Create agent" to "Register the agent," and rewrote the §14 standing
+  truth. Appended a new dated line to `docs/decisions.md` (per its own
+  never-edit-history rule) superseding the 2026-07-24 line rather than
+  deleting it. Updated `docs/roadmap.md` to match: Phase 0's scope line and
+  table row no longer say "AEGIS-created agent"; retitled Phase 2 from
+  "Chain, asset, and agent-source expansion" to "Chain and asset expansion"
+  since bring-your-own-agent was never a future item; reworded Phase 3's
+  goal statement to contrast self-serve one-by-one registration against
+  partner-scale integration instead of the wrong AEGIS-vs-user framing; and
+  aligned Phase 4's section header with its already-shortened table label
+  ("Monetization expansion").
+- next: `README.md` line 3 ("It creates the agent itself on Hedera...") and
+  `PLAYBOOK.md` line 117 ("Create/register agent, AEGIS-created on Hedera")
+  still carry the same stale claim - out of this session's authorized scope
+  (roadmap + architecture + decisions.md only), flagged to Rodrigo, not
+  edited.
+- blockers: `TASKS.md` is still absent, so no task checklist update was
+  possible.
+- interfaces touched: none. Product-thesis correction only; no ABI/API/
+  schema changed.
 ## 2026-07-24 10:31 PM - Claude Code (CryptoVictor) - dashboard
 - did: merged the untracked root-level `front-aegis-main/` (a standalone
   Next.js UI prototype - landing, onboarding wizard, dashboard, agent detail,

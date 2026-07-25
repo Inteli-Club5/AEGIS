@@ -24,6 +24,7 @@ co-signature flow - was written during the event.
 - **Architecture:** [`docs/AEGIS_ARCHITECTURE.md`](docs/AEGIS_ARCHITECTURE.md) - full production architecture, user flow, transaction flow, and hackathon scope.
 - **Current scope:** [`docs/aegis-current-scope.md`](docs/aegis-current-scope.md) - active Policy Engine Level 1 branch scope, interfaces, handoff, and local PostgreSQL commands.
 - **Decisions:** [`docs/decisions.md`](docs/decisions.md) - ADR-lite log of locked product/technical decisions.
+- **Roadmap:** [`docs/roadmap.md`](docs/roadmap.md) - phased plan from hackathon MVP to beta, expansion, and partnerships, plus the financial projections behind it.
 - **Workflow:** [`PLAYBOOK.md`](PLAYBOOK.md) - how the team builds, ownership, conventions.
 
 ## AEGIS repo layout
