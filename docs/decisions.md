@@ -28,3 +28,13 @@ add a new line noting the change and why — don't edit history away.
   requiring an on-chain 0G attestation before execution — is a known TODO,
   blocked on 0G being wired into the cosign flow. See
   `docs/AEGIS_ARCHITECTURE.md` §9.2, `services/cosigner/src/index.ts`.
+- 2026-07-25 — Corrects the 2026-07-24 line above ("AEGIS creates the AI
+  agent itself... as part of onboarding"): that was inaccurate. AEGIS never
+  creates or operates the agent itself. The user always brings their own
+  agent — the AI/bot that decides and proposes trades — configures the
+  policy around it, and every time that agent wants to execute a trade,
+  AEGIS verifies it against the policy before co-signing and executing.
+  AEGIS provisions the on-chain protected wallet and identity around the
+  user's agent; it does not author the agent's decision-making logic.
+  "Bring your own agent" was never a roadmap item — it has always been the
+  model. See `docs/AEGIS_ARCHITECTURE.md` §1, §3.2, §14.

@@ -4,9 +4,10 @@
 
 AEGIS is a safety layer for agents that move value.
 
-AEGIS creates the AI agent itself, built on Hedera, as part 
-of onboarding. Either way, AEGIS wraps the agent in a **protected
-operational wallet**, bound to it, where every transaction must pass through:
+The user always brings their own agent — the AI/bot that decides and
+proposes trades. AEGIS never authors or operates that decision-making
+agent. What AEGIS does is wrap it in a **protected operational wallet**,
+bound to it, where every transaction the agent proposes must pass through:
 
 1. a policy defined by the user;
 2. verification of the agent's identity;
@@ -18,10 +19,10 @@ operational wallet**, bound to it, where every transaction must pass through:
 
 In plain language:
 
-> The user grants operational power to an agent — created by AEGIS on Hedera
-> today, bring-your-own later — but that agent never gets a free-spending
-> key. It gets a protected wallet that can only act if the policy, the
-> decision, the identity, and the co-signature all line up.
+> The user connects their own agent and grants it operational power, but
+> that agent never gets a free-spending key. It gets a protected wallet that
+> can only act if the policy, the decision, the identity, and the
+> co-signature all line up.
 
 ---
 
@@ -121,22 +122,25 @@ Mitigation:
 4. The app shows the empty dashboard: "No protected agents yet."
 5. User clicks **+ Protect Agent**.
 
-### 3.2 Create agent
+### 3.2 Register the agent
 
-The user fills out a form:
+The user fills out a form for the agent they already have:
 
 - `Agent name`: e.g. `TreasuryBot`.
 - `Agent type`: Payment / API Buyer / DeFi / Treasury / Other.
 - `Agent endpoint`: optional.
 - `Agent description`: short description.
 
-There is no `Agent signer` input field. Clicking **Create Agent** has AEGIS
-create the agent itself using the Hedera SDK — including its own Hedera
-account, the future Agent Signer owner on the Safe wallet (§3.3) — together
-with its **Agent Profile** (§5.4). The new agent is linked to the user's own
-connected wallet (§3.1) from the moment it's created — the Agent Profile
-records that owning `OperatorWallet` address, so an agent always belongs to
-the user who created it.
+There is no `Agent signer` input field, and there is no step where AEGIS
+authors or operates the agent's decision-making logic — the agent that
+decides and proposes trades is always the user's own. Clicking **Create
+Agent** has AEGIS provision the on-chain protection infrastructure for that
+agent using the Hedera SDK — including its own Hedera account, the future
+Agent Signer owner on the Safe wallet (§3.3) — together with its **Agent
+Profile** (§5.4). The registered agent is linked to the user's own connected
+wallet (§3.1) from the moment it's registered — the Agent Profile records
+that owning `OperatorWallet` address, so an agent always belongs to the user
+who registered it.
 
 ### 3.3 Create the agent's protected wallet
 
@@ -562,9 +566,10 @@ execution path on subgraph state — only the read/history side depends on it.
 - AEGIS is not just a simple Safety Vault.
 - AEGIS is an **Agent Protected Wallet (Safe) + Policy Gate + 0G Decision
   Verification + AEGIS Co-signature + Graph-indexed Dashboard**.
-- AEGIS creates the AI agent itself, built on Hedera, as part of onboarding
-  in this version; connecting a user's own external agent is a roadmap item,
-  not shipped now.
+- The user always brings their own agent — the AI/bot that decides and
+  proposes trades. AEGIS never creates, authors, or operates that agent; it
+  provisions the on-chain protected wallet and identity around it, and gates
+  every proposed action against the user's policy.
 - AEGIS never exposes its private key.
 - The protected wallet requires co-signature to prevent execution outside the
   platform.

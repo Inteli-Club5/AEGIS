@@ -220,3 +220,33 @@ oldest at the top, newest at the bottom. Use English AM/PM timestamps. Format:
 - blockers: `TASKS.md` is still absent, so no task checklist update was
   possible.
 - interfaces touched: none.
+
+## 2026-07-25 01:20 PM - Claude - Rodrigo (product/docs)
+- did: corrected a product-thesis error that had propagated across
+  `docs/AEGIS_ARCHITECTURE.md` (§1, §3.2, §14) and `docs/decisions.md`: the
+  docs claimed "AEGIS creates the AI agent itself... as part of onboarding,"
+  but per Rodrigo's correction the user has always brought their own agent
+  (the AI/bot that decides and proposes trades) - AEGIS never authored or
+  operated that decision logic, only the on-chain protected wallet/identity
+  around it and the policy verification gate. Reworded `docs/AEGIS_
+  ARCHITECTURE.md` §1's product thesis and pull-quote, renamed and reworded
+  §3.2 "Create agent" to "Register the agent," and rewrote the §14 standing
+  truth. Appended a new dated line to `docs/decisions.md` (per its own
+  never-edit-history rule) superseding the 2026-07-24 line rather than
+  deleting it. Updated `docs/roadmap.md` to match: Phase 0's scope line and
+  table row no longer say "AEGIS-created agent"; retitled Phase 2 from
+  "Chain, asset, and agent-source expansion" to "Chain and asset expansion"
+  since bring-your-own-agent was never a future item; reworded Phase 3's
+  goal statement to contrast self-serve one-by-one registration against
+  partner-scale integration instead of the wrong AEGIS-vs-user framing; and
+  aligned Phase 4's section header with its already-shortened table label
+  ("Monetization expansion").
+- next: `README.md` line 3 ("It creates the agent itself on Hedera...") and
+  `PLAYBOOK.md` line 117 ("Create/register agent, AEGIS-created on Hedera")
+  still carry the same stale claim - out of this session's authorized scope
+  (roadmap + architecture + decisions.md only), flagged to Rodrigo, not
+  edited.
+- blockers: `TASKS.md` is still absent, so no task checklist update was
+  possible.
+- interfaces touched: none. Product-thesis correction only; no ABI/API/
+  schema changed.
