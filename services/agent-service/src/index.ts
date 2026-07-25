@@ -7,10 +7,17 @@ import { proposeAction as proposeAgentAction } from "./proposeAction.js";
 import { HttpError, registerAgenticId } from "./registerAgenticId.js";
 import { getAgent as getStoredAgent } from "./store.js";
 import type { AgentType } from "./types.js";
-import { createPostgresPolicyRepository, UnconfiguredPolicyRepository } from "./policy-engine/db/postgres.js";
+import {
+  createPostgresPolicyRepository,
+  createPostgresPrecheckRepository,
+  UnconfiguredPolicyRepository,
+  UnconfiguredPrecheckRepository,
+} from "./policy-engine/db/postgres.js";
 import { createUuidV7 } from "./policy-engine/ids.js";
+import type { PrecheckRepository } from "./policy-engine/precheck.js";
+import { DEFAULT_AUDIT_RETENTION_DAYS, DEFAULT_USAGE_HOLD_TTL_SECONDS, PrecheckService, type AgentActorContext } from "./policy-engine/precheck.js";
 import type { PolicyRepository } from "./policy-engine/repository.js";
-import { createPolicyRouter } from "./policy-engine/routes.js";
+import { createPolicyRouter, type AgentActorAuthenticator } from "./policy-engine/routes.js";
 import { PolicyLifecycleService } from "./policy-engine/service.js";
 import { NETWORK_ID } from "./policy-engine/types.js";
 
@@ -19,6 +26,8 @@ const AGENT_TYPES: AgentType[] = ["Payment", "API Buyer", "DeFi", "Treasury", "O
 
 export type AgentServiceAppOptions = {
   policyRepository?: PolicyRepository;
+  precheckRepository?: PrecheckRepository;
+  authenticateAgentActor?: AgentActorAuthenticator;
   createAgent?: typeof createAgentProfile;
   createWallet?: typeof createAgentWallet;
   proposeAction?: typeof proposeAgentAction;
@@ -33,7 +42,15 @@ export function createAgentServiceApp(options: AgentServiceAppOptions = {}) {
   const policyRepository =
     options.policyRepository ??
     (process.env.DATABASE_URL ? createPostgresPolicyRepository(process.env.DATABASE_URL) : new UnconfiguredPolicyRepository());
+  const precheckRepository =
+    options.precheckRepository ??
+    (process.env.DATABASE_URL ? createPostgresPrecheckRepository(process.env.DATABASE_URL) : new UnconfiguredPrecheckRepository());
   const policyService = new PolicyLifecycleService(policyRepository);
+  const precheckService = new PrecheckService(precheckRepository, {
+    idGenerator: createUuidV7,
+    usageHoldTtlSeconds: envPositiveInteger("USAGE_HOLD_TTL_SECONDS", DEFAULT_USAGE_HOLD_TTL_SECONDS),
+    auditRetentionDays: envPositiveInteger("AUDIT_RETENTION_DAYS", DEFAULT_AUDIT_RETENTION_DAYS),
+  });
   const isPolicyDatabaseConfigured = !(policyRepository instanceof UnconfiguredPolicyRepository);
   const createAgent = options.createAgent ?? createAgentProfile;
   const createWallet = options.createWallet ?? createAgentWallet;
@@ -43,7 +60,7 @@ export function createAgentServiceApp(options: AgentServiceAppOptions = {}) {
 
   app.get("/health", (_req, res) => res.json({ ok: true, service: "aegis-agent-service" }));
 
-  app.use(createPolicyRouter(policyService));
+  app.use(createPolicyRouter(policyService, precheckService, options.authenticateAgentActor));
 
   app.post("/create-agents", async (req, res) => {
     const { ownerWallet, name, type, endpoint, description } = req.body ?? {};
@@ -170,6 +187,20 @@ export function createAgentServiceApp(options: AgentServiceAppOptions = {}) {
   });
 
   return app;
+}
+
+export function fixedAgentActor(agentId: string): AgentActorContext {
+  return { authenticatedAgentId: agentId.toLowerCase(), actorType: "AGENT" };
+}
+
+function envPositiveInteger(name: string, fallback: number): number {
+  const value = process.env[name];
+  if (value === undefined || value.trim() === "") return fallback;
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    throw new Error(`${name} must be a positive integer`);
+  }
+  return parsed;
 }
 
 const port = process.env.AGENT_SERVICE_PORT ?? 4200;

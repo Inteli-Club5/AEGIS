@@ -9,9 +9,7 @@ the current focus for the next agent session.
 
 ## Current Focus
 
-- [ ] Round 1 approval/commit gate: review the Policy Engine Level 1 lifecycle
-  and Phase 1.5 PostgreSQL validation diff, then commit only after explicit
-  approval. Do not start Round 2 or implement Action Precheck until authorized.
+- [ ] Review and merge the Policy Engine Level 1 PR into `main`.
 
 ## Done
 
@@ -26,3 +24,11 @@ the current focus for the next agent session.
   real Drizzle migration against a clean PostgreSQL database, added PostgreSQL
   integration tests, audited/corrected operator signatures to EIP-712
   `PolicyCommitment`, and reviewed the diff for Round 1 scope hygiene.
+- [x] 2026-07-25: Phase 2 implemented the pure deterministic evaluator with
+  `PASS_TO_TEEML`/`DENY_PRECHECK`, stable reason codes, explicit `now`, bigint
+  amount handling, and unit tests for deterministic and side-effect-free
+  behavior.
+- [x] 2026-07-25: Phase 3 implemented durable precheck orchestration with
+  PostgreSQL-backed idempotency, monotonic wallet nonces, action requests,
+  precheck records, UsageHolds, sanitized audit events, real HTTP routing, and
+  PostgreSQL integration tests for concurrency and rollback.

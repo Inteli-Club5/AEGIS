@@ -8,6 +8,13 @@
       "when": 1784953806488,
       "tag": "0000_lethal_blue_shield",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1784956920000,
+      "tag": "0001_level1_precheck_orchestration",
+      "breakpoints": true
     }
   ]
 }

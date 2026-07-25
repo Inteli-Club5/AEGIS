@@ -275,3 +275,66 @@ oldest at the top, newest at the bottom. Use English AM/PM timestamps. Format:
   `drizzle-orm@0.45.2` upgrade; no `npm audit fix` was executed.
 - interfaces touched: `docs/aegis-current-scope.md` documents the localhost-only
   PostgreSQL bind, `.env.docker.example`, and HTTP/DB validation path.
+
+## 2026-07-25 02:42 AM - Codex (Leunam) - Policy Engine Level 1 Phase 2
+- did: implemented the pure `DeterministicPolicyEvaluator` in
+  `services/agent-service/src/policy-engine/evaluator.ts` with deterministic
+  `PASS_TO_TEEML`/`DENY_PRECHECK` results, stable reason codes, explicit `now`,
+  bigint amount handling, asset catalog checks, usage snapshot limits, optional
+  pure nonce-reuse evidence, optional pure action-hash comparison evidence, and
+  no database/network/runtime side effects. Added pure unit coverage in
+  `services/agent-service/src/policy-engine/evaluator.test.ts` for valid HBAR
+  and HTS actions, ordered denial reasons, boundary limits, bigint amounts,
+  nonce/hash failures, input immutability, no `Date.now()`, and no environment
+  dependency. Ran `npm --prefix services/agent-service test`, `npm --prefix
+  services/agent-service run typecheck`, `npm --prefix services/agent-service
+  run lint`, and `npm --prefix services/agent-service run build`.
+- next: human review of Phase 2 only. Do not start Phase 3 until explicitly
+  approved.
+- blockers: none for the pure evaluator. `docs/interfaces.md` and the old
+  handoff file remain absent after the prior documentation consolidation, so
+  `docs/aegis-current-scope.md`, the Phase 1 implementation, and the Phase 2
+  approval prompt were used as the effective sources.
+- interfaces touched: added the Phase 2 pure evaluator input/output contract in
+  `services/agent-service/src/policy-engine/evaluator.ts`; no endpoint,
+  persistence, UsageHold lifecycle, TeeML/0G, Safe, Hedera execution, fees,
+  DecisionReceipt, contract, ABI, deployment, or migration interface was added.
+
+## 2026-07-25 03:06 AM - Codex (Leunam) - Policy Engine Level 1 Phase 3
+- did: implemented durable Level 1 precheck orchestration. Added PostgreSQL
+  schema/migration support for asset catalog, wallet nonces, action requests,
+  precheck records, usage holds, and sanitized audit events. Added
+  `PrecheckService`, action normalization, deterministic request/action hashes,
+  idempotency handling, monotonic nonce allocation, UTC daily usage snapshots,
+  advisory-lock-backed PostgreSQL transactions, the real
+  `POST /agents/:agentId/wallets/:walletId/actions/precheck` route, and
+  explicit agent-authentication adapter wiring. Added unit coverage for service
+  orchestration and PostgreSQL integration coverage for PASS/DENY flows,
+  idempotency, holds, concurrency, atomic rollback, and HTTP semantics. Updated
+  only the active scope/API notes, local env examples, and DEVLOG.
+- next: human review of Phase 3 only. Do not start Phase 4 until explicitly
+  approved.
+- blockers: no secure reusable agent authentication mechanism exists in the
+  codebase yet, so the precheck route requires an injected authentication
+  adapter and fails with `agent_auth_unconfigured` if none is configured. This
+  avoids trusting raw agent headers as authentication.
+- interfaces touched: added Level 1 precheck persistence/API contracts and
+  migration `0001_level1_precheck_orchestration.sql`. No TeeML/0G call,
+  semantic rule evaluation, DecisionReceipt, Safe co-signature, Hedera
+  execution, fee, The Graph/Subgraph, contract, ABI, deployment, insurance,
+  recovery, payout, coverage, or circuit breaker behavior was added.
+
+## 2026-07-25 03:21 AM - Codex (Leunam) - Policy Engine Level 1 PR Prep
+- did: prepared the Policy Engine Level 1 branch for PR by keeping only the
+  implementation and documentation needed for the durable Policy/precheck flow,
+  excluding the unrelated main-branch lockfile stash, removing the temporary
+  Phase 4 prompt artifact from the PR, updating `TASKS.md` and
+  `docs/aegis-current-scope.md`, and adding precise English TODOs at the
+  future TeeML and UsageHold finalization integration points. Rechecked the
+  current Policy Engine state with local PostgreSQL healthy on
+  `127.0.0.1:55432`, a successful Drizzle migration against `aegis_test`, 46
+  passing unit tests, 13 passing PostgreSQL integration tests, and passing
+  typecheck, lint, and build.
+- next: open a PR from `feat/policy-engine-level-1` to `main`.
+- blockers: none.
+- interfaces touched: none.

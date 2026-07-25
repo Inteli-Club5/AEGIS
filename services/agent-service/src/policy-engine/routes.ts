@@ -1,9 +1,12 @@
 import { Router, type Request, type Response } from "express";
 import { extractOperatorAuth } from "./auth.js";
 import { PolicyEngineError } from "./errors.js";
+import type { AgentActorContext, PrecheckService } from "./precheck.js";
 import type { PolicyLifecycleService } from "./service.js";
 
-export function createPolicyRouter(service: PolicyLifecycleService): Router {
+export type AgentActorAuthenticator = (req: Request) => Promise<AgentActorContext>;
+
+export function createPolicyRouter(service: PolicyLifecycleService, precheckService?: PrecheckService, authenticateAgentActor?: AgentActorAuthenticator): Router {
   const router = Router();
 
   router.post("/policies", asyncHandler(async (req, res) => {
@@ -35,7 +38,28 @@ export function createPolicyRouter(service: PolicyLifecycleService): Router {
     res.json(await service.getActivePolicy(req.params.agentId, req.params.walletId, now));
   }));
 
+  if (precheckService) {
+    router.post("/agents/:agentId/wallets/:walletId/actions/precheck", asyncHandler(async (req, res) => {
+      if (!authenticateAgentActor) {
+        throw new PolicyEngineError(503, "agent_auth_unconfigured", "Agent precheck authentication adapter is not configured");
+      }
+      const actor = await authenticateAgentActor(req);
+      const result = await precheckService.precheck({
+        params: { agentId: req.params.agentId, walletId: req.params.walletId },
+        body: req.body,
+        idempotencyKey: firstHeader(req.headers["idempotency-key"]) ?? null,
+        actor,
+      });
+      res.status(result.httpStatus).json(result.response);
+    }));
+  }
+
   return router;
+}
+
+function firstHeader(value: unknown): string | undefined {
+  if (Array.isArray(value)) return typeof value[0] === "string" ? value[0] : undefined;
+  return typeof value === "string" ? value : undefined;
 }
 
 function asyncHandler(handler: (req: Request, res: Response) => Promise<void>) {
@@ -48,4 +72,3 @@ function asyncHandler(handler: (req: Request, res: Response) => Promise<void>) {
     });
   };
 }
-

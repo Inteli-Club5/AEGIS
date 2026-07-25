@@ -9,9 +9,16 @@ import { createAgentServiceApp } from "../index.js";
 import type { AgentProfile } from "../types.js";
 import { buildPolicyCommitment, POLICY_COMMITMENT_DOMAIN, POLICY_COMMITMENT_TYPES } from "./auth.js";
 import { computePolicyHash } from "./canonicalize.js";
-import { PostgresPolicyRepository, UnconfiguredPolicyRepository } from "./db/postgres.js";
+import {
+  PostgresPolicyRepository,
+  PostgresPrecheckRepository,
+  UnconfiguredPolicyRepository,
+  UnconfiguredPrecheckRepository,
+} from "./db/postgres.js";
 import * as schema from "./db/schema.js";
 import { PolicyEngineError } from "./errors.js";
+import { createUuidV7 } from "./ids.js";
+import { PrecheckService, type AgentActorContext } from "./precheck.js";
 import { createPolicyIdFromHash, PolicyLifecycleService } from "./service.js";
 import { NETWORK_ID, type CreatePolicyRequest, type Hex32, type Policy, type PolicyCommitment, type PolicyRules } from "./types.js";
 import { parseCreatePolicyRequest, parseUpdatePolicyRequest } from "./validation.js";
@@ -299,6 +306,279 @@ describe("Policy Engine PostgreSQL integration", () => {
       assert.equal(response.data.error, "policy_database_unconfigured");
     });
   });
+
+  it("persists Level 1 precheck PASS and DENY flows against PostgreSQL", async () => {
+    const { pool, policyService, precheckService } = await seededPostgresPrecheckService();
+    await seedHtsAsset(pool);
+    const policy = await createAndActivatePrecheckPolicy(policyService);
+
+    const hbar = await precheckService.precheck(precheckInput("precheck-hbar", { amount: "4" }));
+    assert.equal(hbar.httpStatus, 202);
+    assert.equal(hbar.response.status, "PENDING_TEEML");
+    assert.equal(hbar.response.status === "PENDING_TEEML" ? hbar.response.policyId : null, policy.policyId);
+    assert.equal(hbar.response.status === "PENDING_TEEML" ? hbar.response.usageHoldExpiresAt : null, 1300);
+
+    const hts = await precheckService.precheck(
+      precheckInput("precheck-hts", {
+        actionType: "HEDERA_HTS_FUNGIBLE_TRANSFER",
+        assetId: "hedera:testnet:hts:0.0.12345",
+        amount: "2",
+      }),
+    );
+    assert.equal(hts.httpStatus, 202);
+    assert.equal(hts.response.status, "PENDING_TEEML");
+
+    const destinationDenied = await precheckService.precheck(
+      precheckInput("precheck-destination-denied", {
+        destination: { kind: "HEDERA_ACCOUNT_ID", value: "0.0.999999" },
+      }),
+    );
+    assert.equal(destinationDenied.httpStatus, 200);
+    assert.equal(destinationDenied.response.status === "DENY_PRECHECK" ? destinationDenied.response.code : null, "DESTINATION_NOT_ALLOWED");
+
+    const assetDenied = await precheckService.precheck(precheckInput("precheck-asset-denied", { assetId: "hedera:testnet:hts:0.0.99999" }));
+    assert.equal(assetDenied.response.status === "DENY_PRECHECK" ? assetDenied.response.code : null, "ASSET_NOT_FOUND");
+
+    const amountDenied = await precheckService.precheck(precheckInput("precheck-amount-denied", { amount: "11" }));
+    assert.equal(amountDenied.response.status === "DENY_PRECHECK" ? amountDenied.response.code : null, "AMOUNT_ABOVE_MAX");
+
+    const counts = await tableCounts(pool);
+    assert.equal(counts.actionRequests, 5);
+    assert.equal(counts.precheckRecords, 5);
+    assert.equal(counts.usageHolds, 2);
+    assert.equal(counts.auditEvents, 5);
+  });
+
+  it("returns DENY_PRECHECK for missing active policy, retired wallet, and paused agent", async () => {
+    const { repository, policyService, precheckService } = await seededPostgresPrecheckService();
+
+    const noPolicy = await precheckService.precheck(precheckInput("precheck-no-policy"));
+    assert.equal(noPolicy.response.status === "DENY_PRECHECK" ? noPolicy.response.code : null, "POLICY_NOT_FOUND");
+
+    const policy = await createAndActivatePrecheckPolicy(policyService);
+    await repository.saveWallet({
+      walletId: WALLET_ID,
+      agentId: AGENT_ID,
+      networkId: NETWORK_ID,
+      safeAddress: SAFE_ADDRESS,
+      status: "RETIRED",
+      createdAt: 1,
+      updatedAt: 1,
+    });
+    const retiredWallet = await precheckService.precheck(precheckInput("precheck-retired-wallet"));
+    assert.equal(retiredWallet.response.status === "DENY_PRECHECK" ? retiredWallet.response.code : null, "WALLET_NOT_PROTECTED");
+
+    await repository.saveWallet({
+      walletId: WALLET_ID,
+      agentId: AGENT_ID,
+      networkId: NETWORK_ID,
+      safeAddress: SAFE_ADDRESS,
+      status: "PROTECTED",
+      createdAt: 1,
+      updatedAt: 1,
+    });
+    await repository.saveAgent({
+      agentId: AGENT_ID,
+      ownerAddress: owner.address.toLowerCase() as `0x${string}`,
+      status: "PAUSED",
+      createdAt: 1,
+      updatedAt: 1,
+    });
+    const pausedAgent = await precheckService.precheck(precheckInput("precheck-paused-agent"));
+    assert.equal(pausedAgent.response.status === "DENY_PRECHECK" ? pausedAgent.response.code : null, "AGENT_NOT_ACTIVE");
+    assert.equal(policy.status, "ACTIVE");
+  });
+
+  it("preserves idempotent precheck responses and rejects payload conflicts", async () => {
+    const { pool, policyService, precheckService } = await seededPostgresPrecheckService();
+    await createAndActivatePrecheckPolicy(policyService, { amount: { min: "1", max: "10", dailyLimit: "20" } });
+
+    const first = await precheckService.precheck(precheckInput("precheck-idempotent", { reason: "private reason" }));
+    const second = await precheckService.precheck(precheckInput("precheck-idempotent", { reason: "private reason" }));
+
+    assert.deepEqual(second.response, first.response);
+    assert.equal(second.idempotentReplay, true);
+    assert.equal((await tableCounts(pool)).actionRequests, 1);
+    assert.equal((await tableCounts(pool)).precheckRecords, 1);
+    assert.equal((await tableCounts(pool)).usageHolds, 1);
+    assert.equal((await tableCounts(pool)).auditEvents, 1);
+
+    await rejectsWithCode(() => precheckService.precheck(precheckInput("precheck-idempotent", { amount: "2" })), "IDEMPOTENCY_CONFLICT");
+
+    const [requestRow] = (await pool.query("select * from aegis_action_requests")).rows;
+    const [auditRow] = (await pool.query("select * from aegis_audit_events")).rows;
+    assert.equal(JSON.stringify(auditRow).includes("private reason"), false);
+    assert.equal(JSON.stringify(auditRow).includes("precheck-idempotent"), false);
+    assert.equal(JSON.stringify(requestRow.private_payload).includes("private reason"), true);
+  });
+
+  it("counts active, expired, released, and committed UsageHolds in snapshots", async () => {
+    const { pool, policyService, precheckService } = await seededPostgresPrecheckService();
+    await createAndActivatePrecheckPolicy(policyService, { amount: { min: "1", max: "10", dailyLimit: "5" } });
+
+    const first = await precheckService.precheck(precheckInput("precheck-hold-active", { amount: "4" }));
+    assert.equal(first.response.status, "PENDING_TEEML");
+
+    const deniedByActiveHold = await precheckService.precheck(precheckInput("precheck-hold-active-deny", { amount: "2" }));
+    assert.equal(deniedByActiveHold.response.status === "DENY_PRECHECK" ? deniedByActiveHold.response.code : null, "DAILY_LIMIT_EXCEEDED");
+
+    await pool.query("update aegis_usage_holds set status = 'RELEASED', released_at = 1001, updated_at = 1001 where usage_hold_id = $1", [
+      first.response.status === "PENDING_TEEML" ? first.response.usageHoldId : "",
+    ]);
+    const passAfterRelease = await precheckService.precheck(precheckInput("precheck-hold-released", { amount: "2" }));
+    assert.equal(passAfterRelease.response.status, "PENDING_TEEML");
+
+    await pool.query("update aegis_usage_holds set status = 'HELD', expires_at = 999, updated_at = 999 where usage_hold_id = $1", [
+      passAfterRelease.response.status === "PENDING_TEEML" ? passAfterRelease.response.usageHoldId : "",
+    ]);
+    const passAfterExpiry = await precheckService.precheck(precheckInput("precheck-hold-expired", { amount: "4" }));
+    assert.equal(passAfterExpiry.response.status, "PENDING_TEEML");
+
+    await pool.query("update aegis_usage_holds set status = 'COMMITTED', committed_at = 1002, updated_at = 1002 where usage_hold_id = $1", [
+      passAfterExpiry.response.status === "PENDING_TEEML" ? passAfterExpiry.response.usageHoldId : "",
+    ]);
+    const deniedByCommitted = await precheckService.precheck(precheckInput("precheck-hold-committed", { amount: "2" }));
+    assert.equal(deniedByCommitted.response.status === "DENY_PRECHECK" ? deniedByCommitted.response.code : null, "DAILY_LIMIT_EXCEEDED");
+  });
+
+  it("serializes concurrent prechecks so quota is not overspent", async () => {
+    const { pool, policyService, precheckService } = await seededPostgresPrecheckService();
+    await createAndActivatePrecheckPolicy(policyService, { amount: { min: "1", max: "4", dailyLimit: "5" } });
+
+    const [left, right] = await Promise.allSettled([
+      precheckService.precheck(precheckInput("precheck-concurrent-left", { amount: "4" })),
+      precheckService.precheck(precheckInput("precheck-concurrent-right", { amount: "4" })),
+    ]);
+    assert.equal(left.status, "fulfilled");
+    assert.equal(right.status, "fulfilled");
+
+    const responses = [left.value.response, right.value.response];
+    assert.equal(responses.filter(response => response.status === "PENDING_TEEML").length, 1);
+    assert.equal(
+      responses.filter(response => response.status === "DENY_PRECHECK" && response.code === "DAILY_LIMIT_EXCEEDED").length,
+      1,
+    );
+    assert.equal((await pool.query("select coalesce(sum(amount::numeric), 0)::text as held from aegis_usage_holds where status = 'HELD'")).rows[0].held, "4");
+  });
+
+  it("rolls back PostgreSQL writes on controlled precheck persistence failures", async () => {
+    const { pool, policyService } = await seededPostgresPrecheckService();
+    await createAndActivatePrecheckPolicy(policyService);
+
+    for (const failOn of ["precheck_record", "usage_hold", "audit_event"] as const) {
+      const failingService = new PrecheckService(new PostgresPrecheckRepository(pool, { failOn }), {
+        clock: () => 1000,
+        idGenerator: createUuidV7,
+      });
+      await assert.rejects(() => failingService.precheck(precheckInput(`precheck-rollback-${failOn}`)));
+      const counts = await tableCounts(pool);
+      assert.equal(counts.actionRequests, 0);
+      assert.equal(counts.precheckRecords, 0);
+      assert.equal(counts.usageHolds, 0);
+      assert.equal(counts.auditEvents, 0);
+      assert.equal(counts.walletNonces, 0);
+    }
+  });
+
+  it("serves real HTTP precheck route with idempotency, auth adapter, and technical errors", async () => {
+    const { repository, policyService, precheckRepository } = await seededPostgresPrecheckService();
+    const policy = await createAndActivatePrecheckPolicy(policyService);
+    const app = createAgentServiceApp({
+      policyRepository: repository,
+      precheckRepository,
+      authenticateAgentActor: testAgentAuthenticator(),
+    });
+
+    await withHttpApp(app, async baseUrl => {
+      const pass = await httpJson(baseUrl, `/agents/${AGENT_ID}/wallets/${WALLET_ID}/actions/precheck`, {
+        method: "POST",
+        headers: { "Idempotency-Key": "http-pass", Authorization: "Bearer valid-agent" },
+        body: precheckBody({ amount: "4" }),
+      });
+      assert.equal(pass.status, 202, JSON.stringify(pass.data));
+      assert.equal(pass.data.status, "PENDING_TEEML");
+      assert.equal(pass.data.policyId, policy.policyId);
+
+      const replay = await httpJson(baseUrl, `/agents/${AGENT_ID}/wallets/${WALLET_ID}/actions/precheck`, {
+        method: "POST",
+        headers: { "Idempotency-Key": "http-pass", Authorization: "Bearer valid-agent" },
+        body: precheckBody({ amount: "4" }),
+      });
+      assert.equal(replay.status, 202);
+      assert.equal(replay.data.requestId, pass.data.requestId);
+      assert.equal(replay.data.precheckId, pass.data.precheckId);
+      assert.equal(replay.data.aegisNonce, pass.data.aegisNonce);
+
+      const denied = await httpJson(baseUrl, `/agents/${AGENT_ID}/wallets/${WALLET_ID}/actions/precheck`, {
+        method: "POST",
+        headers: { "Idempotency-Key": "http-deny", Authorization: "Bearer valid-agent" },
+        body: precheckBody({ destination: { kind: "HEDERA_ACCOUNT_ID", value: "0.0.999999" } }),
+      });
+      assert.equal(denied.status, 200);
+      assert.equal(denied.data.status, "DENY_PRECHECK");
+
+      const unknownField = await httpJson(baseUrl, `/agents/${AGENT_ID}/wallets/${WALLET_ID}/actions/precheck`, {
+        method: "POST",
+        headers: { "Idempotency-Key": "http-unknown", Authorization: "Bearer valid-agent" },
+        body: { ...precheckBody(), policyHash: "0xdead" },
+      });
+      assert.equal(unknownField.status, 400);
+      assert.equal(unknownField.data.error, "unknown_property");
+
+      const invalidAmount = await httpJson(baseUrl, `/agents/${AGENT_ID}/wallets/${WALLET_ID}/actions/precheck`, {
+        method: "POST",
+        headers: { "Idempotency-Key": "http-invalid-amount", Authorization: "Bearer valid-agent" },
+        body: precheckBody({ amount: "1.5" }),
+      });
+      assert.equal(invalidAmount.status, 400);
+      assert.equal(invalidAmount.data.error, "invalid_base_unit_amount");
+
+      const missingIdempotency = await httpJson(baseUrl, `/agents/${AGENT_ID}/wallets/${WALLET_ID}/actions/precheck`, {
+        method: "POST",
+        headers: { Authorization: "Bearer valid-agent" },
+        body: precheckBody(),
+      });
+      assert.equal(missingIdempotency.status, 400);
+      assert.equal(missingIdempotency.data.error, "missing_idempotency_key");
+
+      const conflictResponse = await httpJson(baseUrl, `/agents/${AGENT_ID}/wallets/${WALLET_ID}/actions/precheck`, {
+        method: "POST",
+        headers: { "Idempotency-Key": "http-pass", Authorization: "Bearer valid-agent" },
+        body: precheckBody({ amount: "2" }),
+      });
+      assert.equal(conflictResponse.status, 409);
+      assert.equal(conflictResponse.data.error, "IDEMPOTENCY_CONFLICT");
+
+      const invalidAuth = await httpJson(baseUrl, `/agents/${AGENT_ID}/wallets/${WALLET_ID}/actions/precheck`, {
+        method: "POST",
+        headers: { "Idempotency-Key": "http-invalid-auth", Authorization: "Bearer invalid" },
+        body: precheckBody(),
+      });
+      assert.equal(invalidAuth.status, 401);
+
+      const divergentAgent = await httpJson(baseUrl, `/agents/${AGENT_ID}/wallets/${WALLET_ID}/actions/precheck`, {
+        method: "POST",
+        headers: { "Idempotency-Key": "http-divergent", Authorization: "Bearer other-agent" },
+        body: precheckBody(),
+      });
+      assert.equal(divergentAgent.status, 403);
+    });
+
+    const unconfiguredApp = createAgentServiceApp({
+      policyRepository: new UnconfiguredPolicyRepository(),
+      precheckRepository: new UnconfiguredPrecheckRepository(),
+      authenticateAgentActor: testAgentAuthenticator(),
+    });
+    await withHttpApp(unconfiguredApp, async baseUrl => {
+      const response = await httpJson(baseUrl, `/agents/${AGENT_ID}/wallets/${WALLET_ID}/actions/precheck`, {
+        method: "POST",
+        headers: { "Idempotency-Key": "http-no-db", Authorization: "Bearer valid-agent" },
+        body: precheckBody(),
+      });
+      assert.equal(response.status, 503);
+      assert.equal(response.data.error, "policy_database_unconfigured");
+    });
+  });
 });
 
 async function resetAndMigrate() {
@@ -341,7 +621,115 @@ async function postgresRepository() {
   openPools.push(pool);
   const db = drizzle(pool, { schema });
   const repository = new PostgresPolicyRepository(db);
-  return { pool, repository };
+  const precheckRepository = new PostgresPrecheckRepository(pool);
+  return { pool, repository, precheckRepository };
+}
+
+async function seededPostgresPrecheckService() {
+  const { pool, repository, precheckRepository } = await postgresRepository();
+  await repository.saveAgent({
+    agentId: AGENT_ID,
+    ownerAddress: owner.address.toLowerCase() as `0x${string}`,
+    status: "ACTIVE",
+    createdAt: 1,
+    updatedAt: 1,
+  });
+  await repository.saveWallet({
+    walletId: WALLET_ID,
+    agentId: AGENT_ID,
+    networkId: NETWORK_ID,
+    safeAddress: SAFE_ADDRESS,
+    status: "PROTECTED",
+    createdAt: 1,
+    updatedAt: 1,
+  });
+  const policyService = new PolicyLifecycleService(repository, () => 1000);
+  const precheckService = new PrecheckService(precheckRepository, {
+    clock: () => 1000,
+    idGenerator: createUuidV7,
+  });
+  return { pool, repository, policyService, precheckRepository, precheckService };
+}
+
+async function seedHtsAsset(pool: pg.Pool) {
+  await pool.query(
+    `insert into aegis_asset_catalog (asset_id, network_id, kind, hedera_token_id, symbol, decimals, status, created_at, updated_at)
+     values ('hedera:testnet:hts:0.0.12345', 'hedera:testnet', 'HTS_FUNGIBLE', '0.0.12345', 'DEMO', 6, 'ACTIVE', 1, 1)
+     on conflict (asset_id) do update set status = 'ACTIVE', updated_at = 1`,
+  );
+}
+
+async function createAndActivatePrecheckPolicy(service: PolicyLifecycleService, overrides: Partial<PolicyRules> = {}) {
+  const body: CreatePolicyRequest = {
+    agentId: AGENT_ID,
+    walletId: WALLET_ID,
+    validFrom: 1,
+    validUntil: null,
+    rules: precheckRules(overrides),
+    semanticRules: [],
+  };
+  const created = (await service.createPolicy(body, await signCreate(body), 1000)).policy;
+  return (
+    await service.activatePolicy(
+      created.policyId,
+      { expectedPolicyVersion: created.policyVersion, expectedPolicyHash: created.policyHash },
+      await signExisting("ACTIVATE_POLICY", created),
+      1000,
+    )
+  ).policy;
+}
+
+function precheckRules(overrides: Partial<PolicyRules> = {}): PolicyRules {
+  return {
+    allowedActionTypes: overrides.allowedActionTypes ?? ["HEDERA_HBAR_TRANSFER", "HEDERA_HTS_FUNGIBLE_TRANSFER"],
+    allowedDestinations: overrides.allowedDestinations ?? [{ kind: "HEDERA_ACCOUNT_ID", value: "0.0.123456" }],
+    allowedAssets: overrides.allowedAssets ?? [
+      { kind: "NATIVE", chainId: 296, assetId: "hbar", decimals: 8, symbol: "HBAR" },
+      { kind: "HTS", chainId: 296, tokenId: "0.0.12345", decimals: 6, symbol: "DEMO" },
+    ],
+    amount: overrides.amount ?? { min: "1", max: "10", dailyLimit: "20" },
+    actionCount: overrides.actionCount ?? { dailyLimit: 20 },
+  };
+}
+
+function precheckInput(idempotencyKey: string, bodyOverrides: Record<string, unknown> = {}) {
+  return {
+    params: { agentId: AGENT_ID, walletId: WALLET_ID },
+    body: precheckBody(bodyOverrides),
+    idempotencyKey,
+    actor: { authenticatedAgentId: AGENT_ID, actorType: "AGENT" } satisfies AgentActorContext,
+  };
+}
+
+function precheckBody(overrides: Record<string, unknown> = {}) {
+  return {
+    actionType: "HEDERA_HBAR_TRANSFER",
+    destination: { kind: "HEDERA_ACCOUNT_ID", value: "0.0.123456" },
+    assetId: "hedera:testnet:hbar",
+    amount: "1",
+    actionDeadline: 2_000_000_000,
+    ...overrides,
+  };
+}
+
+async function tableCounts(pool: pg.Pool) {
+  const count = async (table: string) => Number((await pool.query(`select count(*)::int as count from ${table}`)).rows[0].count);
+  return {
+    actionRequests: await count("aegis_action_requests"),
+    precheckRecords: await count("aegis_precheck_records"),
+    usageHolds: await count("aegis_usage_holds"),
+    auditEvents: await count("aegis_audit_events"),
+    walletNonces: await count("aegis_wallet_nonces"),
+  };
+}
+
+function testAgentAuthenticator() {
+  return async (req: any): Promise<AgentActorContext> => {
+    const authorization = req.headers.authorization;
+    if (authorization === "Bearer valid-agent") return { authenticatedAgentId: AGENT_ID, actorType: "AGENT" };
+    if (authorization === "Bearer other-agent") return { authenticatedAgentId: "018f0000-0000-7000-8000-000000000299", actorType: "AGENT" };
+    throw new PolicyEngineError(401, "invalid_agent_auth", "invalid agent authentication");
+  };
 }
 
 function baseCreatePolicyRequest(overrides: Partial<CreatePolicyRequest & PolicyRules> = {}): CreatePolicyRequest {

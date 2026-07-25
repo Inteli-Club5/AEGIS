@@ -18,7 +18,7 @@ import { stableStringify } from "./canonicalize.js";
 const EVM_ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/;
 const HEDERA_ACCOUNT_ID_RE = /^\d+\.\d+\.\d+$/;
 const HEX32_RE = /^0x[a-f0-9]{64}$/;
-const ACTION_TYPES = new Set(["SERVICE_PAYMENT", "TRANSFER"]);
+const ACTION_TYPES = new Set(["SERVICE_PAYMENT", "TRANSFER", "HEDERA_HBAR_TRANSFER", "HEDERA_HTS_FUNGIBLE_TRANSFER"]);
 
 export function parseCreatePolicyRequest(input: unknown): CreatePolicyRequest {
   const body = objectOf(input, "body");
@@ -246,7 +246,7 @@ function requiredIdentifier(input: unknown, path: string): string {
 function actionType(input: unknown, path: string): string {
   const normalized = requiredString(input, path).toUpperCase();
   if (!ACTION_TYPES.has(normalized)) {
-    badRequest("unsupported_action_type", `${path} must be TRANSFER or SERVICE_PAYMENT`);
+    badRequest("unsupported_action_type", `${path} must be TRANSFER, SERVICE_PAYMENT, HEDERA_HBAR_TRANSFER, or HEDERA_HTS_FUNGIBLE_TRANSFER`);
   }
   return normalized;
 }
@@ -381,4 +381,3 @@ function uniqueSortedByCanonical<T>(values: T[]): T[] {
     .sort(([left], [right]) => left.localeCompare(right))
     .map(([, value]) => value);
 }
-
