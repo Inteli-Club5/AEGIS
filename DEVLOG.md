@@ -199,3 +199,24 @@ oldest at the top, newest at the bottom. Use English AM/PM timestamps. Format:
   possible.
 - interfaces touched: none.
 
+
+## 2026-07-25 12:40 PM - Claude - Rodrigo (product/docs)
+- did: created `docs/roadmap.md`, a phased roadmap (Phase 0 hackathon MVP
+  through Phase 5 long-horizon open questions) built by cross-referencing
+  every already-documented "later"/TODO item across `docs/AEGIS_ARCHITECTURE.md`
+  §9, `docs/decisions.md`, `docs/aegis_financial_model.md` §4/§6, the
+  `services/cosigner` and Agentic ID route TODOs, and the recurring
+  `docs/interfaces.md`/`TASKS.md` blockers from past DEVLOG entries. Added
+  three product asks as explicit phases: a capped-user private beta (Phase 1),
+  agent-provider partnerships (Phase 3, marked Proposed - no prior doc
+  mention), and a financial-roadmap section (§9) that reproduces the real
+  Short term / Medium term projection tables from
+  `docs/aegis_financial_model.md` §5 and explicitly flags that no month-1,
+  month-6, year-1, or 5-year projection exists yet rather than inventing one.
+  Linked the new doc from `README.md`'s doc-pointer list.
+- next: team decision on Phase 3's shape (integration SDK vs. something else)
+  and on modeling the real month-1/month-6/year-1/5-year financial projection
+  once Phase 1 beta usage data exists.
+- blockers: `TASKS.md` is still absent, so no task checklist update was
+  possible.
+- interfaces touched: none.
