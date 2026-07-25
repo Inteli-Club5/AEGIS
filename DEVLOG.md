@@ -848,3 +848,173 @@ oldest at the top, newest at the bottom. Use English AM/PM timestamps. Format:
 - blockers: none.
 - interfaces touched: no runtime API or migration SQL behavior changed in this
   step; Drizzle generation metadata and schema serialization were corrected.
+
+## 2026-07-25 12:43 PM - Codex - Frontend Policy integration review
+- did: reviewed the uncommitted `feat/frontend-integration` Policy onboarding
+  and agent-detail changes against the Level 1 contract and backend source.
+  Confirmed that the Safe response supplies the required `walletId`, the Next.js
+  proxy routes target the implemented create/activate endpoints, and a
+  frontend-generated `policyHash`, `policyId`, and EIP-712 `CREATE_POLICY`
+  signature are accepted by the real lifecycle service. Found remaining
+  merge-blocking issues: activation discards the returned ACTIVE Policy,
+  activation plus Agentic ID registration is not retry-safe after partial
+  success, HTS action selection cannot produce an HTS asset policy, monetary
+  input/display uses precision-unsafe JavaScript numbers, editing a draft
+  creates a new version-1 series instead of using PATCH, and lifecycle reads
+  still come from browser storage. Validation run: `yarn next:check-types`,
+  `yarn next:lint`, clean `yarn next:build`, `yarn agent-service:test` (56
+  passing tests), `git diff --check`, and an isolated frontend/backend hash plus
+  EIP-712 parity check.
+- next: fix the frontend integration blockers, add focused tests for amount
+  conversion and retry/partial-success behavior, then rerun the review.
+- blockers: the current activation flow cannot recover when Policy activation
+  succeeds but Agentic ID registration fails; retry attempts to activate the
+  already ACTIVE Policy and stops before registration.
+- interfaces touched: none; this session was review-only.
+
+## 2026-07-25 02:18 PM - Claude Code (CryptoVictor) - policy engine re-review
+
+- did: re-reviewed the Policy Engine frontend integration after the prior
+  session's blockers (non-resumable activation, non-authoritative ACTIVE
+  state, float-precision amounts, HTS-incapable asset choice, browser-only
+  lifecycle reads) were fixed elsewhere - the fixed version replaces this
+  session's earlier, less complete implementation with a materially better
+  one: `activateProtection` now checks `policy.status === "DRAFT"` before
+  signing again (retry-safe - matches the pattern already used for wallet
+  creation), reads the authoritative ACTIVE state back from the real backend
+  (`lib/api/policies.ts`'s `getActivePolicy`) instead of trusting local state,
+  handles HTS token assets end to end (`lib/policy/form.ts`), converts
+  decimal/base-unit amounts with BigInt math (`lib/policy/amount.ts`, no
+  floats), and versions policies correctly via a `CREATE`/`UPDATE`/`REUSE`
+  planner (`lib/policy/save-plan.ts`) that diffs against the real backend's
+  version history instead of always creating a new v1. Verified for real
+  rather than by reading code alone: `check-types`, `lint`, and all 60
+  `services/agent-service` unit tests pass; stood up the local PostgreSQL
+  (`docker compose`, port 5433 - 5432 is taken by an unrelated container on
+  this machine) and ran the Drizzle migration since a fresh `npm install`
+  was needed for the newly-merged `drizzle-orm`/`drizzle-kit`/`pg`
+  dependencies; then ran a live signed round trip (a throwaway key via
+  viem's `signTypedData`, not a browser wallet) through create-agent ->
+  create-wallet -> sign+create policy -> sign+activate -> re-read active
+  policy (retry-safety check) against the real running services - full chain
+  succeeded, with the backend's independently-recomputed `policyHash`
+  matching the client-computed one exactly. Found and fixed one real bug
+  this surfaced: `AEGIS_RECOVERY_GUARDIAN_ADDRESS` in
+  `services/agent-service/.env` was set to an EIP-55-invalid checksum
+  (`...aE61`, correct is `...AE61`) - since the frontend never sends its own
+  `recoveryGuardianAddress` (confirmed by reading `ensureWallet()` in
+  `lib/api/onboarding.ts` - it POSTs an empty body), every wallet creation
+  was silently falling through to this broken configured default and failing
+  with a viem checksum error. This blocked the *entire* onboarding flow
+  end to end until fixed. Also answered a direct question from the user:
+  the backend's `walletConfig.ts` (`resolveRecoveryGuardianAddress`) already
+  supports any address as recovery guardian via the request body, with a
+  priority chain (explicit request > `AEGIS_RECOVERY_GUARDIAN_ADDRESS` >
+  the agent owner's own wallet) - but nothing in the UI exposes this choice
+  to the user yet, so every agent today gets the same fixed guardian.
+- next: team decision needed (recorded in TASKS.md) on whether to expose a
+  recovery-guardian-address field in the onboarding UI, or leave the fixed
+  server-configured guardian as the Level 1 default and revisit later.
+- blockers: none. The one blocker this uncovered (bad guardian checksum) is
+  fixed and verified.
+- interfaces touched: none - `AEGIS_RECOVERY_GUARDIAN_ADDRESS`'s value was
+  corrected, not its meaning or shape.
+
+## 2026-07-25 02:29 PM - Claude Code (CryptoVictor) - recovery guardian UI
+
+- did: acted on this session's own "team decision needed" note immediately -
+  the user chose to expose the recovery-guardian-address choice in the UI.
+  Added `recoveryGuardianMode: "DEFAULT" | "CUSTOM"` and
+  `recoveryGuardianAddress` to `PolicyFormValues`
+  (`lib/policy/form.ts`), shown as a new fieldset in `StepCreatePolicy.tsx`
+  - gated to only appear on an agent's *first* policy version, since that's
+  the one moment `ensureWallet()` actually creates the Safe (later versions
+  reuse the already-persisted wallet, so the choice would be inert and
+  misleading if shown again). A custom address is normalized to its correct
+  EIP-55 checksum via viem's `getAddress()` before it ever leaves the browser
+  - directly closing the exact failure mode the last entry's bug was an
+  instance of, this time for user-typed input instead of a static `.env`
+  value. Threaded `recoveryGuardianAddress` through `parsePolicyForm` ->
+  `createPolicy`'s options -> `savePolicyDraft` -> `ensureWallet` ->
+  the `POST .../wallet` body (previously always empty). Added two unit tests
+  to the existing `lib/policy/form.test.ts` suite (checksum normalization
+  using the literal miscased address from the bug this fixes, and rejection
+  of a malformed address) - both pass, alongside the full existing suite (20
+  tests) and `services/agent-service`'s 60 unit tests. Verified live against
+  the running services: generated a fresh, arbitrary, random address and
+  confirmed it came back as the actual third owner on a newly deployed real
+  Safe - the backend already supported this, the UI just needed to ask.
+  `check-types` and `lint` pass clean.
+- next: per the new TASKS.md focus - a real browser walkthrough (actual
+  MetaMask, not scripted signing) of the full onboarding flow is the one
+  verification gap every session so far has shared and deferred.
+- blockers: none.
+- interfaces touched: none new - `POST .../agents/:agentId/wallet`'s optional
+  `recoveryGuardianAddress` body field already existed; the frontend simply
+  uses it now.
+
+## 2026-07-25 03:00 PM - Claude Code (CryptoVictor) - real MetaMask walkthrough + "v2" labeling bug
+
+- did: the user manually walked the full onboarding flow (register agent ->
+  create policy -> activate) in a real browser with a real MetaMask session
+  and confirmed it works end to end - this closes the one verification gap
+  every session so far had deferred (prior passes only used scripted/curl
+  signing with a throwaway private key, never an actual browser extension).
+  While repeating the walkthrough for a second agent, the user found a real
+  bug: creating a brand-new agent showed "Create version v2" instead of
+  "Create policy v1" in `StepCreatePolicy.tsx`. Root cause:
+  `OnboardingWizard.tsx`'s `handleAgentCreated()` set the new agent into
+  state but never cleared `policy`/`wallet` - so a policy left over from a
+  previously *registered-but-never-activated* agent (wizard opened, agent
+  created, then abandoned before finishing) leaked into the next, genuinely
+  new agent's context. Fixed by explicitly resetting `setPolicy(undefined)`
+  and `setWallet(undefined)` alongside `setStep(1)` in `handleAgentCreated`.
+  `check-types` and `lint` pass clean.
+- next: per the user's own immediate follow-up request - add a way to fund
+  a protected wallet's Safe directly from the connected MetaMask wallet (no
+  such path existed; the Safe starts at a zero balance after deployment and
+  the dashboard only ever showed a static, never-live balance figure).
+- blockers: none.
+- interfaces touched: none.
+
+## 2026-07-25 03:40 PM - Claude Code (CryptoVictor) - fund protected wallet from MetaMask
+
+- did: added a "Fund this wallet" action to the agent detail page's Wallet
+  tab (`FundWalletCard.tsx`, new file, rendered from `AgentDetailView.tsx`'s
+  `WalletTab`) - lets the operator send native HBAR from their already-
+  connected MetaMask straight to the agent's Safe address, using wagmi's
+  `useSendTransaction` + an imperative `waitForTransactionReceipt` (from
+  `wagmi/actions`, against the app's shared `wagmiConfig`) rather than the
+  reactive `useWaitForTransactionReceipt` hook, to avoid coupling balance
+  refetches to a `useEffect` keyed on an unstable query-result object.
+  Amounts are parsed/formatted with viem's `parseEther`/`formatUnits` at 18
+  decimals, matching Hedera testnet's EVM-facing `nativeCurrency.decimals`
+  (confirmed by reading viem's `hederaTestnet` chain definition directly) -
+  a different unit system from the Policy Engine's own 8-decimal tinybar
+  accounting (`lib/policy/amount.ts`) that must not be conflated with it.
+  Also replaced the Wallet tab's static, always-stale `agent.balanceHbar`
+  display with a live `useBalance` query on the Safe's address, since
+  showing a stale balance right next to a working funding action would be
+  actively misleading. Initially built a "wallet not connected" fallback UI
+  inside the card (mirroring `ConnectModal.tsx`'s pattern), then removed it
+  after tracing `app/agents/[id]/page.tsx`: that page itself renders behind
+  a `ConnectGate` and only ever mounts `AgentDetailView` once
+  `useConnectWallet()`'s `status === "connected"`, so the card's wallet
+  address can never actually be null at render time - the fallback branch
+  was dead code for a state the page architecture already rules out.
+  `check-types` and `lint` both pass clean. Verified what's verifiable
+  without a real wallet extension: installed `playwright-core` into the
+  scratchpad (pointed at the machine's existing Google Chrome install, no
+  browser download needed) and drove headless Chrome against the running
+  dev server - the dashboard renders with zero console/page errors. Could
+  not go further: `/agents/[id]` renders behind `ConnectGate`, and headless
+  Chrome has no injected wallet provider (no real MetaMask, no EIP-6963
+  announcement) to connect with, so the connected-wallet UI this feature
+  actually adds could not be clicked through by the agent itself.
+- next: this closes the user's explicit request. A real MetaMask
+  click-through (connect -> enter amount -> confirm -> see the balance
+  update) still needs the user's own browser/extension, same as every other
+  wallet-signing path this session - see TASKS.md's new Current Focus.
+- blockers: none.
+- interfaces touched: none - sends a plain native transfer to an existing
+  Safe address; no new backend endpoint involved.

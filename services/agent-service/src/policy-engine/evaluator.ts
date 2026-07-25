@@ -197,9 +197,15 @@ export function evaluateDeterministicPolicy(input: DeterministicPolicyEvaluation
   }
   if (!SUPPORTED_ACTION_TYPES.has(actionType)) return deny("ACTION_TYPE_NOT_SUPPORTED");
 
-  const destinationKey = destinationCanonicalKey(input.normalizedAction.destination);
-  const destinationAllowed = destinationKey !== null && input.policy.rules.allowedDestinations.some(destination => destinationCanonicalKey(destination) === destinationKey);
-  if (!destinationAllowed) return deny("DESTINATION_NOT_ALLOWED");
+  if (input.policy.rules.allowedDestinations.length > 0) {
+    const destinationKey = destinationCanonicalKey(input.normalizedAction.destination);
+    const destinationAllowed =
+      destinationKey !== null &&
+      input.policy.rules.allowedDestinations.some(
+        destination => destinationCanonicalKey(destination) === destinationKey,
+      );
+    if (!destinationAllowed) return deny("DESTINATION_NOT_ALLOWED");
+  }
 
   if (!input.assetCatalogEntry) return deny("ASSET_NOT_FOUND");
   if (normalizeIdentifier(input.assetCatalogEntry.canonicalAssetId) !== normalizeIdentifier(input.normalizedAction.assetId)) return deny("ASSET_NOT_FOUND");

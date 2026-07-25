@@ -25,6 +25,15 @@ export type AgentProfile = {
   status: "active" | "inactive";
   createdAt: string;
   safeAddress?: string;
+  wallet?: {
+    walletId: string;
+    safeAddress: string;
+    networkId: "hedera:testnet";
+    status: "PROTECTED";
+    owners: string[];
+    threshold: number;
+    transactionHash: string;
+  };
   agenticId?: {
     tokenId: string;
     contractAddress: string;

@@ -5,17 +5,29 @@
  * backend owns these mutations — `AgentDetail` is already the same shape
  * `GET /agents/:id` will return.
  */
-import type { Agent, AgentDetail } from "@/lib/types/aegis";
+import type { Agent, AgentDetail } from "~~/lib/types/aegis";
 
 const KEY = "aegis.local-agents";
 
 function normalize(raw: Partial<AgentDetail> & Agent): AgentDetail {
+  const walletInfo = raw.walletInfo
+    ? {
+        ...raw.walletInfo,
+        networkId: raw.walletInfo.networkId ?? ("hedera:testnet" as const),
+        status: raw.walletInfo.status ?? ("PROTECTED" as const),
+      }
+    : null;
   return {
     ...raw,
+    agentLifecycleStatus:
+      raw.agentLifecycleStatus ?? (raw.status === "paused" || raw.status === "compromised" ? "PAUSED" : "ACTIVE"),
     capabilities: raw.capabilities ?? [],
     createdAt: raw.createdAt ?? new Date().toISOString(),
-    walletInfo: raw.walletInfo ?? null,
+    walletInfo,
     policy: raw.policy ?? null,
+    policyVersions: raw.policyVersions ?? (raw.policy ? [raw.policy] : []),
+    activePolicy: raw.activePolicy ?? (raw.policy?.status === "ACTIVE" ? raw.policy : null),
+    effectivePolicyStatus: raw.effectivePolicyStatus ?? (raw.policy?.status === "ACTIVE" ? "ACTIVE" : null),
   };
 }
 

@@ -9,7 +9,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "tsc --noEmit",
     "test": "npm run test:unit",
-    "test:unit": "tsx --test src/policy-engine/*.test.ts",
+    "test:unit": "tsx --test src/*.test.ts src/policy-engine/*.test.ts",
     "test:integration": "tsx --test src/policy-engine/*.integration.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate"

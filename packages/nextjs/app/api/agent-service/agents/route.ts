@@ -1,5 +1,4 @@
-import { NextResponse } from "next/server";
-import { proxyToAgentService } from "@/lib/server/agentService";
+import { proxyAgentServiceRequest } from "~~/lib/server/agentService";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -9,10 +8,9 @@ export const dynamic = "force-dynamic";
 // a real Hedera account creation for any `ownerWallet` they type in, with no
 // proof of ownership. Same gap as /api/0g/agentic-id.
 export async function POST(req: Request) {
-  const payload = await req.json().catch(() => ({}));
-  const { status, body } = await proxyToAgentService("/create-agents", {
+  return proxyAgentServiceRequest(req, {
+    path: "/create-agents",
     method: "POST",
-    body: JSON.stringify(payload),
+    body: "json",
   });
-  return NextResponse.json(body, { status });
 }

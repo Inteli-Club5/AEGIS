@@ -4,11 +4,12 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 // TODO(auth): see app/api/agent-service/agents/route.ts -- same unauthenticated gap.
-export async function POST(req: Request, { params }: { params: Promise<{ agentId: string }> }) {
-  const { agentId } = await params;
+export async function POST(req: Request, { params }: { params: Promise<{ policyId: string }> }) {
+  const { policyId } = await params;
   return proxyAgentServiceRequest(req, {
-    path: `/agents/${encodeURIComponent(agentId)}/register-agentic-id`,
+    path: `/policies/${encodeURIComponent(policyId)}/activate`,
     method: "POST",
     body: "json",
+    forwardOperator: true,
   });
 }

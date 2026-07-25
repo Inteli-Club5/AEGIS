@@ -7,10 +7,10 @@ import { StepActivate } from "./StepActivate";
 import { StepCreatePolicy } from "./StepCreatePolicy";
 import { StepRegisterAgent } from "./StepRegisterAgent";
 import { SuccessScreen } from "./SuccessScreen";
-import { Button } from "@/components/ui/Button";
-import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
-import { Stepper } from "@/components/ui/Stepper";
-import type { AgentProfile, PolicyRecord } from "@/lib/types/aegis";
+import { Button } from "~~/components/ui/Button";
+import { ConfirmDialog } from "~~/components/ui/ConfirmDialog";
+import { Stepper } from "~~/components/ui/Stepper";
+import type { AgentProfile, Policy, ProtectedWalletInfo } from "~~/lib/types/aegis";
 
 const STEPS = ["Register agent", "Policy", "Activate"];
 
@@ -18,29 +18,34 @@ export function OnboardingWizard({ initialDraft }: { initialDraft: OnboardingDra
   const router = useRouter();
   const [step, setStep] = useState(initialDraft?.step ?? 0);
   const [agent, setAgent] = useState<AgentProfile | undefined>(initialDraft?.agent);
-  const [policy, setPolicy] = useState<PolicyRecord | undefined>(initialDraft?.policy);
+  const [policy, setPolicy] = useState<Policy | undefined>(initialDraft?.policy);
+  const [wallet, setWallet] = useState<ProtectedWalletInfo | undefined>(initialDraft?.wallet);
   const [done, setDone] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
 
   function handleAgentCreated(created: AgentProfile) {
     setAgent(created);
+    setPolicy(undefined);
+    setWallet(undefined);
     setStep(1);
-    writeDraft({ step: 1, agent: created, policy });
+    writeDraft({ step: 1, agent: created, policy: undefined, wallet: undefined });
   }
 
-  function handlePolicyCreated(created: PolicyRecord) {
+  function handlePolicyCreated(created: Policy, protectedWallet: ProtectedWalletInfo) {
     setPolicy(created);
+    setWallet(protectedWallet);
     setStep(2);
-    writeDraft({ step: 2, agent, policy: created });
+    writeDraft({ step: 2, agent, policy: created, wallet: protectedWallet });
   }
 
   function handleBack() {
     const prev = Math.max(0, step - 1);
     setStep(prev);
-    writeDraft({ step: prev, agent, policy });
+    writeDraft({ step: prev, agent, policy, wallet });
   }
 
-  function handleActivated() {
+  function handleActivated(activePolicy: Policy) {
+    setPolicy(activePolicy);
     clearDraft();
     setDone(true);
   }
@@ -49,6 +54,7 @@ export function OnboardingWizard({ initialDraft }: { initialDraft: OnboardingDra
     clearDraft();
     setAgent(undefined);
     setPolicy(undefined);
+    setWallet(undefined);
     setStep(0);
     setDone(false);
   }
@@ -81,8 +87,14 @@ export function OnboardingWizard({ initialDraft }: { initialDraft: OnboardingDra
         {step === 1 && agent && (
           <StepCreatePolicy agent={agent} initial={policy} onBack={handleBack} onCreated={handlePolicyCreated} />
         )}
-        {step === 2 && agent && policy && (
-          <StepActivate agent={agent} policy={policy} onBack={handleBack} onActivated={handleActivated} />
+        {step === 2 && agent && policy && wallet && (
+          <StepActivate
+            agent={agent}
+            wallet={wallet}
+            policy={policy}
+            onBack={handleBack}
+            onActivated={handleActivated}
+          />
         )}
       </div>
 

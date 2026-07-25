@@ -1,41 +1,37 @@
-/**
- * Wizard write operations (screen-specification.md §5.1):
- *   createAgent → POST /api/agent-service/agents (services/agent-service:
- *     creates a real Hedera account for the agent - AEGIS creates the agent,
- *     per decisions.md; this is not "bring your own agent")
- *   createPolicy → POST /policies (TODO(backend): no PolicyRegistry contract
- *     exists yet - stays local/fixture until it does)
- *   activateProtection → deploys the real Safe 2-of-3 wallet, then registers
- *     the real 0G Agentic ID (both via services/agent-service)
- */
-import { AGENTS } from "@/lib/fixtures/agents";
+import { requestJson } from "~~/lib/api/http";
+import {
+  getActivePolicy,
+  getPolicy,
+  listPolicyVersions,
+  patchPolicy,
+  postPolicy,
+  postPolicyActivation,
+} from "~~/lib/api/policies";
 import {
   patchCreatedAgent,
   readCreatedAgentDetails,
   readCreatedAgents,
   upsertCreatedAgent,
-} from "@/lib/fixtures/store";
-import type { AgentProfile, AgentType, Capability, PolicyRecord } from "@/lib/types/aegis";
-import { deterministicHash } from "@/lib/utils/hash";
+} from "~~/lib/fixtures/store";
+import {
+  POLICY_COMMITMENT_DOMAIN,
+  POLICY_COMMITMENT_TYPES,
+  type PolicyCommitment,
+  type PolicyRules,
+  buildPolicyCommitment,
+  computePolicyHash,
+  createPolicyIdFromHash,
+} from "~~/lib/policy/hash";
+import { planPolicySave } from "~~/lib/policy/save-plan";
+import type { AgentProfile, AgentType, Capability, Policy, ProtectedWalletInfo } from "~~/lib/types/aegis";
+import { formatPolicyAmount } from "~~/lib/utils/format";
 
-function delay(ms: number) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-async function postJson<T>(path: string, body?: unknown): Promise<T> {
-  const res = await fetch(path, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    const message =
-      typeof data === "object" && data && "error" in data ? String((data as { error: unknown }).error) : null;
-    throw new Error(message || `Request to ${path} failed (${res.status}).`);
-  }
-  return data as T;
-}
+export type SignPolicyCommitment = (params: {
+  domain: typeof POLICY_COMMITMENT_DOMAIN;
+  types: typeof POLICY_COMMITMENT_TYPES;
+  primaryType: "PolicyCommitment";
+  message: PolicyCommitment;
+}) => Promise<`0x${string}`>;
 
 const AGENT_SERVICE_TYPE: Record<AgentType, "Payment" | "API Buyer" | "DeFi" | "Treasury" | "Other"> = {
   "Payment Agent": "Payment",
@@ -45,10 +41,20 @@ const AGENT_SERVICE_TYPE: Record<AgentType, "Payment" | "API Buyer" | "DeFi" | "
   Custom: "Other",
 };
 
-type AgentServiceProfile = {
+export type AgentServiceProfile = {
   agentId: string;
+  ownerWallet?: string;
+  name?: string;
+  type?: "Payment" | "API Buyer" | "DeFi" | "Treasury" | "Other";
+  description?: string;
   hederaAccountId: string;
+  status?: "active" | "inactive";
+  createdAt?: string;
   safeAddress?: string;
+  wallet?: AgentServiceWallet & {
+    networkId: "hedera:testnet";
+    status: "PROTECTED";
+  };
   agenticId?: {
     tokenId: string;
     contractAddress: string;
@@ -59,10 +65,16 @@ type AgentServiceProfile = {
 
 type AgentServiceWallet = {
   safeAddress: string;
+  walletId: string;
+  networkId?: "hedera:testnet";
   owners: string[];
   threshold: number;
   transactionHash: string;
 };
+
+export async function getAgentServiceProfile(agentId: string): Promise<AgentServiceProfile> {
+  return requestJson(`/api/agent-service/agents/${encodeURIComponent(agentId)}`);
+}
 
 export async function createAgent(input: {
   name: string;
@@ -72,20 +84,17 @@ export async function createAgent(input: {
   ownerWallet: string;
 }): Promise<AgentProfile> {
   const name = input.name.trim();
-  // UX nicety only, not a uniqueness guarantee: agent-service has no name-collision check of
-  // its own, so this only prevents confusing this one browser's own dashboard with two
-  // same-named cards -- a different tab or a cleared localStorage can still create a real
-  // duplicate.
-  const taken = [...AGENTS, ...readCreatedAgents()].some(a => a.name.toLowerCase() === name.toLowerCase());
-  if (taken) {
-    throw new Error(`An agent named "${name}" already exists.`);
-  }
+  const taken = readCreatedAgents().some(agent => agent.name.toLowerCase() === name.toLowerCase());
+  if (taken) throw new Error(`An agent named "${name}" already exists.`);
 
-  const created = await postJson<AgentServiceProfile>("/api/agent-service/agents", {
-    ownerWallet: input.ownerWallet,
-    name,
-    type: AGENT_SERVICE_TYPE[input.type],
-    description: input.description || undefined,
+  const created = await requestJson<AgentServiceProfile>("/api/agent-service/agents", {
+    method: "POST",
+    body: {
+      ownerWallet: input.ownerWallet,
+      name,
+      type: AGENT_SERVICE_TYPE[input.type],
+      description: input.description || undefined,
+    },
   });
 
   const profile: AgentProfile = {
@@ -107,65 +116,283 @@ export async function createAgent(input: {
     policySummary: "—",
     lastActionAgo: "just connected",
     description: profile.description,
+    agentLifecycleStatus: "ACTIVE",
     capabilities: profile.capabilities,
     createdAt: profile.createdAt,
     walletInfo: null,
     policy: null,
+    policyVersions: [],
+    activePolicy: null,
+    effectivePolicyStatus: null,
     hederaAccountId: created.hederaAccountId,
   });
 
   return profile;
 }
 
-export async function createPolicy(agentId: string, fields: Record<string, string>): Promise<PolicyRecord> {
-  await delay(1200);
+export type PolicyPhase = "wallet" | "sign-policy" | "sign-activation";
 
-  const record: PolicyRecord = {
-    fields,
-    policyHash: deterministicHash(`${agentId}:${JSON.stringify(fields)}`),
-  };
+export async function savePolicyDraft(
+  input: {
+    agentId: string;
+    ownerWallet: `0x${string}`;
+    rules: PolicyRules;
+    validFrom: number;
+    validUntil: number | null;
+    sourcePolicy?: Policy;
+    recoveryGuardianAddress?: string;
+  },
+  signTypedDataAsync: SignPolicyCommitment,
+  onPhase?: (phase: PolicyPhase) => void,
+): Promise<{ policy: Policy; wallet: ProtectedWalletInfo }> {
+  onPhase?.("wallet");
+  const wallet = await ensureWallet(input.agentId, input.recoveryGuardianAddress);
+  const semanticRules: Policy["semanticRules"] = [];
 
-  const preview = Object.values(fields)
-    .find(v => v.trim())
-    ?.slice(0, 40);
-  patchCreatedAgent(agentId, {
-    policySummary: preview ? `${preview}…` : "Policy attached",
-    policy: record,
+  let versions: Policy[] = [];
+  if (input.sourcePolicy) {
+    versions = await listPolicyVersions(input.sourcePolicy.policyId);
+    if (versions.length === 0) versions = [await getPolicy(input.sourcePolicy.policyId)];
+  }
+  const plan = planPolicySave(versions, {
+    validFrom: input.validFrom,
+    validUntil: input.validUntil,
+    rules: input.rules,
+    semanticRules,
   });
+  if (plan.kind === "REUSE") return { policy: plan.policy, wallet };
 
-  return record;
-}
+  const sourcePolicy = plan.kind === "UPDATE" ? plan.sourcePolicy : undefined;
+  const policyVersion = plan.policyVersion;
+  const operation: PolicyCommitment["operation"] = plan.kind === "UPDATE" ? "UPDATE_POLICY" : "CREATE_POLICY";
 
-export type ActivationPhase = "wallet" | "agentic-id";
+  const policyHash = computePolicyHash({
+    agentId: input.agentId,
+    walletId: wallet.walletId,
+    policyVersion,
+    validFrom: input.validFrom,
+    validUntil: input.validUntil,
+    rules: input.rules,
+    semanticRules,
+  });
+  const policyId = createPolicyIdFromHash(policyHash);
 
-export async function activateProtection(agentId: string, onPhase?: (phase: ActivationPhase) => void): Promise<void> {
-  const existing = readCreatedAgentDetails().find(a => a.id === agentId);
+  onPhase?.("sign-policy");
+  const signature = await signPolicyOperation(
+    operation,
+    {
+      operatorAddress: input.ownerWallet,
+      agentId: input.agentId,
+      walletId: wallet.walletId,
+      policyId,
+      sourcePolicyId: sourcePolicy?.policyId,
+      policyVersion,
+      policyHash,
+      validFrom: input.validFrom,
+      validUntil: input.validUntil,
+    },
+    signTypedDataAsync,
+  );
+  const operator = { address: input.ownerWallet, signature };
 
-  if (!existing?.walletInfo) {
-    onPhase?.("wallet");
-    const wallet = await postJson<AgentServiceWallet>(`/api/agent-service/agents/${agentId}/wallet`, {});
-    if (wallet.owners.length !== 3) {
-      throw new Error(`Expected a 2-of-3 Safe with 3 owners, got ${wallet.owners.length}.`);
+  let policy: Policy;
+  try {
+    policy = sourcePolicy
+      ? await patchPolicy(
+          sourcePolicy.policyId,
+          {
+            expectedPolicyVersion: sourcePolicy.policyVersion,
+            validFrom: input.validFrom,
+            validUntil: input.validUntil,
+            rules: input.rules,
+            semanticRules,
+          },
+          operator,
+        )
+      : await postPolicy(
+          {
+            agentId: input.agentId,
+            walletId: wallet.walletId,
+            validFrom: input.validFrom,
+            validUntil: input.validUntil,
+            rules: input.rules,
+            semanticRules,
+          },
+          operator,
+        );
+  } catch (mutationError) {
+    try {
+      const reconciled = await getPolicy(policyId);
+      if (reconciled.policyHash !== policyHash) throw mutationError;
+      policy = reconciled;
+    } catch {
+      throw mutationError;
     }
-
-    patchCreatedAgent(agentId, {
-      wallet: wallet.safeAddress,
-      walletInfo: {
-        address: wallet.safeAddress,
-        agentSigner: wallet.owners[0],
-        aegisCosigner: wallet.owners[1],
-        guardian: wallet.owners[2],
-        guardianManaged: false,
-        threshold: "2-of-3",
-      },
-    });
   }
 
-  onPhase?.("agentic-id");
-  const profile = await postJson<AgentServiceProfile>(`/api/agent-service/agents/${agentId}/agentic-id`);
+  const existingVersions = readCreatedAgentDetails().find(agent => agent.id === input.agentId)?.policyVersions ?? [];
+  patchCreatedAgent(input.agentId, {
+    policySummary: summarizePolicy(policy.rules),
+    policy,
+    policyVersions: [...existingVersions.filter(version => version.policyId !== policy.policyId), policy].sort(
+      (left, right) => left.policyVersion - right.policyVersion,
+    ),
+  });
 
+  return { policy, wallet };
+}
+
+/** Compatibility name used by the onboarding screen. */
+export async function createPolicy(
+  agentId: string,
+  ownerWallet: `0x${string}`,
+  rules: PolicyRules,
+  signTypedDataAsync: SignPolicyCommitment,
+  onPhase?: (phase: PolicyPhase) => void,
+  options?: {
+    validFrom?: number;
+    validUntil?: number | null;
+    sourcePolicy?: Policy;
+    recoveryGuardianAddress?: string;
+  },
+): Promise<{ policy: Policy; wallet: ProtectedWalletInfo }> {
+  return savePolicyDraft(
+    {
+      agentId,
+      ownerWallet,
+      rules,
+      validFrom: options?.validFrom ?? Math.floor(Date.now() / 1000),
+      validUntil: options?.validUntil ?? null,
+      sourcePolicy: options?.sourcePolicy,
+      recoveryGuardianAddress: options?.recoveryGuardianAddress,
+    },
+    signTypedDataAsync,
+    onPhase,
+  );
+}
+
+export async function activateProtection(
+  agentId: string,
+  selectedPolicy: Policy,
+  ownerWallet: `0x${string}`,
+  signTypedDataAsync: SignPolicyCommitment,
+  onPhase?: (phase: PolicyPhase) => void,
+): Promise<Policy> {
+  let policy = await getPolicy(selectedPolicy.policyId);
+  if (policy.agentId.toLowerCase() !== agentId.toLowerCase()) {
+    throw new Error(`Policy ${policy.policyId} does not belong to agent ${agentId}.`);
+  }
+
+  if (policy.status === "DRAFT") {
+    onPhase?.("sign-activation");
+    const signature = await signPolicyOperation(
+      "ACTIVATE_POLICY",
+      {
+        operatorAddress: ownerWallet,
+        agentId: policy.agentId,
+        walletId: policy.walletId,
+        policyId: policy.policyId,
+        policyVersion: policy.policyVersion,
+        policyHash: policy.policyHash,
+        validFrom: policy.validFrom,
+        validUntil: policy.validUntil,
+      },
+      signTypedDataAsync,
+    );
+    try {
+      policy = await postPolicyActivation(policy, { address: ownerWallet, signature });
+    } catch (activationError) {
+      policy = await getPolicy(policy.policyId);
+      if (policy.status !== "ACTIVE") throw activationError;
+    }
+  }
+
+  if (policy.status !== "ACTIVE") {
+    throw new Error(`Policy ${policy.policyId} is ${policy.status} and cannot be activated.`);
+  }
+  const active = await getActivePolicy(policy.agentId, policy.walletId);
+  if (active.effectiveStatus === "EXPIRED") {
+    throw new Error(`Policy ${policy.policyId} is expired.`);
+  }
+  if (active.effectiveStatus !== "ACTIVE" || active.policy?.policyId !== policy.policyId) {
+    throw new Error(`Policy ${policy.policyId} is not the effective active policy for this wallet.`);
+  }
+
+  const local = readCreatedAgentDetails().find(agent => agent.id === agentId);
+  const versions = (local?.policyVersions ?? []).map(version =>
+    version.policyId === active.policy?.policyId
+      ? active.policy
+      : version.status === "ACTIVE"
+        ? { ...version, status: "SUPERSEDED" as const }
+        : version,
+  );
   patchCreatedAgent(agentId, {
     status: "protected",
-    agenticId: profile.agenticId,
+    policy: active.policy,
+    activePolicy: active.policy,
+    effectivePolicyStatus: active.effectiveStatus,
+    policyVersions: versions,
   });
+  return active.policy;
+}
+
+async function ensureWallet(agentId: string, recoveryGuardianAddress?: string): Promise<ProtectedWalletInfo> {
+  const existing = readCreatedAgentDetails().find(agent => agent.id === agentId);
+  if (existing?.walletInfo) return existing.walletInfo;
+
+  const wallet = await requestJson<AgentServiceWallet>(
+    `/api/agent-service/agents/${encodeURIComponent(agentId)}/wallet`,
+    { method: "POST", body: recoveryGuardianAddress ? { recoveryGuardianAddress } : {} },
+  );
+  if (!wallet.walletId) {
+    throw new Error("The agent service did not persist a walletId. Configure DATABASE_URL before creating policies.");
+  }
+  if (wallet.owners.length !== 3 || wallet.threshold !== 2) {
+    throw new Error(`Expected a 2-of-3 Safe with 3 owners, got ${wallet.threshold}-of-${wallet.owners.length}.`);
+  }
+
+  const walletInfo: ProtectedWalletInfo = {
+    walletId: wallet.walletId,
+    address: wallet.safeAddress,
+    networkId: wallet.networkId ?? "hedera:testnet",
+    status: "PROTECTED",
+    agentSigner: wallet.owners[0],
+    aegisCosigner: wallet.owners[1],
+    guardian: wallet.owners[2],
+    guardianManaged: !recoveryGuardianAddress,
+    threshold: "2-of-3",
+  };
+  patchCreatedAgent(agentId, { wallet: wallet.safeAddress, walletInfo });
+  return walletInfo;
+}
+
+async function signPolicyOperation(
+  operation: PolicyCommitment["operation"],
+  input: {
+    operatorAddress: `0x${string}`;
+    agentId: string;
+    walletId: string;
+    policyId: string;
+    sourcePolicyId?: string;
+    policyVersion: number;
+    policyHash: Policy["policyHash"];
+    validFrom: number;
+    validUntil: number | null;
+  },
+  signTypedDataAsync: SignPolicyCommitment,
+): Promise<`0x${string}`> {
+  const commitment = buildPolicyCommitment({ operation, ...input });
+  return signTypedDataAsync({
+    domain: POLICY_COMMITMENT_DOMAIN,
+    types: POLICY_COMMITMENT_TYPES,
+    primaryType: "PolicyCommitment",
+    message: commitment,
+  });
+}
+
+function summarizePolicy(rules: PolicyRules): string {
+  const asset = rules.allowedAssets[0];
+  const max = formatPolicyAmount(rules.amount.max, asset);
+  const count = rules.allowedDestinations.length;
+  return `${max} max · ${count} destination${count === 1 ? "" : "s"}`;
 }

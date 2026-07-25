@@ -17,10 +17,24 @@ export function getAgentPrivateKey(agentId: string): string | undefined {
   return privateKeys.get(agentId);
 }
 
-export function setAgentSafeAddress(agentId: string, safeAddress: string): AgentProfile | undefined {
+export function setAgentSafeAddress(
+  agentId: string,
+  safeAddress: string,
+): AgentProfile | undefined {
   const profile = profiles.get(agentId);
   if (!profile) return undefined;
   const updated = { ...profile, safeAddress };
+  profiles.set(agentId, updated);
+  return updated;
+}
+
+export function setAgentWallet(
+  agentId: string,
+  wallet: NonNullable<AgentProfile["wallet"]>,
+): AgentProfile | undefined {
+  const profile = profiles.get(agentId);
+  if (!profile) return undefined;
+  const updated = { ...profile, safeAddress: wallet.safeAddress, wallet };
   profiles.set(agentId, updated);
   return updated;
 }

@@ -13,16 +13,18 @@ export class HttpError extends Error {
   }
 }
 
-// TODO(policy-registry): replace with the real on-chain PolicyRegistry hash
-// once that contract exists. Fixed placeholder so the 0G Agentic ID
-// registration can be exercised end-to-end before PolicyRegistry lands.
-const PLACEHOLDER_POLICY_HASH = keccak256(stringToHex("aegis-default-policy-v0"));
-
 function getDashboardUrl(): string {
   return process.env.AEGIS_DASHBOARD_URL ?? "http://localhost:3000";
 }
 
-export async function registerAgenticId(agentId: string): Promise<AgentProfile> {
+// This legacy endpoint is not wired into the Policy Engine Level 1 frontend.
+const PLACEHOLDER_POLICY_HASH = keccak256(
+  stringToHex("aegis-default-policy-v0"),
+);
+
+export async function registerAgenticId(
+  agentId: string,
+): Promise<AgentProfile> {
   const profile = getAgent(agentId);
   if (!profile) {
     throw new Error("agent_not_found");
@@ -31,7 +33,10 @@ export async function registerAgenticId(agentId: string): Promise<AgentProfile> 
     throw new Error("agent_wallet_not_created");
   }
   if (!EVM_ADDRESS_RE.test(profile.ownerWallet)) {
-    throw new HttpError(400, "ownerWallet must be a valid EVM address to register an Agentic ID");
+    throw new HttpError(
+      400,
+      "ownerWallet must be a valid EVM address to register an Agentic ID",
+    );
   }
 
   const dashboardUrl = getDashboardUrl();
@@ -60,15 +65,30 @@ export async function registerAgenticId(agentId: string): Promise<AgentProfile> 
   try {
     body = await response.json();
   } catch {
-    throw new HttpError(502, `failed to parse response from AEGIS_DASHBOARD_URL (${dashboardUrl}) - is the dashboard running?`);
+    throw new HttpError(
+      502,
+      `failed to parse response from AEGIS_DASHBOARD_URL (${dashboardUrl}) - is the dashboard running?`,
+    );
   }
 
   if (!response.ok) {
-    throw new HttpError(response.status, body.error || `0G Agentic ID registration failed with status ${response.status}`);
+    throw new HttpError(
+      response.status,
+      body.error ||
+        `0G Agentic ID registration failed with status ${response.status}`,
+    );
   }
 
-  if (!body.agenticIdTokenId || !body.agenticIdContractAddress || !body.metadataURI || !body.explorerUrl) {
-    throw new HttpError(502, "0G Agentic ID registration response is missing expected fields");
+  if (
+    !body.agenticIdTokenId ||
+    !body.agenticIdContractAddress ||
+    !body.metadataURI ||
+    !body.explorerUrl
+  ) {
+    throw new HttpError(
+      502,
+      "0G Agentic ID registration response is missing expected fields",
+    );
   }
 
   const updated = setAgentAgenticId(agentId, {

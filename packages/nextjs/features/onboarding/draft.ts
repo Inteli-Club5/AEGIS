@@ -1,10 +1,11 @@
-import type { AgentProfile, PolicyRecord } from "@/lib/types/aegis";
+import type { AgentProfile, Policy, ProtectedWalletInfo } from "~~/lib/types/aegis";
 
-export interface OnboardingDraft {
+export type OnboardingDraft = {
   step: number;
   agent?: AgentProfile;
-  policy?: PolicyRecord;
-}
+  policy?: Policy;
+  wallet?: ProtectedWalletInfo;
+};
 
 const KEY = "aegis.onboarding-draft";
 const listeners = new Set<() => void>();

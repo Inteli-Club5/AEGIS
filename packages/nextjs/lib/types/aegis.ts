@@ -1,6 +1,9 @@
-export type AgentStatus = "protected" | "unprotected" | "paused" | "compromised";
+import type { Hex32, PolicyRules, SemanticRule } from "~~/lib/policy/hash";
 
-export interface Agent {
+export type AgentStatus = "protected" | "unprotected" | "paused" | "compromised";
+export type AgentLifecycleStatus = "ACTIVE" | "PAUSED" | "RETIRED";
+
+export type Agent = {
   id: string;
   name: string;
   type: string;
@@ -9,7 +12,7 @@ export interface Agent {
   balanceHbar: number;
   policySummary: string;
   lastActionAgo: string;
-}
+};
 
 export type AgentType = "Payment Agent" | "API Buyer" | "Treasury Agent" | "DeFi Agent" | "Custom";
 
@@ -28,59 +31,86 @@ export const CAPABILITY_LABELS: Record<Capability, string> = {
   request_approval: "Request approval",
 };
 
-export interface AgentProfile {
+export type AgentProfile = {
   id: string;
   name: string;
   type: AgentType;
   description?: string;
   capabilities: Capability[];
   createdAt: string;
-}
+};
 
-export interface ProtectedWalletInfo {
+export type ProtectedWalletInfo = {
+  walletId: string;
   address: string;
-  agentSigner: string;
-  aegisCosigner: string;
-  guardian: string;
+  networkId: "hedera:testnet";
+  status: "PROTECTED" | "PAUSED" | "RETIRED" | "DEAD";
+  agentSigner?: string;
+  aegisCosigner?: string;
+  guardian?: string;
   guardianManaged: boolean;
   threshold: "2-of-3";
-}
+};
 
-export interface PolicyRecord {
-  policyHash: string;
-  fields: Record<string, string>;
-}
+export type PolicyStatus = "DRAFT" | "ACTIVE" | "SUPERSEDED" | "REVOKED";
+export type EffectivePolicyStatus = PolicyStatus | "EXPIRED";
 
-export interface AgenticIdInfo {
+export type Policy = {
+  policyId: string;
+  agentId: string;
+  walletId: string;
+  policyVersion: number;
+  policyHash: Hex32;
+  status: PolicyStatus;
+  validFrom: number;
+  validUntil: number | null;
+  rules: PolicyRules;
+  semanticRules: SemanticRule[];
+  createdAt: number;
+  updatedAt: number;
+  activatedAt: number | null;
+  revokedAt: number | null;
+  supersededAt: number | null;
+  supersededByPolicyId: string | null;
+};
+
+export type PolicyRecord = Policy;
+
+export type AgenticIdInfo = {
   tokenId: string;
   contractAddress: string;
   metadataURI: string;
   explorerUrl: string;
-}
+};
 
-export interface AgentDetail extends Agent {
+export type AgentDetail = Agent & {
+  agentLifecycleStatus: AgentLifecycleStatus;
   description?: string;
   capabilities: Capability[];
   createdAt: string;
   walletInfo: ProtectedWalletInfo | null;
-  policy: PolicyRecord | null;
+  policy: Policy | null;
+  policyVersions: Policy[];
+  activePolicy: Policy | null;
+  effectivePolicyStatus: EffectivePolicyStatus | null;
+  policyLoadError?: string;
   hederaAccountId?: string;
   agenticId?: AgenticIdInfo;
-}
+};
 
 export type StatsPeriod = 7 | 30 | 90 | "all";
 
-export interface DashboardStats {
+export type DashboardStats = {
   totalTrades: number;
   approved: number;
   denied: number;
   hbarTransacted: number;
-}
+};
 
 export type Verdict = "ALLOW" | "DENY";
 export type VerificationMode = "real" | "fallback";
 
-export interface ActivityEntry {
+export type ActivityEntry = {
   id: string;
   agentId: string;
   agentName: string;
@@ -91,4 +121,4 @@ export interface ActivityEntry {
   amountHbar: number;
   token: "HBAR";
   reason?: string;
-}
+};

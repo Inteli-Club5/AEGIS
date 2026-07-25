@@ -1,10 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { Button } from "@/components/ui/Button";
-import type { AgentProfile, PolicyRecord } from "@/lib/types/aegis";
-import { truncateAddress } from "@/lib/utils/format";
 import { ShieldCheck } from "lucide-react";
+import { Button } from "~~/components/ui/Button";
+import type { AgentProfile, Policy } from "~~/lib/types/aegis";
+import { truncateAddress } from "~~/lib/utils/format";
 
 export function SuccessScreen({
   agent,
@@ -12,7 +12,7 @@ export function SuccessScreen({
   onRestart,
 }: {
   agent: AgentProfile;
-  policy?: PolicyRecord;
+  policy?: Policy;
   onRestart: () => void;
 }) {
   return (
@@ -22,12 +22,12 @@ export function SuccessScreen({
           <ShieldCheck className="h-8 w-8 text-success" />
         </span>
         <p className="mt-6 rounded-full bg-success-soft px-4 py-1.5 font-mono text-mono-sm font-medium text-success">
-          Protected by AEGIS
+          Policy ACTIVE
         </p>
-        <h1 className="mt-4 text-h2">{agent.name} is protected</h1>
+        <h1 className="mt-4 text-h2">{agent.name}&apos;s policy is active</h1>
         <p className="mt-3 max-w-[40ch] text-body-sm text-muted">
-          Every transaction now requires your policy, a verified decision and the AEGIS co-signature — or it doesn’t
-          execute.
+          AEGIS Level 1 can now evaluate this agent&apos;s proposed HBAR or HTS transfers against the active policy.
+          TeeML verification, Safe co-signing and transaction execution are separate stages.
         </p>
         {policy && (
           <p className="mt-4 font-mono text-mono-sm text-subtle">policy {truncateAddress(policy.policyHash)}</p>
