@@ -407,3 +407,43 @@ oldest at the top, newest at the bottom. Use English AM/PM timestamps. Format:
   (Victor's lane per PLAYBOOK.md): `/debug` and `/blockexplorer` are gone,
   not hidden - restoring them means re-adding the deleted files from git
   history, not just re-wiring a route.
+
+## 2026-07-25 11:47 AM - Claude Code (Rodrigo) - agent detail screen rework
+- did: reworked `/agents/[id]` on Rodrigo's request. Header band
+  (`AgentHeader` in `features/agents/components/AgentDetailView.tsx`) now
+  carries Balance, Connected and the protected-wallet facts (truncated Safe
+  address + HashScan link + network) next to the agent profile, with a thin
+  owners strip underneath listing the three signers and the `2-of-3`
+  threshold - this is where the removed `Wallet` tab's content went. Tabs are
+  now `Overview | Policy | Settings`: `Wallet` folded into the header,
+  `Activity` folded into Overview. Overview dropped the Agent/Capabilities
+  cards and became macro numbers + logs - it reuses the dashboard's
+  `StatStrip` and `PeriodFilter`, but the stats are derived client-side from
+  that agent's own entries via the new `lib/utils/stats.ts`
+  (`filterByPeriod` + `summarizeActivity`, which `getDashboardStats` now
+  shares instead of inlining the same math). Logs render through the new
+  `features/agents/components/AgentLogTable.tsx` (When + log id, Action,
+  Verdict, Reason, Amount) with an All/Approved/Denied filter; the dashboard's
+  `ActivityTable` stays untouched since it needs the agent column. The
+  Capabilities card moved into the Policy tab so nothing was lost with the
+  card removal. Settings gained the key-export flow Rodrigo asked for: a
+  prominent "Reveal AEGIS private key" section opening
+  `features/agents/components/RevealPrivateKeyDialog.tsx`, a three-gate
+  dialog (acknowledge that the agent becomes permanently unavailable on
+  AEGIS -> 6-digit 2FA challenge -> re-type the agent name) reusing the
+  existing `Stepper`. The 2FA field is deliberately a shell marked
+  `TODO(2FA)`: the front-end environment is ready, the authenticator flow is
+  not. It calls the new `revealAgentPrivateKey()` in `lib/api/agents.ts`
+  (front-end mock layer, no backend involved), which validates the code shape
+  and then always answers `unavailable` - it never fabricates a key. Result
+  type `KeyExportResult` added to `lib/types/aegis.ts`. Also added
+  `.claude/launch.json` so the agent tooling can boot the Next.js dev server.
+- next: visual pass with Rodrigo on the new header band (the preview pane
+  came up blank against the already-running dev server on port 3000, so the
+  layout has not been eyeballed yet), then wire the real 2FA challenge and
+  key-export endpoint once the backend exposes them.
+- blockers: none. Note `TASKS.md` is referenced by the playbook but does not
+  exist in the repo, so no task list was updated.
+- interfaces touched: none on the cross-lane contracts. Front-end only:
+  `revealAgentPrivateKey(agentId, twoFactorCode) -> KeyExportResult` is the
+  shape the backend key-export endpoint should fill.

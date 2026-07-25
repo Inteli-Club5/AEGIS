@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "nextjs",
+      "runtimeExecutable": "yarn",
+      "runtimeArgs": ["workspace", "@sh/nextjs", "dev"],
+      "port": 3000
+    }
+  ]
+}

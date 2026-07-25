@@ -6,7 +6,15 @@
 import { ACTIVITY } from "@/lib/fixtures/activity";
 import { AGENTS } from "@/lib/fixtures/agents";
 import { readCreatedAgentDetails, readCreatedAgents } from "@/lib/fixtures/store";
-import type { ActivityEntry, Agent, AgentDetail, DashboardStats, StatsPeriod } from "@/lib/types/aegis";
+import type {
+  ActivityEntry,
+  Agent,
+  AgentDetail,
+  DashboardStats,
+  KeyExportResult,
+  StatsPeriod,
+} from "@/lib/types/aegis";
+import { filterByPeriod, summarizeActivity } from "@/lib/utils/stats";
 
 const SIMULATED_LATENCY_MS = 600;
 
@@ -31,21 +39,23 @@ export async function getAgentDetail(id: string): Promise<AgentDetail | null> {
 
 export async function getDashboardStats(period: StatsPeriod = 30): Promise<DashboardStats> {
   await delay(SIMULATED_LATENCY_MS);
+  return summarizeActivity(filterByPeriod(ACTIVITY, period));
+}
 
-  const inWindow =
-    period === "all"
-      ? ACTIVITY
-      : ACTIVITY.filter(e => {
-          const ageMs = Date.now() - new Date(e.timestamp).getTime();
-          return ageMs <= period * 24 * 60 * 60 * 1000;
-        });
-
-  const approved = inWindow.filter(e => e.verdict === "ALLOW");
-  const denied = inWindow.filter(e => e.verdict === "DENY");
+/**
+ * TODO(backend): irreversible key export. The real flow verifies the operator's
+ * 2FA challenge, revokes the AEGIS co-signer on the agent's Safe, marks the
+ * agent unusable on AEGIS, and only then returns the key — once. Until that
+ * endpoint exists this always answers "unavailable": never fabricate a key here.
+ */
+export async function revealAgentPrivateKey(agentId: string, twoFactorCode: string): Promise<KeyExportResult> {
+  await delay(SIMULATED_LATENCY_MS);
+  if (!agentId || !/^\d{6}$/.test(twoFactorCode)) {
+    return { status: "rejected", message: "That verification code isn't valid. Enter the 6 digits from your app." };
+  }
   return {
-    totalTrades: inWindow.length,
-    approved: approved.length,
-    denied: denied.length,
-    hbarTransacted: approved.reduce((sum, e) => sum + e.amountHbar, 0),
+    status: "unavailable",
+    message:
+      "Key export is not wired yet. It unlocks once the backend exposes the export endpoint and the 2FA challenge is live.",
   };
 }

@@ -59,6 +59,12 @@ export interface AgentDetail extends Agent {
   policy: PolicyRecord | null;
 }
 
+/** Result of the irreversible "export the AEGIS key" flow (agent detail → Settings). */
+export type KeyExportResult =
+  | { status: "revealed"; privateKey: string }
+  | { status: "rejected"; message: string }
+  | { status: "unavailable"; message: string };
+
 export type StatsPeriod = 7 | 30 | 90 | "all";
 
 export interface DashboardStats {
