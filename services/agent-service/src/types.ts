@@ -23,4 +23,10 @@ export type AgentProfile = {
   status: "active" | "inactive";
   createdAt: string;
   safeAddress?: string;
+  agenticId?: {
+    tokenId: string;
+    contractAddress: string;
+    metadataURI: string;
+    explorerUrl: string;
+  };
 };
