@@ -185,3 +185,225 @@ oldest at the top, newest at the bottom. Use English AM/PM timestamps. Format:
   checklist or shared interface document update was possible.
 - interfaces touched: backend API `POST /api/0g/agentic-id` behavior is now
   live-validated against 0G Galileo; no Hedera deployment artifacts changed.
+
+## 2026-07-24 10:31 PM - Claude Code (CryptoVictor) - dashboard
+- did: merged the untracked root-level `front-aegis-main/` (a standalone
+  Next.js UI prototype - landing, onboarding wizard, dashboard, agent detail,
+  all on mock data) into `packages/nextjs`, then deleted the source folder.
+  Copied `features/`, `lib/`, `components/{ui,layout}/`, the new
+  `app/{dashboard,onboarding,agents}` routes, and `public/` assets in with no
+  collisions; added a `@/*` tsconfig path alias alongside the existing `~~/*`
+  so the prototype's imports resolve unchanged; added `lucide-react` to
+  `package.json`. Overwrote `app/page.tsx` (was a no-op stub) and
+  `app/layout.tsx` with the prototype's versions, but had to re-wrap the new
+  layout in the existing `ScaffoldHbarAppWithProviders` + `ThemeProvider` -
+  dropping them outright broke the prerender for `/debug` and
+  `/blockexplorer` (`WagmiProviderNotFoundError`). Kept the existing
+  `next.config.ts` as-is (front-aegis-main's version was empty create-next-app
+  boilerplate; overwriting would have dropped `outputFileTracingRoot`, the
+  IPFS export branch, and the webpack externals the monorepo build needs).
+  Copied the prototype's `docs/` (design-system.md, interface-escrita.md, its
+  own AEGIS_ARCHITECTURE.md/decisions.md) into `packages/nextjs/docs/`
+  untouched rather than merging into root `docs/` - its architecture doc and
+  decisions.md **contradict** the root's production-locked versions (notably
+  "bring your own agent" vs. the locked "AEGIS creates the agent" flow, and
+  dropped protected-wallet onboarding step), so reconciling them needs a human
+  call, not a silent overwrite. Also found and flagged to the user (not
+  copied, not acted on) a prompt-injection attempt in the prototype's
+  `AGENTS.md`/`CLAUDE.md` telling agents to read instructions from
+  `node_modules/next/dist/docs/` before writing code. Verified with
+  `yarn workspace @sh/nextjs run check-types`, `run build` (all 12 routes,
+  old and new, build and prerender clean), and `run format`.
+- next: reconcile `packages/nextjs/docs/AEGIS_ARCHITECTURE.md` and
+  `decisions.md` against the root's locked versions (human decision - which
+  agent-onboarding flow is actually correct). The new pages currently render
+  wrapped in the old scaffold's `Header`/`Footer` chrome as well as their own
+  `Nav`/`Footer` (front-aegis-main pages carried their own) - cosmetic
+  double-chrome to resolve when the two UIs are actually wired together
+  (explicitly out of scope for this session per instructions). The mock
+  wallet/data layer (`features/wallet`, `lib/mock`) still needs wiring to the
+  real wagmi/contract hooks.
+- blockers: none. `TASKS.md` is still missing, so no task checklist update was
+  possible.
+- interfaces touched: none to the locked architecture/decisions docs (the
+  prototype's conflicting copies live only under `packages/nextjs/docs/`, not
+  merged into root `docs/`).
+
+## 2026-07-24 10:38 PM - Claude Code (CryptoVictor) - cleanup
+- did: removed the front-aegis-main docs that weren't actually part of this
+  project - `packages/nextjs/docs/AEGIS_ARCHITECTURE.md`, `decisions.md`,
+  `AEGIS_ARCHITECTURE.png`, and `AEGIS_USER_FLOW.png` were the prototype's own
+  stale copies of the root's docs (the two PNGs were byte-identical to
+  `docs/`'s; the two `.md` files diverged and conflicted with the
+  production-locked root versions, per the prior entry). Kept
+  `design-system.md` and `interface-escrita.md`, which are unique
+  frontend-specific docs cited by the merged component/lib code and don't
+  exist elsewhere. Also removed `services/decision-verifier/demo-compute-flow.ts`
+  and `DEMO_SCRIPT.md` - confirmed neither is imported by `src/` (the actual
+  Express service `tsc` compiles; its `tsconfig.json` `include` is scoped to
+  `src/**/*` already) or referenced anywhere outside that service's own
+  `package.json`/`README.md`. Dropped the now-dead `"demo"` script from
+  `package.json` and cleaned every reference to the demo script out of
+  `README.md` (repo structure tree, the "Run the Complete Flow" section, the
+  `npm run demo` dev-scripts line, the "Demo Script Guide" link, and the
+  closing tagline). Verified with `grep` that no other file in the repo
+  references the removed docs or demo files (aside from this DEVLOG's own
+  history), and re-ran `yarn workspace @sh/nextjs run check-types`/`build`
+  after the docs removal - unaffected, since docs aren't part of the app
+  bundle.
+- next: same as the prior entry - reconcile the frontend's architecture
+  assumptions with the root's locked docs, and wire the mock wallet/data layer
+  to real hooks.
+- blockers: none.
+- interfaces touched: none.
+
+## 2026-07-24 11:14 PM - Claude Code (CryptoVictor) - i18n & de-mocking
+- did: translated every remaining Portuguese comment in the merged
+  `packages/nextjs` frontend to English (`lib/types/aegis.ts`,
+  `lib/api/{agents,onboarding}.ts`, `lib/fixtures/store.ts`,
+  `lib/utils/hash.ts`, and the wallet feature files), and rewrote both
+  `packages/nextjs/docs/design-system.md` and `interface-escrita.md` in full
+  English. Per instructions, also stripped "mock" out of naming while
+  keeping the underlying local/simulated behavior intact, replacing it with
+  `TODO(backend)` markers at every swap point: renamed `lib/mock/` to
+  `lib/fixtures/` (updated all `@/lib/mock/*` imports), `mockHash.ts` to
+  `hash.ts` (`mockHash()` to `deterministicHash()`), `MOCK_DELAY_MS` to
+  `SIMULATED_LATENCY_MS`, `aegis.mock-session`/`aegis.mock-agents`
+  localStorage keys to `aegis.session`/`aegis.local-agents`, and
+  `MOCK_ADDRESS` to `PLACEHOLDER_ADDRESS` in `ConnectWalletProvider.tsx`. The
+  user-facing "Mock session" copy in `ConnectModal.tsx` became "This session
+  is simulated locally." `interface-escrita.md`'s framing changed from "this
+  delivery is a mocked front-end" to describing the screens as the actual
+  production spec, with the local data layer called out via `TODO(backend)`
+  notes instead of a leading "mocked" disclaimer;
+  `design-system.md` §13's `lib/mock/` references were updated to
+  `lib/fixtures/` to match the code. Verified with `check-types`, `build`
+  (all 12 routes clean), and `format` after every batch of edits, plus `grep`
+  sweeps confirming zero remaining Portuguese-accented characters or "mock"
+  occurrences (`mockup-code`, a DaisyUI CSS class in the pre-existing
+  blockexplorer components, is unrelated and was left alone).
+- next: reconcile `packages/nextjs/docs/AEGIS_ARCHITECTURE.md`/`decisions.md`
+  against the root's locked versions (carried over from the prior entry,
+  still unresolved), then start wiring the `TODO(backend)`-marked spots
+  (`lib/api/*`, `lib/fixtures/*`, `ConnectWalletProvider.tsx`) to real
+  wagmi/contract calls.
+- blockers: none.
+- interfaces touched: none.
+
+## 2026-07-24 11:23 PM - Claude Code (CryptoVictor) - i18n filenames
+- did: renamed the last Portuguese-named file in the repo,
+  `packages/nextjs/docs/interface-escrita.md`, to `screen-specification.md`
+  (matching the English title it already had after the prior entry's
+  translation pass). Updated every reference to the old filename: the
+  markdown link and the §0.1/§3 cross-references in `design-system.md`, and
+  the `screen-specification.md §4`/`§5.1` code comments in
+  `lib/api/agents.ts`, `lib/api/onboarding.ts`, and `lib/fixtures/store.ts`.
+  Left DEVLOG's own prior entries referencing the old filename untouched -
+  they're a historical record of what the file was called at the time, not a
+  live reference to update. Swept the whole repo (not just `packages/nextjs`)
+  for other Portuguese-named files (`arquitetura`, `decisões`, `politica`,
+  `planejamento`, `usuario`, `carteira`, etc.) - found none. Verified with
+  `check-types` and a `grep` sweep confirming no remaining
+  `interface-escrita` references outside DEVLOG history.
+- next: same as the prior entry - reconcile
+  `packages/nextjs/docs/AEGIS_ARCHITECTURE.md`/`decisions.md` against the
+  root's locked versions, then wire the `TODO(backend)`-marked spots to real
+  wagmi/contract calls.
+- blockers: none.
+- interfaces touched: none.
+
+## 2026-07-24 11:46 PM - Claude Code (CryptoVictor) - dashboard QA
+- did: actually ran the merged dashboard instead of just building it - started
+  `yarn next:dev`, installed Playwright + Chromium into the session scratch
+  dir (no project skill covered running this app yet), and drove `/`,
+  `/dashboard`, `/onboarding`, `/agents/[id]`, `/debug`, and `/blockexplorer`
+  headlessly with screenshots + console/page-error capture. Found and fixed
+  two real bugs the build/typecheck couldn't catch: (1) `app/globals.css`
+  (inherited from the front-aegis-main merge) never registered the daisyUI
+  plugin, so every daisyUI-dependent class the pre-existing scaffold-hbar
+  screens use (`Header`'s dropdown/navbar/menu, `RainbowKitCustomConnectButton`,
+  `/debug`'s buttons and cards) emitted no CSS at all - visually this left the
+  burner wallet's "Private Key" dropdown permanently expanded on every single
+  page. Confirmed with the user before fixing (architectural CSS decision,
+  not a typo) and re-added the `@plugin "daisyui"` + light/dark theme
+  registration and the Tailwind v4 border-color compat rule, both marked
+  `TODO(design)` to drop once `/debug`/`/blockexplorer` move off daisyUI.
+  (2) `features/landing/components/Nav.tsx` used `fixed inset-x-0 top-0`,
+  which pinned it directly on top of the old scaffold `Header` (also pinned
+  to the viewport top), overlapping their text on `/`. Fixed by switching to
+  `sticky top-0`, matching the pattern `AppTopbar.tsx` already used
+  correctly on the other new routes (which is why only the landing page
+  showed the overlap, not `/dashboard`/`/onboarding`/`/agents/[id]`). Also
+  caught along the way: `app/globals.css` itself still had Portuguese
+  comments, missed earlier because that sweep only covered `.ts`/`.tsx`/`.md`
+  - translated them. Re-verified with `check-types` and a clean `next build`
+  (stopped the dev server first; running both against the same `.next`
+  directory concurrently threw an unrelated `PageNotFoundError: /_document`
+  that was a build/dev collision, not a code regression). Pre-existing,
+  unrelated to this merge: `/blockexplorer` logs a CORS console error
+  fetching the HBAR price from `api.coingecko.com` - not caused by anything
+  touched this session.
+- next: per the `run` skill's guidance, this project has no committed skill
+  for launching `packages/nextjs` yet - worth capturing via
+  `/run-skill-generator` (dev command, port, the Playwright driver pattern)
+  so the next session doesn't have to rediscover it. Otherwise same
+  outstanding items as prior entries: reconcile
+  `AEGIS_ARCHITECTURE.md`/`decisions.md`, wire the `TODO(backend)` spots to
+  real wagmi/contract calls, and eventually retire the daisyUI dependency
+  from `/debug`/`/blockexplorer` so the `TODO(design)` block in
+  `globals.css` can come out.
+- blockers: none.
+- interfaces touched: none.
+
+## 2026-07-25 12:07 AM - Claude Code (CryptoVictor) - remove old scaffold chrome
+- did: user asked to remove the old scaffold-hbar interface entirely since it
+  clashed visually with the new AEGIS design (confirmed scope first - full
+  removal, including the `/debug` and `/blockexplorer` dev tools, not just the
+  chrome around them). Deleted `app/debug/` and `app/blockexplorer/` (routes +
+  all `_components`), `components/Header.tsx`, `components/Footer.tsx`,
+  `components/LocalChainErrorBanner.tsx`, `components/SwitchTheme.tsx`,
+  `components/scaffold-hbar/RainbowKitCustomConnectButton/` (the burner-wallet
+  UI from the last entry's dropdown fix), and `components/scaffold-hbar/HederaAddress.tsx`
+  - all confirmed orphaned by grep before deletion. Simplified
+  `ScaffoldHbarAppWithProviders.tsx` to just the Wagmi/RainbowKit/QueryClient
+  provider stack (kept - still needed for real wallet wiring later) plus
+  `Toaster`, dropping the `Header`/`LocalChainErrorBanner`/`Footer` chrome
+  wrapper entirely; recolored the RainbowKit theme and the nprogress bar from
+  the old scaffold purple/blue to AEGIS's `#62affc` brand blue. Trimmed
+  `components/scaffold-hbar/index.tsx` to only export `BlockieAvatar` (the one
+  piece still used, for `RainbowKitProvider`'s avatar prop). Restyled the two
+  remaining daisyUI-dependent files instead of deleting them, since both are
+  still load-bearing: `app/not-found.tsx` (generic 404, now AEGIS tokens) and
+  `utils/scaffold-hbar/notification.tsx` (the toast helper every
+  `useScaffoldReadContract`/`useScaffoldWriteContract`/etc. hook calls -
+  swapped `@heroicons/react` for `lucide-react` and daisyUI's
+  `bg-base-200`/`text-error`/`loading-spinner` classes for AEGIS's
+  `bg-surface-raised`/`text-danger`/a `Loader2` spin icon). Confirmed via
+  `grep` zero remaining daisyUI class usage anywhere in the app, so removed
+  the `@plugin "daisyui"` registration and the border-color compat rule from
+  `app/globals.css` entirely - both were added in the prior entry specifically
+  to keep the now-deleted screens working, and are no longer needed by
+  anything. Removed the now-fully-unused dependencies from `package.json`:
+  `@heroicons/react`, `daisyui`, `@scaffold-hbar-ui/components`,
+  `@scaffold-hbar-ui/debug-contracts`, `@scaffold-hbar-ui/hooks`, and
+  `qrcode.react` (confirmed zero references to each before removing, ran
+  `yarn install` to update the lockfile). Also deleted `styles/globals.css`,
+  the original scaffold stylesheet - it had been fully orphaned since the
+  front-aegis-main merge switched the active import to `app/globals.css`, and
+  nothing pointed at it anymore.
+- next: verified with `check-types`, a clean `next build` (8 routes now,
+  down from 12 - `/debug` and `/blockexplorer` correctly gone, everything
+  else unchanged), and a headless Playwright pass confirming `/debug` and
+  `/blockexplorer` now 404, `/`, `/dashboard`, `/onboarding`, and
+  `/agents/[id]` render with zero console/page errors and no leftover
+  scaffold-hbar branding. This also resolves the prior entry's `TODO(design)`
+  daisyUI carve-out - there's nothing left in the app that needs it. Still
+  outstanding: reconcile `AEGIS_ARCHITECTURE.md`/`decisions.md` against the
+  root's locked versions, wire the `TODO(backend)` spots to real
+  wagmi/contract calls, and capture a `/run-skill-generator` skill for this
+  package (still missing, per the prior entry).
+- blockers: none.
+- interfaces touched: none. Note for whoever owns contract debugging
+  (Victor's lane per PLAYBOOK.md): `/debug` and `/blockexplorer` are gone,
+  not hidden - restoring them means re-adding the deleted files from git
+  history, not just re-wiring a route.
