@@ -9,16 +9,113 @@ the current focus for the next agent session.
 
 ## Current Focus
 
-- [ ] Manually test the new "Fund this wallet" action (Wallet tab, agent
-  detail page) in a real browser with a real MetaMask session: connect,
-  enter an amount, confirm the transaction, and confirm the Safe's live
-  balance updates afterward. Headless testing this session could only
-  confirm the code compiles/lints and that the page renders correctly
-  without a connected wallet - nothing that needs an injected provider could
-  be clicked through.
+- [ ] Manual real-browser / real-MetaMask QA pass - everything below was
+  built and verified via `check-types`/`lint`/unit tests only, since it all
+  sits behind `ConnectGate` and headless Chrome has no injected wallet
+  provider to click through it with:
+  - [ ] `/onboarding` with a genuinely unfinished draft in `localStorage`
+    shows "Continue setting up X?" instead of silently resuming into
+    "Create version v2"; "Protect a different agent" lands on a clean
+    step-0 form.
+  - [ ] "Fund this wallet" (onboarding success screen, and the agent detail
+    page's Wallet tab): connect, enter an amount, confirm, and confirm the
+    Safe's live balance updates afterward.
+  - [ ] Logo click routes to `/dashboard` once connected (from any app
+    page, including mid-onboarding) and to `/` otherwise; clicking the
+    connected-wallet pill in the app topbar opens the wallet modal;
+    "Launch the app" on the landing page skips the modal and goes straight
+    to `/dashboard` when already connected.
+  - [ ] "Delete agent" (agent detail page, Danger zone): deletes cleanly,
+    redirects to the dashboard, the agent no longer appears there, and a
+    second delete of an already-deleted agent doesn't error (DELETE is
+    idempotent by design). The HTTP round trip is now confirmed working via
+    curl end to end (backend directly and through the Next.js proxy both
+    return a clean `204`), after fixing two bugs: a stale `agent-service`
+    dev process that hadn't picked up the new route, and
+    `lib/server/agentService.ts` crashing while trying to attach a JSON
+    body to a `204` response. Only the actual button-click UI flow in a
+    browser is still unverified.
+  - [ ] Disconnect fully clears the session: connect with one wallet,
+    disconnect, connect with a different one, disconnect again, reload -
+    confirm nothing auto-reconnects and no stale account/balance from an
+    earlier connection ever reappears (`ConnectWalletProvider.tsx`'s
+    `disconnect()` now tears down every active connection via
+    `useConnections()`, not just the "current" one).
 
 ## Done
 
+- [x] 2026-07-25: Fixed a stale-wallet-after-disconnect bug: a specific real
+  address with a `0.0` HBAR balance kept resurfacing after disconnect, even
+  though it wasn't the user's actual connected account. Root cause (found
+  via wagmi's docs, not guesswork): a bare `disconnectAsync()` only tears
+  down "the current connection" - since this session tested MetaMask,
+  WalletConnect, and Coinbase in the same browser while debugging
+  `findConnector()`, each left its own persisted entry in wagmi's
+  `localStorage`-backed store, and `WagmiProvider`'s `reconnectOnMount`
+  (default `true`) auto-reconnects to whatever's left there on the next
+  mount. Fixed by having `disconnect()` enumerate every active connection
+  via `useConnections()` and disconnect each one, instead of only the
+  implicit "current" one. `check-types` and `lint` pass clean.
+- [x] 2026-07-25: Added an agent delete action, scoped intentionally to
+  AEGIS's own off-chain records only - the user explicitly asked to leave
+  on-chain state (the Hedera account, any deployed Safe) untouched. New
+  `DELETE /agents/:agentId` in `services/agent-service` removes the
+  in-memory profile (`store.ts`) and, when Postgres is configured, cascades
+  through `aegis_wallet_nonces` -> `aegis_wallets` -> `aegis_policies` ->
+  `aegis_agents` in one transaction (`PostgresPolicyRepository.deleteAgent`,
+  new on the `PolicyRepository` interface, so `InMemoryPolicyRepository` and
+  `UnconfiguredPolicyRepository` both got a matching implementation too -
+  the compiler enforced covering every implementer). Frontend: a "Delete
+  agent" button in a new Danger zone section on the agent detail page,
+  behind a confirm dialog reusing the existing `ConfirmDialog`, calling a
+  new `deleteAgent()` (`lib/api/agents.ts`) that hits the backend then clears
+  the agent from the local dashboard cache (`lib/fixtures/store.ts`) and
+  redirects to `/dashboard`. `check-types`, `lint`, and all 60
+  `services/agent-service` unit tests pass.
+- [x] 2026-07-25: Fixed three navigation papercuts the user hit while testing
+  the onboarding flow: (1) `AppTopbar`'s logo always linked to `/` (the
+  landing page) regardless of connection state, so there was no one-click
+  way back to the dashboard while mid-onboarding - it now links to
+  `/dashboard` once connected (and still to `/` otherwise), matching how
+  `features/landing/components/Nav.tsx` already treated its own connected
+  pill. (2) The connected-wallet address pill in `AppTopbar` was a plain,
+  non-interactive `<span>` - clicking it did nothing; it's now a button that
+  opens the wallet modal (`openModal()`), consistent with what "click the
+  wallet" already does everywhere else in the app. (3) The landing page's
+  "Launch the app" button always opened the connect modal, even for an
+  already-connected wallet; it now checks `status` first and routes straight
+  to `/dashboard`, only opening the modal when not yet connected.
+  `check-types` and `lint` pass clean.
+- [x] 2026-07-25: Found the actual root cause of the recurring "v2" bug the
+  earlier `handleAgentCreated` fix didn't cover: `/onboarding` silently
+  resumes ANY unfinished draft from `localStorage` (`features/onboarding/
+  draft.ts`) on a fresh page load, with no indication to the user that
+  they're not starting fresh. If a previous agent was registered and a
+  policy draft was created but the wizard was ever abandoned before
+  activating (closed tab, navigated away - anything short of the wizard's
+  own Cancel/Discard, which is the only place that already called
+  `clearDraft()` mid-flow), the next visit to `/onboarding` drops straight
+  into that old agent's `StepCreatePolicy`/`StepActivate`, correctly showing
+  "Create version v2" for what really is a second version of that OLD
+  agent's policy - but with nothing distinguishing this from a fresh
+  session, a user who intends to register a genuinely new agent has no way
+  to tell they've been handed someone else's in-progress state instead.
+  Fixed in `app/onboarding/page.tsx`: when the draft is past step 0, show an
+  explicit "Continue setting up {agent}?" prompt with a "Protect a different
+  agent" option that calls `clearDraft()` and forces a clean step-0 start,
+  instead of ever silently choosing for the user. `check-types` and `lint`
+  pass clean; this couldn't be clicked through headlessly since the whole
+  page sits behind `ConnectGate` - see Current Focus.
+- [x] 2026-07-25: Made the new "Fund this wallet" action reachable right from
+  the onboarding success screen (`SuccessScreen.tsx`), not just the agent
+  detail page - reused `FundWalletCard` directly there, since a Safe with a
+  zero balance and no easy way to find it again (without a trip through the
+  dashboard) made the feature hard to verify. Threaded `wallet` into
+  `SuccessScreen` (`OnboardingWizard.tsx`'s completion guard is now
+  `done && agent && wallet`, safe since `StepActivate` can't render without
+  a wallet already set) and replaced "Go to dashboard" with "Go to agent",
+  linking straight to `/agents/:id` per explicit request. `check-types` and
+  `lint` pass clean.
 - [x] 2026-07-25: Added a "Fund this wallet" action to the agent detail
   page's Wallet tab so the operator can send native HBAR from their already-
   connected MetaMask straight to the agent's Safe address

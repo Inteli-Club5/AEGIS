@@ -17,6 +17,11 @@ export function getAgentPrivateKey(agentId: string): string | undefined {
   return privateKeys.get(agentId);
 }
 
+export function deleteAgent(agentId: string): void {
+  profiles.delete(agentId);
+  privateKeys.delete(agentId);
+}
+
 export function setAgentSafeAddress(
   agentId: string,
   safeAddress: string,

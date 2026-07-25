@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { useConnectWallet } from "@/features/wallet/components/ConnectWalletProvider";
 
@@ -33,7 +34,16 @@ function HeroBackdrop() {
 }
 
 export function Hero() {
-  const { openModal } = useConnectWallet();
+  const router = useRouter();
+  const { status, openModal } = useConnectWallet();
+
+  function handleLaunch() {
+    if (status === "connected") {
+      router.push("/dashboard");
+      return;
+    }
+    openModal();
+  }
 
   return (
     <section id="top" className="relative pb-10 pt-40 lg:pb-14 lg:pt-48">
@@ -47,7 +57,11 @@ export function Hero() {
         </p>
 
         <div className="mt-10 flex flex-wrap items-center gap-3">
-          <Button size="xl" onClick={openModal} className="ring-4 ring-brand-soft ring-offset-2 ring-offset-background">
+          <Button
+            size="xl"
+            onClick={handleLaunch}
+            className="ring-4 ring-brand-soft ring-offset-2 ring-offset-background"
+          >
             Launch the app
           </Button>
         </div>

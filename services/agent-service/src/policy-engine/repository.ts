@@ -27,6 +27,7 @@ export type PolicyRepository = {
     supersededPolicy: SupersededPolicySummary | null;
   }>;
   revokePolicy(policyId: string, proof: OperatorProof, now: number): Promise<PolicyRecord>;
+  deleteAgent(agentId: string): Promise<void>;
 };
 
 export function toPolicy(record: PolicyRecord): Policy {
@@ -190,6 +191,17 @@ export class InMemoryPolicyRepository implements PolicyRepository {
     };
     this.policies.set(policy.policyId, clone(revoked));
     return clone(revoked);
+  }
+
+  async deleteAgent(agentId: string): Promise<void> {
+    const normalized = agentId.toLowerCase();
+    this.agents.delete(normalized);
+    for (const [walletId, wallet] of this.wallets) {
+      if (wallet.agentId === normalized) this.wallets.delete(walletId);
+    }
+    for (const [policyId, policy] of this.policies) {
+      if (policy.agentId === normalized) this.policies.delete(policyId);
+    }
   }
 }
 

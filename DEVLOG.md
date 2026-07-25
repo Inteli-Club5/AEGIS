@@ -1082,3 +1082,223 @@ oldest at the top, newest at the bottom. Use English AM/PM timestamps. Format:
 - blockers: none.
 - interfaces touched: none - sends a plain native transfer to an existing
   Safe address; no new backend endpoint involved.
+
+## 2026-07-25 04:10 PM - Claude Code (CryptoVictor) - deposit funds on the success screen
+
+- did: the user tried the fund-wallet feature and asked for it to be
+  verified, but there was no way to identify which agent/Safe they'd used -
+  agent-service keeps profiles in an in-memory `Map` (no list endpoint) and
+  the "which agents did I create" record lives in the browser's own
+  localStorage, neither of which the agent can see from outside a live
+  browser session. Rather than asking the user to hunt down the address,
+  acted on their follow-up ask directly: reused `FundWalletCard` (previous
+  entry) inside `SuccessScreen.tsx`, the onboarding wizard's final screen,
+  so depositing happens one step after activation instead of requiring a
+  trip through the dashboard to find the agent again. Threaded
+  `wallet: ProtectedWalletInfo` into `SuccessScreen` (previously not passed
+  at all) by narrowing `OnboardingWizard.tsx`'s completion guard from
+  `done && agent` to `done && agent && wallet` - a safe narrowing, since
+  `StepActivate` (the only path that sets `done`) can't render without
+  `wallet` already being set. Replaced the "Go to dashboard" button with
+  "Go to agent", linking straight to `/agents/${agent.id}`, per the explicit
+  ask to land on the agent's own screen after this step rather than the
+  dashboard - dashboard access isn't lost, it's one click further via that
+  page's own "Back to dashboard" link. Confirmed the same "wallet is always
+  connected here" invariant `FundWalletCard` relies on (see previous entry)
+  also holds for this new call site: `app/onboarding/page.tsx` gates the
+  whole wizard behind its own `ConnectGate`, same as the agent detail page.
+  `check-types` and `lint` both pass clean.
+- next: the user can now click through create-agent -> activate -> deposit
+  -> go to agent in one continuous flow to verify the deposit lands on the
+  right Safe, without needing to separately report an address.
+- blockers: none.
+- interfaces touched: none - `SuccessScreen`'s prop signature gained
+  `wallet`, but it's a new internal component prop, not a service contract.
+
+## 2026-07-25 04:45 PM - Claude Code (CryptoVictor) - the real "v2" bug
+
+- did: the user reported the same "v2" symptom again after the earlier fix
+  (`handleAgentCreated` resetting `policy`/`wallet` state) was already
+  verified in place. Traced the whole chain again instead of assuming that
+  fix was wrong: re-verified `OnboardingWizard.tsx`'s reset is still intact,
+  read `StepRegisterAgent.tsx` and `services/agent-service/src/createAgent.ts`
+  end to end (confirmed `agentId` is a fresh `randomUUID()`, the EVM address
+  comes from a freshly generated ECDSA keypair, and a real new Hedera account
+  is created per call - so no backend ID or Safe-owner collision between
+  agents). The actual root cause was one layer up: `features/onboarding/
+  draft.ts` persists the wizard's progress to `localStorage`
+  (`aegis.onboarding-draft`) so a page reload mid-flow doesn't lose work -
+  and `clearDraft()` is only ever called from `handleActivated` (success) or
+  the wizard's own Cancel -> Discard dialog. Any *other* way of leaving
+  mid-flow (closing the tab, navigating elsewhere, anything short of that
+  explicit Discard) leaves the draft sitting in `localStorage` indefinitely.
+  The next time `/onboarding` loads - regardless of how it's reached - it
+  silently resumes straight into that old, abandoned agent's
+  `StepCreatePolicy` or `StepActivate`, correctly showing "Create version
+  v2" for what genuinely is that old agent's second policy version - with
+  nothing on screen telling the user this isn't a fresh session. A user
+  intending to register a brand-new agent has no way to notice they've been
+  silently handed someone else's unfinished state instead. Fixed at the
+  single entry point all of this funnels through, `app/onboarding/page.tsx`:
+  when the read draft is past step 0, show an explicit "Continue setting up
+  {agent}?" prompt instead of ever silently choosing for the user - "Protect
+  a different agent" calls `clearDraft()` and forces `OnboardingWizard` to
+  mount with `initialDraft: null`, guaranteeing a clean step-0 start
+  regardless of `useSyncExternalStore`'s own re-render timing.
+  `check-types` and `lint` pass clean.
+- next: this needs a real-browser click-through to confirm - specifically,
+  abandon a draft mid-flow (e.g. navigate away from step 1 without using
+  Cancel), then reload `/onboarding` and confirm the new prompt appears
+  instead of a silent resume.
+- blockers: none.
+- interfaces touched: none.
+
+## 2026-07-25 05:05 PM - Claude Code (CryptoVictor) - navigation papercuts
+
+- did: the user reported three separate navigation issues in one pass, all
+  in the "connect wallet" / "get to the dashboard" surface. (1) Mid-way
+  through creating a new agent, there was no one-click way back to the
+  dashboard: `AppTopbar`'s logo (rendered on every app page, including
+  `/onboarding`) always linked to `/`, the marketing landing page, not
+  `/dashboard` - so clicking it while connected sent the user somewhere
+  they didn't want to go instead of back. (2) More generally, the logo
+  should behave differently depending on connection state - `/dashboard`
+  once connected, `/` only when not - and it didn't check connection state
+  at all. (3) The connected-wallet address pill in `AppTopbar` was a
+  non-interactive `<span>`; clicking it did nothing, when it should open the
+  wallet modal like every other "click the wallet" affordance in the app
+  already does (`Nav.tsx`'s connect button, `ConnectGate`'s connect button).
+  (4) The landing page's "Launch the app" button (`Hero.tsx`) always called
+  `openModal()` unconditionally, even for a wallet that's already connected,
+  instead of skipping straight to `/dashboard` the way `Nav.tsx`'s own
+  connected-state pill already does. Fixed all four in the same pass since
+  they're the same underlying gap (call sites not checking connection status
+  before deciding where to send the user): `AppTopbar.tsx` now derives
+  `connected = status === "connected" && address` once and uses it for both
+  the logo's `href` and to decide whether the address pill renders as a
+  clickable button; `Hero.tsx` added a `handleLaunch` that checks `status`
+  before choosing between `router.push("/dashboard")` and `openModal()`.
+  `check-types` and `lint` pass clean.
+- next: real-browser click-through - specifically confirm the logo takes you
+  to `/dashboard` from mid-onboarding, clicking the address pill opens the
+  wallet modal, and "Launch the app" on `/` skips straight to the dashboard
+  when a wallet is already connected.
+- blockers: none.
+- interfaces touched: none.
+
+## 2026-07-25 05:35 PM - Claude Code (CryptoVictor) - delete agent (off-chain only)
+
+- did: the user asked for a way to delete agents that clears AEGIS's own
+  saved records but explicitly leaves blockchain state alone (the Hedera
+  account, any deployed Safe). Checked the schema first since this shapes
+  scope: `services/agent-service/src/policy-engine/db/schema.ts`'s
+  `aegis_wallets` and `aegis_policies` both have a `NOT NULL` FK to
+  `aegis_agents.agentId` with no `onDelete` cascade configured, so a naive
+  `DELETE FROM aegis_agents` would fail outright for any agent that ever
+  went through onboarding. Added `deleteAgent(agentId)` to the
+  `PolicyRepository` interface (`repository.ts`) with three implementations
+  the compiler forced coverage of: `InMemoryPolicyRepository` (used by unit
+  tests - straightforward Map deletes), `PostgresPolicyRepository`
+  (`db/postgres.ts` - one transaction deleting `aegis_wallet_nonces` (by the
+  agent's wallet ids) -> `aegis_wallets` -> `aegis_policies` ->
+  `aegis_agents`, in FK-dependency order), and `UnconfiguredPolicyRepository`
+  (throws the same "DATABASE_URL is required" error every other method on
+  that stub already throws). Wired a new `DELETE /agents/:agentId` route in
+  `index.ts` that clears the in-memory profile (`store.ts`, new
+  `deleteAgent()`) unconditionally and additionally cascades through
+  Postgres when `DATABASE_URL` is configured. On the frontend: a new
+  `DELETE` proxy handler alongside the existing `GET` in
+  `app/api/agent-service/agents/[agentId]/route.ts` (had to widen the
+  `method` union in both `lib/api/http.ts`'s `requestJson` and
+  `lib/server/agentService.ts`'s `proxyAgentServiceRequest`, which only
+  allowed `GET | POST | PATCH` before), a new `deleteAgent()` in
+  `lib/api/agents.ts` that calls the backend then clears the local dashboard
+  cache (`deleteCreatedAgent()`, new in `lib/fixtures/store.ts`), and a
+  "Danger zone" section with a "Delete agent" button on the agent detail
+  page, behind the existing `ConfirmDialog` component, redirecting to
+  `/dashboard` on success. `check-types`, `lint`, and all 60
+  `services/agent-service` unit tests pass (the interface change meant the
+  compiler caught every implementer that needed updating - none were missed
+  silently).
+- next: real-browser click-through, plus specifically verify a second
+  DELETE of an already-deleted agent doesn't error (it shouldn't - the route
+  doesn't check existence first, matching normal DELETE idempotency).
+- blockers: none.
+- interfaces touched: new `DELETE /agents/:agentId` on `services/agent-service`
+  (in-memory + Postgres cleanup, blockchain/Safe state untouched by design);
+  `PolicyRepository`'s `deleteAgent` is a new required method on that
+  interface.
+
+## 2026-07-25 07:35 PM - Claude Code (CryptoVictor) - "Invalid response from the agent service" on delete
+
+- did: the user tried the new delete-agent feature and hit
+  "Invalid response from the agent service" immediately on click. Found two
+  separate problems stacked on top of each other. (1) Process hygiene, not
+  code: `services/agent-service`'s dev server had *two* redundant
+  `tsx watch` instances running (from 13:51 and 14:16, both stale leftovers
+  from earlier in this session), and the one actually bound to port 4200
+  hadn't restarted since 15:33 - its watcher stopped picking up file
+  changes at some point, so it was serving code from *before* this
+  session's `DELETE /agents/:agentId` route existed, returning Express's
+  default 404 HTML page for the unmatched route. Confirmed by curling the
+  backend directly (`Cannot DELETE /agents/...`) before touching anything.
+  Killed both stale instances and started one clean one - directly
+  analogous to the `.next`/dev-server collision lesson from earlier this
+  session, just for this other service. (2) A real code bug underneath,
+  which the stale process had been masking: `lib/server/agentService.ts`'s
+  `proxyToAgentService` unconditionally called `upstream.json()` on every
+  response, which throws on the genuinely empty body a `204 No Content`
+  response has by definition - the exact "Invalid response from the agent
+  service" string is that call's catch-fallback. Even after fixing that,
+  `proxyAgentServiceRequest` still crashed: `NextResponse.json(body, {
+  status: 204 })` itself throws, because the Fetch spec forbids a body on
+  204/205/304 responses - confirmed by curling the proxy route directly and
+  watching it go from the 404 HTML case to a bare `500` with no body at all
+  once the backend was serving the real route again. Fixed both:
+  `proxyToAgentService` now short-circuits on `upstream.status === 204`
+  before ever calling `.json()`, and `proxyAgentServiceRequest` returns a
+  bodyless `new NextResponse(null, { status: 204 })` instead of trying to
+  JSON-serialize an empty body onto a null-body status. Re-verified with
+  curl end to end (backend directly, then through the Next.js proxy) that a
+  DELETE now returns a clean `204 No Content` both ways. `check-types` and
+  `lint` pass clean.
+- next: real click-through in the browser to confirm the UI's delete flow
+  (button -> confirm dialog -> redirect to dashboard) now completes without
+  the error.
+- blockers: none.
+- interfaces touched: none - this only fixes how an existing 204 response is
+  passed through the proxy layer, not any route's contract.
+
+## 2026-07-25 08:05 PM - Claude Code (CryptoVictor) - stale wallet after disconnect
+
+- did: the user reported that disconnecting sometimes leaves a wallet
+  "placeholder" showing - a specific real address
+  (`0xbfE23d24192f427DBc1c12e7723321cf7999412E`) with a `0.0` HBAR balance,
+  not their actual MetaMask account. That address isn't hardcoded anywhere
+  in the repo (grepped for it directly), so it had to be a genuinely-earlier
+  wallet connection resurfacing. Checked wagmi's docs (via context7) for how
+  `useDisconnect` and reconnection actually behave: `disconnect.mutate()`
+  called with no `connector` only tears down "the current connection" - if
+  multiple connectors have ever been used in the same browser (this exact
+  session tested MetaMask, WalletConnect, and Coinbase while debugging
+  `findConnector()`'s RainbowKit matching), each gets its own persisted
+  entry in wagmi's `localStorage`-backed store, and a bare
+  `disconnectAsync()` doesn't necessarily clear all of them. Separately,
+  `WagmiProvider`'s `reconnectOnMount` defaults to `true`, so on the next
+  mount wagmi auto-reconnects using whatever's left in that persisted
+  store - if a stale, never-explicitly-disconnected connection from an
+  earlier test account is still sitting there, that's exactly what
+  reappears, with whatever real (likely zero) balance that account
+  actually has. Fixed `ConnectWalletProvider.tsx`'s `disconnect()`: it now
+  reads `useConnections()` (every currently active connection, not just the
+  "current" one) and calls `disconnectAsync({ connector })` for each in
+  parallel, before navigating to `/` - matching wagmi's own documented
+  pattern for tearing down multiple simultaneous connections, rather than
+  leaving any of them for `reconnectOnMount` to pick back up later.
+  `check-types` and `lint` pass clean.
+- next: this needs a real multi-wallet browser test to fully confirm -
+  connect with one wallet, disconnect, connect with a different one,
+  disconnect again, then reload and verify nothing reconnects on its own
+  and no stale account/balance ever reappears.
+- blockers: none.
+- interfaces touched: none.

@@ -2,6 +2,7 @@
 
 import { type KeyboardEvent, type ReactNode, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   ArrowDown,
   ArrowLeft,
@@ -16,6 +17,7 @@ import {
   Pause,
   ShieldCheck,
   ShieldOff,
+  Trash2,
   TriangleAlert,
   Wallet,
   XCircle,
@@ -23,8 +25,11 @@ import {
 import { formatUnits } from "viem";
 import { useBalance } from "wagmi";
 import { Badge, type BadgeTone } from "~~/components/ui/Badge";
+import { Button } from "~~/components/ui/Button";
+import { ConfirmDialog } from "~~/components/ui/ConfirmDialog";
 import { FundWalletCard } from "~~/features/agents/components/FundWalletCard";
 import { ActivityTable } from "~~/features/dashboard/components/ActivityTable";
+import { deleteAgent } from "~~/lib/api/agents";
 import {
   type ActivityEntry,
   type AgentDetail,
@@ -89,12 +94,28 @@ const PROTECTION_STATUS_META: Record<ProtectionStatus, { label: string; tone: Ba
 };
 
 export function AgentDetailView({ agent, activity }: { agent: AgentDetail; activity: ActivityEntry[] }) {
+  const router = useRouter();
   const [tab, setTab] = useState<TabId>("overview");
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const agentStatus = AGENT_STATUS_META[agent.agentLifecycleStatus];
   const AgentStatusIcon = agentStatus.icon;
   const protectionStatus = getProtectionStatus(agent);
   const protectionMeta = PROTECTION_STATUS_META[protectionStatus];
   const ProtectionStatusIcon = protectionMeta.icon;
+
+  async function handleDelete() {
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await deleteAgent(agent.id);
+      router.push("/dashboard");
+    } catch (error) {
+      setDeleting(false);
+      setDeleteError(error instanceof Error ? error.message : "Couldn't delete this agent. Try again.");
+    }
+  }
 
   function handleTabKeyDown(event: KeyboardEvent<HTMLButtonElement>, tabIndex: number) {
     if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
@@ -191,6 +212,28 @@ export function AgentDetailView({ agent, activity }: { agent: AgentDetail; activ
           </TabPanel>
         )}
       </div>
+
+      <section className="mt-10 rounded-lg border border-danger/25 bg-danger-soft/40 p-6">
+        <h2 className="text-h5">Danger zone</h2>
+        <p className="mt-1 text-body-sm text-muted">
+          Removes {agent.name} from AEGIS&rsquo;s own records and your dashboard. Its Hedera account and any deployed
+          Safe wallet stay on-chain untouched &mdash; this only clears what AEGIS tracks.
+        </p>
+        {deleteError && <p className="mt-3 text-body-sm text-danger">{deleteError}</p>}
+        <Button variant="destructive" size="sm" className="mt-4" onClick={() => setDeleteOpen(true)}>
+          <Trash2 className="h-4 w-4" aria-hidden="true" />
+          Delete agent
+        </Button>
+      </section>
+
+      <ConfirmDialog
+        open={deleteOpen}
+        title={`Delete ${agent.name}?`}
+        description="This removes the agent from AEGIS's records and your dashboard. Its Hedera account and any deployed Safe wallet are on-chain and stay exactly as they are -- this can't be undone on AEGIS's side, but nothing on-chain is affected."
+        confirmLabel={deleting ? "Deleting…" : "Delete"}
+        onCancel={() => setDeleteOpen(false)}
+        onConfirm={handleDelete}
+      />
     </div>
   );
 }

@@ -1,8 +1,13 @@
 import { ApiError } from "~~/lib/api/http";
-import { getAgentServiceProfile } from "~~/lib/api/onboarding";
+import { deleteAgentServiceProfile, getAgentServiceProfile } from "~~/lib/api/onboarding";
 import { getActivePolicy, listPolicyVersions } from "~~/lib/api/policies";
 import { ACTIVITY } from "~~/lib/fixtures/activity";
-import { readCreatedAgentDetails, readCreatedAgents, upsertCreatedAgent } from "~~/lib/fixtures/store";
+import {
+  deleteCreatedAgent,
+  readCreatedAgentDetails,
+  readCreatedAgents,
+  upsertCreatedAgent,
+} from "~~/lib/fixtures/store";
 import type {
   ActivityEntry,
   Agent,
@@ -22,6 +27,11 @@ function delay(ms: number) {
 export async function listAgents(): Promise<Agent[]> {
   await delay(SIMULATED_LATENCY_MS);
   return readCreatedAgents();
+}
+
+export async function deleteAgent(id: string): Promise<void> {
+  await deleteAgentServiceProfile(id);
+  deleteCreatedAgent(id);
 }
 
 export async function listActivity(agentId?: string): Promise<ActivityEntry[]> {
