@@ -1,0 +1,38 @@
+specVersion: 1.3.0
+indexerHints:
+  prune: never
+schema:
+  file: ./schema.graphql
+dataSources:
+  - kind: ethereum/contract
+    name: AgenticID
+    network: "{{NETWORK}}"
+    source:
+      address: "{{AGENTIC_ID_ADDRESS}}"
+      abi: AgenticID
+      startBlock: {{AGENTIC_ID_START_BLOCK}}
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.9
+      language: wasm/assemblyscript
+      entities:
+        - AgenticIdentity
+        - AgenticIdentityAuthorization
+        - AgenticIdentityAuthorizationState
+        - AgenticIdentityDelegation
+        - AgenticIdentityOwnerChange
+        - AgentIdentitySummary
+        - ZeroGProtocolSummary
+      abis:
+        - name: AgenticID
+          file: ./abis/AgenticID.json
+      eventHandlers:
+        - event: Transfer(indexed address,indexed address,indexed uint256)
+          handler: handleTransfer
+        - event: UsageAuthorized(indexed uint256,indexed address)
+          handler: handleUsageAuthorized
+        - event: UsageRevoked(indexed uint256,indexed address)
+          handler: handleUsageRevoked
+        - event: DelegateAccessSet(indexed address,indexed address)
+          handler: handleDelegateAccessSet
+      file: ./src/agentic-id.ts

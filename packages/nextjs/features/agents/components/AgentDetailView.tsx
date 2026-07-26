@@ -22,16 +22,13 @@ import {
   Wallet,
   XCircle,
 } from "lucide-react";
-import { formatUnits } from "viem";
-import { useBalance } from "wagmi";
 import { Badge, type BadgeTone } from "~~/components/ui/Badge";
 import { Button } from "~~/components/ui/Button";
 import { ConfirmDialog } from "~~/components/ui/ConfirmDialog";
 import { FundWalletCard } from "~~/features/agents/components/FundWalletCard";
-import { ActivityTable } from "~~/features/dashboard/components/ActivityTable";
 import { deleteAgent } from "~~/lib/api/agents";
+import { agenticIdentityEntityId, hashCanonicalAgentId } from "~~/lib/onchain-data/aggregate";
 import {
-  type ActivityEntry,
   type AgentDetail,
   type AgentLifecycleStatus,
   CAPABILITY_LABELS,
@@ -40,13 +37,7 @@ import {
   type ProtectedWalletInfo,
 } from "~~/lib/types/aegis";
 import { cn } from "~~/lib/utils/cn";
-import {
-  formatDateTime,
-  formatHbar,
-  formatPolicyAmount,
-  formatPolicyValidity,
-  truncateAddress,
-} from "~~/lib/utils/format";
+import { formatDateTime, formatPolicyAmount, formatPolicyValidity, truncateAddress } from "~~/lib/utils/format";
 
 const AGENT_STATUS_META: Record<AgentLifecycleStatus, { label: string; tone: BadgeTone; icon: typeof ShieldCheck }> = {
   ACTIVE: { label: "Active", tone: "success", icon: Bot },
@@ -93,7 +84,7 @@ const PROTECTION_STATUS_META: Record<ProtectionStatus, { label: string; tone: Ba
   unprotected: { label: "Protection not configured", tone: "neutral", icon: ShieldOff },
 };
 
-export function AgentDetailView({ agent, activity }: { agent: AgentDetail; activity: ActivityEntry[] }) {
+export function AgentDetailView({ agent }: { agent: AgentDetail }) {
   const router = useRouter();
   const [tab, setTab] = useState<TabId>("overview");
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -208,7 +199,7 @@ export function AgentDetailView({ agent, activity }: { agent: AgentDetail; activ
         )}
         {tab === "activity" && (
           <TabPanel id="activity">
-            <ActivityTab entries={activity} />
+            <ActivityTab agentId={agent.id} />
           </TabPanel>
         )}
       </div>
@@ -345,22 +336,22 @@ function OverviewTab({ agent }: { agent: AgentDetail }) {
             <Row label="Connected">
               <span className="font-mono text-mono-sm text-muted">{formatDateTime(agent.createdAt)}</span>
             </Row>
-            <Row label="Balance">
-              <span className="font-mono text-mono-md font-medium tabular-nums">{formatHbar(agent.balanceHbar)}</span>
-            </Row>
           </dl>
           {agent.description && (
             <p className="mt-4 border-t border-border pt-4 text-body-sm text-muted">{agent.description}</p>
           )}
           {agent.agenticId && (
-            <a
-              href={agent.agenticId.explorerUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="mt-4 inline-flex min-h-11 items-center border-t border-border pt-4 text-body-sm font-medium text-brand-strong underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
-            >
-              View 0G Agentic ID (token #{agent.agenticId.tokenId})
-            </a>
+            <div className="mt-4 border-t border-border pt-4">
+              <p className="text-caption text-muted">
+                Offchain onboarding reference only; this profile field is not treated as confirmed onchain evidence.
+              </p>
+              <Link
+                href={`/dashboard/identities/${agenticIdentityEntityId(agent.agenticId.contractAddress, agent.agenticId.tokenId)}`}
+                className="mt-2 inline-flex min-h-11 items-center text-body-sm font-medium text-brand-strong underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+              >
+                Reconcile Agentic ID token #{agent.agenticId.tokenId} in the 0G Subgraph
+              </Link>
+            </div>
           )}
         </Card>
 
@@ -493,7 +484,6 @@ type WalletOwner = {
 
 function WalletTab({ agent }: { agent: AgentDetail }) {
   const wallet = agent.walletInfo;
-  const safeBalance = useBalance({ address: wallet?.address as `0x${string}` | undefined });
 
   if (!wallet) {
     return (
@@ -555,13 +545,6 @@ function WalletTab({ agent }: { agent: AgentDetail }) {
           </Row>
           <Row label="Threshold">
             <span className="font-mono text-mono-sm">{wallet.threshold}</span>
-          </Row>
-          <Row label="Balance">
-            <span className="font-mono text-mono-md font-medium tabular-nums">
-              {safeBalance.data
-                ? formatHbar(Number(formatUnits(safeBalance.data.value, safeBalance.data.decimals)))
-                : "—"}
-            </span>
           </Row>
         </dl>
 
@@ -941,11 +924,21 @@ function AuditTimestamp({ value }: { value: number | null }) {
   );
 }
 
-function ActivityTab({ entries }: { entries: ActivityEntry[] }) {
-  if (entries.length === 0) {
-    return <EmptyNote>No activity yet for this agent.</EmptyNote>;
-  }
-  return <ActivityTable entries={entries} />;
+function ActivityTab({ agentId }: { agentId: string }) {
+  return (
+    <Card title="Indexed onchain activity">
+      <p className="mt-2 text-body-sm text-muted">
+        Confirmed history is read only from the AEGIS Subgraphs. This profile view does not query RPC, Mirror Node, or
+        local activity fixtures.
+      </p>
+      <Link
+        href={`/dashboard/validations?agentIdHash=${encodeURIComponent(hashCanonicalAgentId(agentId))}`}
+        className="mt-4 inline-flex min-h-11 items-center text-body-sm font-medium text-brand-strong underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+      >
+        View indexed TeeML validations
+      </Link>
+    </Card>
+  );
 }
 
 function collectPolicyVersions(agent: AgentDetail): Policy[] {

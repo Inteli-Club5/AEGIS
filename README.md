@@ -15,11 +15,12 @@ for the dashboard and audit log.
 ![AEGIS architecture](docs/AEGIS_ARCHITECTURE.png)
 ![AEGIS user flow](docs/AEGIS_USER_FLOW.png)
 
-Built during ETHGlobal Lisbon on public starter kits: [scaffold-hbar](https://github.com/hedera-dev/scaffold-hbar)
-(`packages/`), [0g-compute-ts-starter-kit](https://github.com/0glabs/0g-compute-ts-starter-kit)
-(`services/decision-verifier`), and the [Safe{Core} SDK](https://docs.safe.global/)
-(`services/cosigner`). All AEGIS product logic - policies, decision receipts,
-co-signature flow - was written during the event.
+Built during ETHGlobal Lisbon using [scaffold-hbar](https://github.com/hedera-dev/scaffold-hbar),
+the [0G Compute starter kit](https://github.com/0glabs/0g-compute-ts-starter-kit),
+and the [Safe{Core} SDK](https://docs.safe.global/) as public references. The
+unintegrated 0G starter service is not shipped as an AEGIS runtime service. The
+real TeeML boundary is the verification-gated writer port in `services/agent-service`;
+its remaining integration is tracked as `TG-TEEML-E2E-001`.
 
 - **Architecture:** [`docs/AEGIS_ARCHITECTURE.md`](docs/AEGIS_ARCHITECTURE.md) - full production architecture, user flow, transaction flow, and hackathon scope.
 - **Current scope:** [`docs/aegis-current-scope.md`](docs/aegis-current-scope.md) - active Policy Engine Level 1 branch scope, interfaces, handoff, and local PostgreSQL commands.
@@ -31,8 +32,8 @@ co-signature flow - was written during the event.
 
 ```
 packages/nextjs             dashboard (Next.js + RainbowKit + wagmi)
-packages/foundry            contracts (PolicyRegistry, AgentVault...)
-services/decision-verifier  0G TEE inference -> signed ALLOW/DENY
+packages/foundry            contracts (TeeML registry; Safe ABIs)
+services/agent-service      policy engine + verified TeeML registry writer port
 services/cosigner           policy re-check + co-signature (Safe SDK)
 docs/                       architecture, scope, decisions
 ```

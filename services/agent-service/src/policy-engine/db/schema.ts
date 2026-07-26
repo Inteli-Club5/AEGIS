@@ -1,9 +1,25 @@
 import { sql } from "drizzle-orm";
 import { bigint, check, foreignKey, index, integer, jsonb, pgEnum, pgTable, text, uniqueIndex } from "drizzle-orm/pg-core";
-import { NETWORK_ID, type PolicyRules, type SemanticRule } from "../types.js";
+import {
+  NETWORK_ID,
+  type PolicyRules,
+  type SemanticRule,
+} from "../types.js";
 
 export const agentStatusEnum = pgEnum("aegis_agent_status", ["ACTIVE", "PAUSED", "RETIRED"]);
 export const walletStatusEnum = pgEnum("aegis_wallet_status", ["PROTECTED", "PAUSED", "RETIRED", "DEAD"]);
+export const walletCreationStatusEnum = pgEnum(
+  "aegis_wallet_creation_status",
+  ["INITIALIZED", "PREPARED", "BROADCAST", "FAILED", "COMPLETED"],
+);
+export const walletGuardianSourceEnum = pgEnum(
+  "aegis_wallet_guardian_source",
+  ["REQUESTED", "CONFIGURED_AEGIS", "OWNER_FALLBACK"],
+);
+export const walletDeploymentProvenanceEnum = pgEnum(
+  "aegis_wallet_deployment_provenance",
+  ["BROADCAST_RECEIPT", "PREDICTED_SAFE_RECONCILIATION"],
+);
 export const policyStatusEnum = pgEnum("aegis_policy_status", ["DRAFT", "ACTIVE", "SUPERSEDED", "REVOKED"]);
 export const assetCatalogKindEnum = pgEnum("aegis_asset_catalog_kind", ["HBAR", "HTS_FUNGIBLE"]);
 export const assetCatalogStatusEnum = pgEnum("aegis_asset_catalog_status", ["ACTIVE", "DISABLED"]);
@@ -35,8 +51,61 @@ export const wallets = pgTable(
   table => ({
     agentIdx: index("aegis_wallets_agent_idx").on(table.agentId),
     agentWalletUnique: uniqueIndex("aegis_wallets_agent_wallet_unique").on(table.agentId, table.walletId),
+    agentNetworkUnique: uniqueIndex("aegis_wallets_agent_network_unique").on(table.agentId, table.networkId),
     networkSafeUnique: uniqueIndex("aegis_wallets_network_safe_unique").on(table.networkId, table.safeAddress),
     networkCheck: check("aegis_wallets_network_check", sql.raw(`"network_id" = 'hedera:testnet'`)),
+  }),
+);
+
+export const walletCreationOperations = pgTable(
+  "aegis_wallet_creation_operations",
+  {
+    operationId: text("operation_id").primaryKey(),
+    agentId: text("agent_id")
+      .notNull()
+      .references(() => agents.agentId),
+    networkId: text("network_id").notNull().default(NETWORK_ID),
+    walletId: text("wallet_id").notNull(),
+    recoveryGuardianAddress: text("recovery_guardian_address").notNull(),
+    guardianSource: walletGuardianSourceEnum("guardian_source").notNull(),
+    saltNonce: text("salt_nonce").notNull(),
+    status: walletCreationStatusEnum("status").notNull(),
+    predictedSafeAddress: text("predicted_safe_address"),
+    transactionHash: text("transaction_hash"),
+    owners: jsonb("owners").$type<`0x${string}`[]>(),
+    threshold: integer("threshold"),
+    deploymentProvenance: walletDeploymentProvenanceEnum(
+      "deployment_provenance",
+    ),
+    failureCode: text("failure_code"),
+    createdAt: integer("created_at").notNull(),
+    updatedAt: integer("updated_at").notNull(),
+  },
+  table => ({
+    agentNetworkUnique: uniqueIndex(
+      "aegis_wallet_creation_operations_agent_network_unique",
+    ).on(table.agentId, table.networkId),
+    walletUnique: uniqueIndex(
+      "aegis_wallet_creation_operations_wallet_unique",
+    ).on(table.walletId),
+    networkCheck: check(
+      "aegis_wallet_creation_operations_network_check",
+      sql.raw(`"network_id" = 'hedera:testnet'`),
+    ),
+    saltNonceCheck: check(
+      "aegis_wallet_creation_operations_salt_nonce_check",
+      sql.raw(`"salt_nonce" ~ '^(0|[1-9][0-9]*)$'`),
+    ),
+    thresholdCheck: check(
+      "aegis_wallet_creation_operations_threshold_check",
+      sql.raw(`"threshold" IS NULL OR "threshold" > 0`),
+    ),
+    failureCodeCheck: check(
+      "aegis_wallet_creation_operations_failure_code_check",
+      sql.raw(
+        `"failure_code" IS NULL OR "failure_code" = 'TRANSACTION_REVERTED'`,
+      ),
+    ),
   }),
 );
 

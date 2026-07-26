@@ -1,0 +1,64 @@
+specVersion: 1.3.0
+indexerHints:
+  prune: auto
+schema:
+  file: ./schema.graphql
+dataSources:
+  - kind: ethereum/contract
+    name: AegisTeeValidationRegistry
+    network: "{{NETWORK}}"
+    source:
+      address: "{{REGISTRY_ADDRESS}}"
+      abi: AegisTeeValidationRegistry
+      startBlock: {{REGISTRY_START_BLOCK}}
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.9
+      language: wasm/assemblyscript
+      entities:
+        - TeeMLValidation
+        - AgentOnchainSummary
+        - SafeOnchainSummary
+        - PolicyReference
+        - AgentPolicyReference
+        - DailyAgentMetric
+        - HederaProtocolSummary
+      abis:
+        - name: AegisTeeValidationRegistry
+          file: ./abis/AegisTeeValidationRegistry.json
+      eventHandlers:
+        - event: TeeMLValidationRecorded(indexed bytes32,indexed bytes32,indexed bytes32,bytes32,bytes32,bytes32,bytes32,bytes32,bytes32,address,uint256,uint8,address,uint16)
+          handler: handleTeeMLValidationRecorded
+      file: ./src/registry.ts
+templates:
+  - kind: ethereum/contract
+    name: SafeAccount
+    network: "{{NETWORK}}"
+    source:
+      abi: Safe
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.9
+      language: wasm/assemblyscript
+      entities:
+        - SafeExecution
+        - SafeConfigurationChange
+        - AgentOnchainSummary
+        - SafeOnchainSummary
+        - DailyAgentMetric
+        - HederaProtocolSummary
+      abis:
+        - name: Safe
+          file: ./abis/Safe.json
+      eventHandlers:
+        - event: AddedOwner(indexed address)
+          handler: handleAddedOwner
+        - event: RemovedOwner(indexed address)
+          handler: handleRemovedOwner
+        - event: ChangedThreshold(uint256)
+          handler: handleChangedThreshold
+        - event: ExecutionSuccess(indexed bytes32,uint256)
+          handler: handleExecutionSuccess
+        - event: ExecutionFailure(indexed bytes32,uint256)
+          handler: handleExecutionFailure
+      file: ./src/safe.ts

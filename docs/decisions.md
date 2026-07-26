@@ -33,3 +33,27 @@ add a new line noting the change and why — don't edit history away.
   handoff document. It overrides older architecture, bounty, demo, and
   implementation notes when they conflict with the Level 1 Policy Engine
   boundary.
+- 2026-07-25 — On `feat/thegraph-aegis-onchain-data-layer`, The Graph GraphQL
+  endpoints are the canonical dashboard source for confirmed/historical
+  onchain state. RPC, Mirror Node, explorer, fixture, and private-database
+  fallbacks are prohibited for that read model; writes and transient receipt
+  tracking remain outside this boundary. See `docs/thegraph/architecture.md`.
+- 2026-07-25 — Hedera and 0G use separate Subgraphs because a Subgraph indexes
+  one network. Both run on a reproducible local Graph Node while those networks
+  remain unsupported by The Graph Network; each may migrate independently when
+  official support exists. Cross-chain joins occur only in the typed client.
+- 2026-07-25 — Verified TeeML results use one non-upgradeable Hedera
+  `AegisTeeValidationRegistry`, with immutable one-record-per-request facts and
+  separate admin/recorder roles. It stores only fixed-size sanitized fields.
+  Technical TeeML failures are not onchain verdicts.
+- 2026-07-25 — Supersedes the 2026-07-24 `PolicyRegistry`/`AgentVault` indexing
+  assumption: no such AEGIS contracts are treated as deployed producers in this
+  branch. The operational wallet is a real Safe; policies remain private/offchain;
+  Subgraphs index only the verified Agentic ID, TeeML registry, and Safe events
+  that actually exist. Missing business producers remain explicit gaps.
+- 2026-07-25 — Cross-chain `agentIdHash` is exactly
+  `keccak256(UTF-8(trim(agentId)))`, matching the existing 0G Agentic ID
+  commitment. Registry UUID request IDs use the same explicitly documented
+  string-to-bytes32 boundary rule. Neither conversion lowercases the input.
+- 2026-07-25 — Substreams is not used for the event-based EVM MVP. Subgraphs
+  directly provide the required typed GraphQL API with lower operational scope.

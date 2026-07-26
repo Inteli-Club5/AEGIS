@@ -13,6 +13,7 @@ keys/
 
 # --- AEGIS / external local context, do not commit ---
 .0g-skills/
+.agent-skills/thegraph-subgraphs/
 .codex/skills/
 external/agenticID-examples/
 docs/0g/raw/
@@ -38,6 +39,16 @@ anvil-state.json
 broadcast/
 cache/
 out/
+
+# --- AEGIS / The Graph local runtime and deployment secrets ---
+tee-smartcontract-validation
+.thegraph/
+graph-node-data/
+ipfs-data/
+docs/evidence/thegraph/private/
+*.subgraph-secret
+subgraphs/*/tests/.bin/
+subgraphs/*/tests/.latest.json
 
 # --- OS / editor ---
 .DS_Store

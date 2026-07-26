@@ -1,0 +1,130 @@
+enum AgenticIdentityStatus {
+  ACTIVE
+  BURNED
+}
+
+enum IdentityOwnerChangeType {
+  MINT
+  TRANSFER
+  BURN
+}
+
+enum IdentityAuthorizationAction {
+  AUTHORIZE
+  REVOKE
+}
+
+enum IdentityDelegationAction {
+  SET
+  REVOKE
+}
+
+type AgenticIdentity @entity(immutable: false) {
+  id: Bytes!
+  contract: Bytes!
+  tokenId: BigInt!
+  owner: Bytes!
+  status: AgenticIdentityStatus!
+  seenMint: Boolean!
+  mintTransactionHash: Bytes
+  mintBlockNumber: BigInt
+  mintBlockTimestamp: BigInt
+  transactionHash: Bytes!
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  logIndex: BigInt!
+  firstSeenAt: BigInt!
+  lastUpdatedAt: BigInt!
+  currentAuthorizationCount: BigInt!
+  totalAuthorizationEvents: BigInt!
+  ownerChanges: [AgenticIdentityOwnerChange!]! @derivedFrom(field: "identity")
+  authorizationEvents: [AgenticIdentityAuthorization!]! @derivedFrom(field: "identity")
+  authorizationStates: [AgenticIdentityAuthorizationState!]! @derivedFrom(field: "identity")
+}
+
+type AgenticIdentityOwnerChange @entity(immutable: true) {
+  id: Bytes!
+  identity: AgenticIdentity!
+  contract: Bytes!
+  tokenId: BigInt!
+  previousOwner: Bytes!
+  newOwner: Bytes!
+  changeType: IdentityOwnerChangeType!
+  transactionHash: Bytes!
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  logIndex: BigInt!
+}
+
+type AgentIdentitySummary @entity(immutable: false) {
+  id: Bytes!
+  owner: Bytes!
+  currentIdentityCount: BigInt!
+  mintReceivedCount: BigInt!
+  transferInCount: BigInt!
+  transferOutCount: BigInt!
+  burnCount: BigInt!
+  delegatedAssistant: Bytes
+  delegationActive: Boolean!
+  delegationEventCount: BigInt!
+  firstActivityAt: BigInt!
+  lastActivityAt: BigInt!
+  delegationChanges: [AgenticIdentityDelegation!]! @derivedFrom(field: "ownerSummary")
+}
+
+type AgenticIdentityAuthorization @entity(immutable: true) {
+  id: Bytes!
+  identity: AgenticIdentity
+  contract: Bytes!
+  tokenId: BigInt!
+  user: Bytes!
+  action: IdentityAuthorizationAction!
+  authorized: Boolean!
+  transactionHash: Bytes!
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  logIndex: BigInt!
+}
+
+type AgenticIdentityAuthorizationState @entity(immutable: false) {
+  id: Bytes!
+  identity: AgenticIdentity
+  contract: Bytes!
+  tokenId: BigInt!
+  user: Bytes!
+  authorized: Boolean!
+  lastAction: IdentityAuthorizationAction!
+  transactionHash: Bytes!
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  logIndex: BigInt!
+}
+
+type AgenticIdentityDelegation @entity(immutable: true) {
+  id: Bytes!
+  ownerSummary: AgentIdentitySummary!
+  owner: Bytes!
+  assistant: Bytes!
+  action: IdentityDelegationAction!
+  active: Boolean!
+  transactionHash: Bytes!
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  logIndex: BigInt!
+}
+
+type ZeroGProtocolSummary @entity(immutable: false) {
+  id: ID!
+  distinctIdentityCount: BigInt!
+  mintEventCount: BigInt!
+  transferEventCount: BigInt!
+  burnEventCount: BigInt!
+  currentIdentityCount: BigInt!
+  totalOwnerChanges: BigInt!
+  authorizationGrantedEventCount: BigInt!
+  authorizationRevokedEventCount: BigInt!
+  delegationSetEventCount: BigInt!
+  delegationRevokedEventCount: BigInt!
+  firstActivityAt: BigInt
+  lastActivityAt: BigInt
+}

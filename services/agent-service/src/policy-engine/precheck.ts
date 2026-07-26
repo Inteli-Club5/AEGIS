@@ -352,6 +352,7 @@ export class PrecheckService {
 
       if (response.status === "PENDING_TEEML") {
         // TODO(teeml-integration): Send the in-memory semantic context directly to the 0G TeeML verifier and persist only TeeML hashes, codes, provider/model IDs, artifact hash, verification flag, and evaluatedAt.
+        // TODO(TG-TEEML-E2E-001): Wire the real verified 0G TeeML artifact into the VerifiedTeeMlRegistryWriter after the TeeML branch is merged. The integration must reject fallback, unverified, non-private, schema-invalid, or hash-mismatched verdicts. Remove this TODO after the real TeeML -> registry -> Hedera Subgraph -> GraphQL E2E passes with transaction and block evidence.
         // TODO(usage-hold-finalization): Release this hold after a TeeML denial or timeout, and mark it COMMITTED only after the approved Hedera execution is confirmed.
         await tx.insertUsageHold({
           usageHoldId: response.usageHoldId,

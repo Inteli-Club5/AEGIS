@@ -10,7 +10,7 @@ operational wallet**, bound to it, where every transaction must pass through:
 
 1. a policy defined by the user;
 2. verification of the agent's identity;
-3. a verdict/receipt validated by 0G/TeeML (or a signed fallback);
+3. a verdict/receipt validated by real 0G/TeeML evidence;
 4. an objective check of the transaction;
 5. AEGIS co-signature;
 6. execution via the Safe smart wallet;
@@ -177,7 +177,8 @@ Clicking **Create Policy** generates:
 
 - a `policyHash`;
 - off-chain metadata;
-- a record in `PolicyRegistry`;
+- a persisted offchain policy record and deterministic `policyHash`; only real
+  sanitized references emitted by an onchain producer are later indexable;
 - a dashboard view.
 
 ### 3.5 Activate protection
@@ -241,11 +242,10 @@ Expected output:
 If 0G/TeeML returns `false`/`DENY`, the action stops before execution is
 attempted.
 
-Fallback:
-
-- if 0G is unavailable, fall back to a locally signed verification;
-- mark `mode = fallback`;
-- never present a fallback verdict as a real 0G verdict.
+There is no local-verdict fallback. If private routing, TEE verification,
+schema validation, or commitment verification is unavailable, AEGIS does not
+write a final TeeML registry verdict. Technical failures remain offchain and
+must never be presented as verified 0G evidence.
 
 ### 4.3 Decision Receipt
 
@@ -270,9 +270,9 @@ Minimum fields:
   "semanticContextHash": "0x...",
   "proofRef": {
     "provider": "0G",
-    "mode": "real | fallback",
+    "mode": "private-tee-verified",
     "receiptHash": "0x...",
-    "rawLogUrl": "optional",
+    "artifactHash": "0x...",
     "timestamp": "ISO-8601"
   },
   "signature": "0x..."
@@ -349,8 +349,10 @@ ordinary backend.
 - Before AEGIS co-signature.
 - Before execution via the Safe wallet.
 
-**What must exist:** a real 0G call/artifact; a `proofRef`/`ogRef`; a receipt
-tied to the action; logs in the dashboard; a declared fallback if it's down.
+**What must exist:** a real private 0G call/artifact, verified TEE/schema/hash
+evidence, and a receipt tied to the action. If verification is unavailable or
+invalid, the flow remains technically failed/pending; no local verdict or
+declared fallback is permitted.
 
 ### 5.2 Hedera
 
@@ -375,18 +377,19 @@ infrastructure — the dashboard does not scan raw RPC logs in production.
 
 **Where it enters the flow:**
 
-- Indexes `PolicyRegistry` events (policy created/updated/revoked).
-- Indexes Safe execution events on the protected wallet (accepted/denied,
-  amounts, destinations).
-- Indexes Decision Receipt data (verdict, `proofRef`, timestamps).
-- The dashboard and audit log read from the subgraph via GraphQL instead of
+- Indexes the singleton `AegisTeeValidationRegistry` after its real deployment.
+- Indexes real Safe execution success/failure and configuration events after a
+  Safe is discovered; these events do not invent business amount/destination.
+- Indexes the verified 0G Agentic ID event surface in a separate network-specific
+  Subgraph without private/decrypted metadata.
+- The dashboard and audit views read from the Subgraphs via GraphQL instead of
   re-deriving history from raw logs on every page load.
 
 **What must exist:**
 
-- a subgraph manifest covering `PolicyRegistry` and the Safe/AgentVault
-  execution events;
-- a deployed subgraph (hosted service or Studio, testnet);
+- separate Hedera and 0G manifests covering only verified real event ABIs;
+- self-hosted Graph Node deployments while the selected networks are not
+  available for this deployment mode on The Graph Network;
 - dashboard queries pointed at the subgraph, with a documented cache/lag
   tolerance (see §9.7).
 
@@ -427,14 +430,15 @@ flowchart TD
 | Module | Responsibility | Production shape |
 |---|---|---|
 | `OperatorWallet` | the user's own wallet | wagmi/RainbowKit-connected wallet; multisig/DAO optional later |
-| `AgentProfile` | agent identity and metadata | AEGIS-native record (no ENS) anchored to `PolicyRegistry`; linked to the owning `OperatorWallet` from creation |
-| `ProtectedAgentWallet` (`AgentVault`) | the agent's operational wallet | Safe smart account, 2-of-3 (agent signer + AEGIS co-signer + recovery guardian; guardian only signs for recovery) |
-| `PolicyRegistry` | stores constraints and `policyHash` | on-chain contract; versioning and revocation |
-| `DecisionVerifier` | integrates 0G / fallback | 0G/TeeML real, signed local fallback declared as such |
+| `AgentProfile` | agent identity and private/offchain metadata | AEGIS API record linked to the owning `OperatorWallet`; public Agentic ID facts are read from the 0G Subgraph |
+| `ProtectedAgentWallet` | the agent's operational wallet | Safe smart account, 2-of-3 (agent signer + AEGIS co-signer + recovery guardian; guardian only signs for recovery) |
+| `PolicyEngine` | stores/evaluates policy constraints and deterministic `policyHash` | private/offchain Level 1 service; The Graph exposes only real onchain hash references |
+| `AegisTeeValidationRegistry` | stores sanitized verified TeeML facts once deployed | singleton Hedera EVM contract with immutable request idempotency and role-gated recorder |
+| `VerifiedTeeMlRegistryWriter` | accepts already verified 0G evidence | verification-gated adapter in `services/agent-service`; no local-verdict fallback |
 | `AegisCosigner` | signs accepted/denied receipts | one AEGIS-operated key across every deployment/user (§9.2); always-local, never third-party-hosted; path to local HSM/MPC/TEE |
 | `SafeExecutionLayer` | requires both routine signatures | Safe Guard/Module enforcing 2-of-3 plus an on-chain 0G attestation before execution (§9.2); guardian reserved for recovery |
 | `HederaPaymentExecutor` | pays the provider | HBAR transfer on testnet; path to x402/HTS/escrow |
-| `IndexingLayer` | serves history to the dashboard | The Graph subgraph over `PolicyRegistry` + Safe + receipt events |
+| `IndexingLayer` | serves confirmed onchain history to the dashboard | separate Hedera and 0G Subgraphs queried through typed GraphQL; no RPC/database fallback |
 
 ---
 
@@ -484,7 +488,9 @@ concern — Safe is already the wallet layer.
 
 ### 9.4 0G/TeeML can delay the demo
 
-A locally signed fallback must exist.
+The real TeeML E2E may remain incomplete, but a locally signed verdict is not
+an acceptable substitute. Contract/indexing plumbing may use an explicitly
+labelled authorized test record that is never presented as real TeeML.
 
 ### 9.5 Hedera can end up manual
 
@@ -535,7 +541,8 @@ execution path on subgraph state — only the read/history side depends on it.
 4. Creates the agent's Safe wallet.
 5. Creates a policy: approved provider; HBAR; max 1 HBAR; deadline; nonce.
 6. Agent proposes paying the approved provider.
-7. 0G/TeeML (or fallback) verifies and returns `ALLOW`.
+7. Real 0G/TeeML evidence is verified and returns `ALLOW`; otherwise this demo
+   step remains incomplete rather than using a fallback verdict.
 8. AEGIS checks policy/receipt and co-signs.
 9. The Safe wallet executes.
 10. The Hedera HBAR transfer happens.

@@ -2,11 +2,18 @@ import "dotenv/config";
 import { fileURLToPath } from "node:url";
 import express from "express";
 import { createAgent as createAgentProfile } from "./createAgent.js";
-import { createWallet as createAgentWallet } from "./createWallet.js";
+import {
+  createWallet as createAgentWallet,
+  deriveSafeSaltNonce,
+  inspectExistingSafeWallet,
+} from "./createWallet.js";
 import { proposeAction as proposeAgentAction } from "./proposeAction.js";
-import { HttpError, registerAgenticId } from "./registerAgenticId.js";
-import { deleteAgent as deleteStoredAgent, getAgent as getStoredAgent, setAgentWallet } from "./store.js";
-import type { AgentType } from "./types.js";
+import {
+  deleteAgent as deleteStoredAgent,
+  getAgent as getStoredAgent,
+  setAgentWallet as setStoredAgentWallet,
+} from "./store.js";
+import type { AgentProfile, AgentType } from "./types.js";
 import {
   createPostgresPolicyRepository,
   createPostgresPrecheckRepository,
@@ -27,10 +34,14 @@ import {
   type AgentActorAuthenticator,
 } from "./policy-engine/routes.js";
 import { PolicyLifecycleService } from "./policy-engine/service.js";
-import { NETWORK_ID } from "./policy-engine/types.js";
-import { resolveRecoveryGuardianAddress } from "./walletConfig.js";
+import {
+  NETWORK_ID,
+  type WalletCreationOperationRecord,
+} from "./policy-engine/types.js";
+import { resolveRecoveryGuardian } from "./walletConfig.js";
 
 const EVM_ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/;
+const TRANSACTION_HASH_RE = /^0x[a-fA-F0-9]{64}$/;
 const AGENT_TYPES: AgentType[] = [
   "Payment",
   "API Buyer",
@@ -45,9 +56,10 @@ export type AgentServiceAppOptions = {
   authenticateAgentActor?: AgentActorAuthenticator;
   createAgent?: typeof createAgentProfile;
   createWallet?: typeof createAgentWallet;
+  inspectExistingWallet?: typeof inspectExistingSafeWallet;
   proposeAction?: typeof proposeAgentAction;
-  registerAgenticId?: typeof registerAgenticId;
   getAgent?: typeof getStoredAgent;
+  setAgentWallet?: typeof setStoredAgentWallet;
 };
 
 export function createAgentServiceApp(options: AgentServiceAppOptions = {}) {
@@ -81,10 +93,11 @@ export function createAgentServiceApp(options: AgentServiceAppOptions = {}) {
   );
   const createAgent = options.createAgent ?? createAgentProfile;
   const createWallet = options.createWallet ?? createAgentWallet;
+  const inspectExistingWallet =
+    options.inspectExistingWallet ?? inspectExistingSafeWallet;
   const proposeAction = options.proposeAction ?? proposeAgentAction;
-  const registerAgenticIdHandler =
-    options.registerAgenticId ?? registerAgenticId;
   const getAgent = options.getAgent ?? getStoredAgent;
+  const persistAgentWallet = options.setAgentWallet ?? setStoredAgentWallet;
 
   app.get("/health", (_req, res) =>
     res.json({ ok: true, service: "aegis-agent-service" }),
@@ -181,7 +194,7 @@ export function createAgentServiceApp(options: AgentServiceAppOptions = {}) {
   });
 
   app.post("/agents/:agentId/create-wallets", async (req, res) => {
-    const { recoveryGuardianAddress } = req.body ?? {};
+    const { recoveryGuardianAddress, retryFailedDeployment } = req.body ?? {};
 
     if (
       recoveryGuardianAddress !== undefined &&
@@ -191,85 +204,231 @@ export function createAgentServiceApp(options: AgentServiceAppOptions = {}) {
         .status(400)
         .json({ error: "recoveryGuardianAddress must be a string" });
     }
-
-    const profile = getAgent(req.params.agentId);
-    if (profile?.wallet) {
-      return res.json(profile.wallet);
-    }
-    const effectiveGuardian = resolveRecoveryGuardianAddress({
-      requestedAddress: recoveryGuardianAddress,
-      configuredAddress: process.env.AEGIS_RECOVERY_GUARDIAN_ADDRESS,
-      ownerWallet: profile?.ownerWallet,
-    });
-
     if (
-      typeof effectiveGuardian !== "string" ||
-      !EVM_ADDRESS_RE.test(effectiveGuardian)
+      retryFailedDeployment !== undefined &&
+      typeof retryFailedDeployment !== "boolean"
     ) {
-      return res.status(400).json({
+      return res
+        .status(400)
+        .json({ error: "retryFailedDeployment must be a boolean" });
+    }
+
+    if (!isPolicyDatabaseConfigured) {
+      return res.status(503).json({
         error:
-          "recoveryGuardianAddress must be a valid EVM address (defaults to AEGIS_RECOVERY_GUARDIAN_ADDRESS, then the agent's ownerWallet)",
+          "DATABASE_URL is required before deploying a Safe so wallet idempotency can be persisted.",
       });
     }
 
     try {
-      const wallet = await createWallet(req.params.agentId, effectiveGuardian);
-      if (!isPolicyDatabaseConfigured) {
-        return res.status(201).json(wallet);
-      }
+      const agentId = req.params.agentId.toLowerCase();
+      const result = await policyRepository.withWalletCreationLock(
+        agentId,
+        NETWORK_ID,
+        async () => {
+          let operation = await policyRepository.getWalletCreationOperation(
+            agentId,
+            NETWORK_ID,
+          );
+          if (operation?.status === "COMPLETED") {
+            const protectedWallet = walletFromCompletedOperation(operation);
+            persistAgentWallet(agentId, protectedWallet);
+            return { status: 200, wallet: protectedWallet } as const;
+          }
 
-      const now = Math.floor(Date.now() / 1000);
-      const walletRecord = await policyRepository.saveWallet({
-        walletId: createUuidV7(),
-        agentId: req.params.agentId.toLowerCase(),
-        networkId: NETWORK_ID,
-        safeAddress: wallet.safeAddress.toLowerCase() as `0x${string}`,
-        status: "PROTECTED",
-        createdAt: now,
-        updatedAt: now,
-      });
+          const existingWallet =
+            await policyRepository.getWalletByAgentNetwork(
+              agentId,
+              NETWORK_ID,
+            );
+          if (existingWallet) {
+            if (existingWallet.status !== "PROTECTED") {
+              throw new LegacyWalletNotProtectedError();
+            }
+            const inspected = await inspectExistingWallet(
+              existingWallet.safeAddress,
+            );
+            const protectedWallet: NonNullable<AgentProfile["wallet"]> = {
+              walletId: existingWallet.walletId,
+              safeAddress: inspected.safeAddress,
+              networkId: existingWallet.networkId,
+              status: "PROTECTED",
+              owners: inspected.owners,
+              threshold: inspected.threshold,
+              transactionHash: null,
+              deploymentProvenance: "LEGACY_WALLET_RECONCILIATION",
+              guardianManaged: false,
+            };
+            persistAgentWallet(agentId, protectedWallet);
+            return { status: 200, wallet: protectedWallet } as const;
+          }
 
-      const protectedWallet = {
-        ...wallet,
-        walletId: walletRecord.walletId,
-        networkId: walletRecord.networkId,
-        status: "PROTECTED" as const,
-      };
-      setAgentWallet(req.params.agentId, protectedWallet);
-      res.status(201).json(protectedWallet);
+          if (
+            operation &&
+            recoveryGuardianAddress !== undefined &&
+            recoveryGuardianAddress.toLowerCase() !==
+              operation.recoveryGuardianAddress
+          ) {
+            throw new WalletCreationConflictError();
+          }
+
+          if (operation?.status === "FAILED") {
+            if (retryFailedDeployment !== true) {
+              throw new WalletCreationRetryRequiredError();
+            }
+            operation = await policyRepository.resetFailedWalletCreation(
+              operation.operationId,
+              Math.floor(Date.now() / 1000),
+            );
+          } else if (retryFailedDeployment === true) {
+            throw new WalletCreationNotRetryableError();
+          }
+
+          const currentProfile = getAgent(agentId);
+          if (!operation && currentProfile?.wallet) {
+            return { status: 200, wallet: currentProfile.wallet } as const;
+          }
+
+          if (!operation) {
+            if (!currentProfile) throw new Error("agent_not_found");
+            const guardian = resolveRecoveryGuardian({
+              requestedAddress: recoveryGuardianAddress,
+              configuredAddress: process.env.AEGIS_RECOVERY_GUARDIAN_ADDRESS,
+              ownerWallet: currentProfile.ownerWallet,
+            });
+            if (!guardian || !EVM_ADDRESS_RE.test(guardian.address)) {
+              throw new InvalidRecoveryGuardianError();
+            }
+
+            const now = Math.floor(Date.now() / 1000);
+            operation = await policyRepository.beginWalletCreation({
+              operationId: createUuidV7(),
+              agentId,
+              networkId: NETWORK_ID,
+              walletId: createUuidV7(),
+              recoveryGuardianAddress:
+                guardian.address.toLowerCase() as `0x${string}`,
+              guardianSource: guardian.source,
+              saltNonce: deriveSafeSaltNonce(agentId),
+              status: "INITIALIZED",
+              predictedSafeAddress: null,
+              transactionHash: null,
+              owners: null,
+              threshold: null,
+              deploymentProvenance: null,
+              failureCode: null,
+              createdAt: now,
+              updatedAt: now,
+            });
+          }
+
+          const operationId = operation.operationId;
+          const wallet = await createWallet(
+            agentId,
+            operation.recoveryGuardianAddress,
+            {
+              saltNonce: operation.saltNonce,
+              expectedSafeAddress: operation.predictedSafeAddress,
+              expectedOwners: operation.owners,
+              expectedThreshold: operation.threshold,
+              transactionHash: operation.transactionHash,
+              onPrepared: async (
+                predictedSafeAddress,
+                expectedOwners,
+                expectedThreshold,
+              ) => {
+                operation = await policyRepository.markWalletCreationPrepared(
+                  operationId,
+                  predictedSafeAddress,
+                  expectedOwners,
+                  expectedThreshold,
+                  Math.floor(Date.now() / 1000),
+                );
+              },
+              onBroadcast: async transactionHash => {
+                operation = await policyRepository.markWalletCreationBroadcast(
+                  operationId,
+                  transactionHash,
+                  Math.floor(Date.now() / 1000),
+                );
+              },
+              onFailed: async (transactionHash, failureCode) => {
+                operation = await policyRepository.markWalletCreationFailed(
+                  operationId,
+                  transactionHash,
+                  failureCode,
+                  Math.floor(Date.now() / 1000),
+                );
+              },
+            },
+          );
+          const safeAddress = normalizeEvmAddress(
+            wallet.safeAddress,
+            "deployed Safe",
+          );
+          const owners = wallet.owners.map(owner =>
+            normalizeEvmAddress(owner, "Safe owner"),
+          );
+          const transactionHash = normalizeOptionalTransactionHash(
+            wallet.transactionHash,
+          );
+          const deploymentProvenance =
+            wallet.deploymentProvenance ??
+            (transactionHash === null
+              ? "PREDICTED_SAFE_RECONCILIATION"
+              : "BROADCAST_RECEIPT");
+          operation = await policyRepository.completeWalletCreation({
+            operationId: operation.operationId,
+            safeAddress,
+            transactionHash,
+            owners,
+            threshold: wallet.threshold,
+            deploymentProvenance,
+            now: Math.floor(Date.now() / 1000),
+          });
+
+          const protectedWallet = walletFromCompletedOperation(operation);
+          persistAgentWallet(agentId, protectedWallet);
+          return { status: 201, wallet: protectedWallet } as const;
+        },
+      );
+      res.status(result.status).json(result.wallet);
     } catch (error) {
+      if (error instanceof InvalidRecoveryGuardianError) {
+        return res.status(400).json({
+          error:
+            "recoveryGuardianAddress must be a valid EVM address (defaults to AEGIS_RECOVERY_GUARDIAN_ADDRESS, then the agent's ownerWallet)",
+        });
+      }
+      if (error instanceof WalletCreationConflictError) {
+        return res.status(409).json({
+          error:
+            "wallet creation is already reserved with a different recovery guardian",
+        });
+      }
+      if (error instanceof WalletCreationRetryRequiredError) {
+        return res.status(409).json({
+          error:
+            "the persisted Safe deployment reverted; retry only with retryFailedDeployment=true",
+        });
+      }
+      if (error instanceof WalletCreationNotRetryableError) {
+        return res.status(409).json({
+          error:
+            "wallet deployment retry is allowed only after a conclusively reverted persisted transaction",
+        });
+      }
+      if (error instanceof LegacyWalletNotProtectedError) {
+        return res.status(409).json({
+          error:
+            "the persisted legacy wallet is not PROTECTED and cannot be reclassified or redeployed",
+        });
+      }
       if (error instanceof Error && error.message === "agent_not_found") {
         return res.status(404).json({ error: "not_found" });
       }
       res.status(500).json({
         error: error instanceof Error ? error.message : "create_wallet_failed",
-      });
-    }
-  });
-
-  app.post("/agents/:agentId/register-agentic-id", async (req, res) => {
-    try {
-      const profile = await registerAgenticIdHandler(req.params.agentId);
-      res.status(201).json(profile);
-    } catch (error) {
-      if (error instanceof Error && error.message === "agent_not_found") {
-        return res.status(404).json({ error: "not_found" });
-      }
-      if (
-        error instanceof Error &&
-        error.message === "agent_wallet_not_created"
-      ) {
-        return res.status(409).json({
-          error:
-            "agent must have a Safe wallet (create-wallets) before registering an Agentic ID",
-        });
-      }
-      if (error instanceof HttpError) {
-        return res.status(error.status).json({ error: error.message });
-      }
-      res.status(500).json({
-        error:
-          error instanceof Error ? error.message : "register_agentic_id_failed",
       });
     }
   });
@@ -293,6 +452,57 @@ export function createAgentServiceApp(options: AgentServiceAppOptions = {}) {
   });
 
   return app;
+}
+
+class InvalidRecoveryGuardianError extends Error {}
+class WalletCreationConflictError extends Error {}
+class WalletCreationRetryRequiredError extends Error {}
+class WalletCreationNotRetryableError extends Error {}
+class LegacyWalletNotProtectedError extends Error {}
+
+function walletFromCompletedOperation(
+  operation: WalletCreationOperationRecord,
+): NonNullable<AgentProfile["wallet"]> {
+  if (
+    operation.status !== "COMPLETED" ||
+    operation.predictedSafeAddress === null ||
+    operation.owners === null ||
+    operation.threshold === null ||
+    operation.deploymentProvenance === null
+  ) {
+    throw new Error("wallet_creation_operation_incomplete");
+  }
+  return {
+    walletId: operation.walletId,
+    safeAddress: operation.predictedSafeAddress,
+    networkId: operation.networkId,
+    status: "PROTECTED",
+    owners: operation.owners,
+    threshold: operation.threshold,
+    transactionHash: operation.transactionHash,
+    deploymentProvenance: operation.deploymentProvenance,
+    guardianManaged: operation.guardianSource === "CONFIGURED_AEGIS",
+  };
+}
+
+function normalizeEvmAddress(
+  address: string,
+  label: string,
+): `0x${string}` {
+  if (!EVM_ADDRESS_RE.test(address)) {
+    throw new Error(`${label} must be a valid EVM address`);
+  }
+  return address.toLowerCase() as `0x${string}`;
+}
+
+function normalizeOptionalTransactionHash(
+  transactionHash: string | null,
+): `0x${string}` | null {
+  if (transactionHash === null) return null;
+  if (!TRANSACTION_HASH_RE.test(transactionHash)) {
+    throw new Error("Safe deployment transactionHash must be bytes32");
+  }
+  return transactionHash.toLowerCase() as `0x${string}`;
 }
 
 export function fixedAgentActor(agentId: string): AgentActorContext {

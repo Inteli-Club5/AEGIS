@@ -8,23 +8,21 @@ import { Button } from "@/components/ui/Button";
 import { AgentDetailView } from "@/features/agents/components/AgentDetailView";
 import { ConnectGate } from "@/features/wallet/components/ConnectGate";
 import { useConnectWallet } from "@/features/wallet/components/ConnectWalletProvider";
-import { getAgentDetail, listActivity } from "@/lib/api/agents";
-import type { ActivityEntry, AgentDetail } from "@/lib/types/aegis";
+import { getAgentDetail } from "@/lib/api/agents";
+import type { AgentDetail } from "@/lib/types/aegis";
 
 export default function AgentDetailPage() {
   const params = useParams<{ id: string }>();
   const { status } = useConnectWallet();
   const [agent, setAgent] = useState<AgentDetail | null>(null);
-  const [activity, setActivity] = useState<ActivityEntry[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (status !== "connected" || !params?.id) return;
     let mounted = true;
-    Promise.all([getAgentDetail(params.id), listActivity(params.id)]).then(([detail, entries]) => {
+    getAgentDetail(params.id).then(detail => {
       if (!mounted) return;
       setAgent(detail);
-      setActivity(entries);
       setLoading(false);
     });
     return () => {
@@ -56,7 +54,7 @@ export default function AgentDetailPage() {
             </div>
           </div>
         ) : (
-          <AgentDetailView agent={agent} activity={activity} />
+          <AgentDetailView agent={agent} />
         )}
       </main>
     </>

@@ -21,8 +21,8 @@ app.post("/cosign", async (_req, res) => {
   // Safe itself just checks for 2-of-3 signatures, so a stolen
   // COSIGNER_PRIVATE_KEY can sign offline without ever hitting this endpoint.
   // Close this with a Safe Guard/Module that requires a verifiable 0G
-  // attestation on-chain before allowing execution. Blocked on 0G actually
-  // being wired in first (services/decision-verifier isn't called from here yet).
+  // attestation on-chain before allowing execution. Blocked on the real
+  // verification-gated 0G integration tracked by TG-TEEML-E2E-001.
   res.status(501).json({ error: "not_implemented" });
 });
 

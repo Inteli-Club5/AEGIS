@@ -1,0 +1,49 @@
+{
+  "schema": "aegis.evidence.thegraph.graph-node-health.v2",
+  "observedAt": "2026-07-26T00:52:48.000Z",
+  "composeFile": "compose.thegraph.yaml",
+  "services": {
+    "graph-node": {
+      "image": "graphprotocol/graph-node:v0.44.0",
+      "state": "running",
+      "health": "healthy",
+      "publishedPorts": [
+        "127.0.0.1:8000",
+        "127.0.0.1:8001",
+        "127.0.0.1:8020",
+        "127.0.0.1:8030",
+        "127.0.0.1:8040"
+      ]
+    },
+    "hedera-json-rpc-relay": {
+      "image": "ghcr.io/hiero-ledger/hiero-json-rpc-relay:0.78.1",
+      "state": "running",
+      "health": "healthy",
+      "readOnly": true,
+      "publishedPorts": ["127.0.0.1:7546"]
+    },
+    "graph-postgres": {
+      "image": "postgres:16-alpine",
+      "state": "running",
+      "health": "healthy",
+      "publishedPorts": []
+    },
+    "ipfs": {
+      "image": "ipfs/kubo:v0.34.1",
+      "state": "running",
+      "health": "healthy",
+      "publishedPorts": ["127.0.0.1:5001"]
+    }
+  },
+  "persistence": {
+    "postgres": true,
+    "ipfs": true,
+    "operationalAegisDatabaseReused": false
+  },
+  "networkClaims": {
+    "deploymentMode": "self-hosted Graph Node",
+    "theGraphNetworkPublished": false,
+    "eligibility": "HUMAN-CONFIRMED / RESOLVED"
+  },
+  "containsSecrets": false
+}
