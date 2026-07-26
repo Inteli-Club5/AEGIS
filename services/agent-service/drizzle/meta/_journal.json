@@ -22,6 +22,69 @@
       "when": 1784985172792,
       "tag": "0002_precheck_semantic_context_privacy",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1784992409975,
+      "tag": "0003_action_commitment_v2",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1784992876439,
+      "tag": "0004_teeml_semantic_verifier",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1784998122812,
+      "tag": "0005_agentic_id_registration_ledger",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1785008005493,
+      "tag": "0006_teetls_hackathon_profile",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1785008868116,
+      "tag": "0007_teeml_profile_not_null_guard",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1785010498577,
+      "tag": "0008_loving_starbolt",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1785010588774,
+      "tag": "0009_windy_rictor",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1785011488067,
+      "tag": "0010_teeml_final_tuple_guard",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1785012023575,
+      "tag": "0011_famous_nightshade",
+      "breakpoints": true
     }
   ]
 }

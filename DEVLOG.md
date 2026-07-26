@@ -913,6 +913,445 @@ oldest at the top, newest at the bottom. Use English AM/PM timestamps. Format:
 - interfaces touched: no runtime API or migration SQL behavior changed in this
   step; Drizzle generation metadata and schema serialization were corrected.
 
+## 2026-07-25 03:55 PM - Codex - 0G TeeML semantic-verifier discovery
+- did: created `feat/0g-teeml-semantic-verifier`, read the current Level 1
+  sources and existing Agentic ID/Hedera paths, audited the free-text semantic
+  context and persistence model, and consulted the required official 0G Router,
+  Private Computer, SDK, and skill sources. Documented the current Router
+  contract and the missing trusted-evidence prerequisite in
+  `docs/0g/teeml-sources.md` and
+  `docs/0g/teeml-semantic-verifier.md`. No runtime integration, dependency,
+  migration, fallback, signer, Safe execution, or Hedera execution was added.
+- next: implement a separately approved, operator-signed
+  `TrustedServiceDescriptorV1` Policy contract and durable verified Agentic ID
+  capability source, then explicitly version the Level 1 action commitment
+  without caller-controlled semantic prose.
+- blockers: `TEEML_SCOPE_BLOCKED_TRUSTED_SEMANTIC_EVIDENCE_MISSING`. The
+  repository has no trusted service/product descriptor or signed task source,
+  and persisted action requests cannot reconstruct the structured
+  Level 1-approved action after restart.
+- interfaces touched: documentation only; no runtime interface changed.
+
+## 2026-07-25 04:00 PM - Codex - 0G TeeML semantic verifier implementation
+- did: implemented the fail-closed 0G Router/private TeeML flow in
+  `services/agent-service`, including strict transient semantic context,
+  deterministic context/request commitments, strict verdict parsing, live
+  private-provider catalog validation, Router TEE verification, independent
+  SDK signature/content verification, sanitized PostgreSQL artifacts, state and
+  UsageHold transitions, concurrency locks, and no automatic retry. Added the
+  operator-signed trusted service descriptor, durable Agentic ID capability and
+  registration ledgers, authenticated Agentic ID coordination, shared
+  canonical metadata commitments, and migrations `0003` through `0005`.
+  Removed caller-controlled semantic prose from Level 1 requests and
+  persistence, documented current trust boundaries and inherited limitations,
+  and added the opt-in real 0G evidence command. Validation passed: Drizzle
+  generation (no drift), migrations, 170 unit tests, 39 PostgreSQL integration
+  tests, agent-service typecheck/lint/build, Next.js typecheck/lint/production
+  build, privacy/fallback greps, and `git diff --check`.
+- next: configure a funded Router key and a live private TeeML model, run
+  `npm run test:0g:teeml` through real ALLOW and DENY cases, review the
+  sanitized evidence, and obtain human approval before any commit.
+- blockers: `TEEML_REAL_INTEGRATION_BLOCKED`; `ZG_ROUTER_API_KEY` and
+  `ZG_TEEML_MODEL` are not configured, so provider availability, real cost,
+  latency, token usage, and `docs/evidence/0g-teeml-verification.json` cannot be
+  verified. Separate inherited work remains for agent credential/profile
+  provisioning, the legacy fixed Safe owner/guardian configuration, and a
+  versioned live-Policy Agentic ID update.
+- interfaces touched: strict Level 1 precheck v2; signed
+  `TRUSTED_SERVICE_DESCRIPTOR_V1`; `TrustedSemanticContext`;
+  `TeeMlSemanticVerdict`; `VerifiedTeeMlArtifact`; Agentic ID registration
+  commitment/ledger; agent and internal-service authentication; TeeML HTTP
+  route, statuses, technical codes, and UsageHold behavior.
+
+## 2026-07-25 04:15 PM - Codex - 0G Router testnet profile and credential guard
+- did: investigated the supplied 0G configuration without printing secrets,
+  found a wallet-shaped 64-hex value in the Router API-key slot, stopped further
+  inference attempts, restricted the local env file to mode `0600`, and added a
+  constructor guard that accepts only `sk-` inference keys before any network
+  use. Added exact allowlisted mainnet/testnet Router profiles with paired RPCs
+  and explicit chain IDs, selected the official testnet Router for this branch,
+  aligned provider discovery with the documented `model_id` parameter, and
+  kept local exact-model filtering. The public testnet catalog was consulted
+  without credentials: its chatbot is TeeTLS and its only TeeML entry is an
+  image editor, so no semantic inference or evidence was fabricated. Updated
+  current 0G documentation and env examples. Validation passed: 176 unit tests,
+  agent-service typecheck/lint/build, focused 0G adapter tests, and
+  `git diff --check`.
+- next: create a testnet Router inference key beginning with `sk-` through
+  `pc.testnet.0g.ai`, fund the Router deposit, and recheck the live catalog. Run
+  the two-case opt-in evidence test only when testnet exposes a private TeeML
+  chatbot; otherwise use a separately funded mainnet Router profile with human
+  approval.
+- blockers: `TEEML_REAL_INTEGRATION_BLOCKED`; the current local credential is
+  not a Router inference key, and the 2026-07-25 public testnet catalog has no
+  private TeeML chatbot. AEGIS does not downgrade to TeeTLS or use the TeeML
+  image editor as a semantic-verifier fallback.
+- interfaces touched: `ZG_ROUTER_BASE_URL` now selects one of two exact Router
+  network profiles; the corresponding Compute RPC and chain ID are derived and
+  cannot be independently overridden. Router inference keys now require the
+  official `sk-` prefix before catalog or completion dispatch.
+
+## 2026-07-25 04:30 PM - Codex - 0G testnet private TeeML live preflight
+- did: validated the updated local secret only through non-sensitive metadata:
+  the value has the required `sk-` prefix, the env file remains ignored with
+  mode `0600`, and the selected Router is the exact official testnet profile.
+  Re-queried the public testnet model catalog and ran the opt-in live command.
+  Both executions failed closed with `TEEML_NOT_PRIVATE` before completion
+  dispatch because the configured TeeML chatbot is absent from testnet and the
+  only available chatbot is TeeTLS. Enhanced the sanitized live-test result to
+  report `requestDispatched`; the confirmed value is `false`. No inference,
+  charge evidence, semantic plaintext, raw response, or evidence file was
+  produced. Updated the operational documentation to distinguish local key
+  format validation from unexercised remote Router authentication. Validation
+  passed: 176 unit tests, agent-service typecheck/lint/build, migrations on
+  real PostgreSQL, 39 PostgreSQL integration tests, and `git diff --check`.
+  Independent review found no high or medium issue; its one low operational
+  reporting gap was fixed so post-completion live-test failures report
+  `requestDispatched: true` instead of an unknown value.
+- next: wait for the official testnet Router catalog to expose a private TeeML
+  chatbot, or obtain human approval and a funded mainnet Router profile. Then
+  run exactly one real ALLOW and one real DENY case and review the sanitized
+  evidence before declaring the branch ready.
+- blockers: `TEEML_REAL_INTEGRATION_BLOCKED`; the official testnet catalog has
+  no private TeeML chatbot. The local `sk-` shape is valid, but remote
+  authentication, Router credit, `tee_verified`, provider signature, model
+  verdicts, cost, latency, and token usage cannot be exercised without an
+  eligible provider.
+- interfaces touched: the opt-in command now includes the sanitized
+  `requestDispatched` classification in blocked output. Runtime HTTP and
+  persistence contracts are unchanged.
+
+## 2026-07-25 05:05 PM - Codex - 0G hackathon TeeTLS semantic verifier
+- did: implemented an explicit two-profile 0G security contract without a
+  downgrade path. `production-private-teeml` is the default, requires mainnet,
+  private routing, TeeML, and sealed inference. The temporary
+  `hackathon-testnet-teetls` profile requires testnet, verified routing, TeeTLS,
+  and records `sealedInference: false`; its centralized broker-signer handling
+  is isolated from production. Both profiles pin the catalog-selected provider,
+  set Router fallbacks to false, request `verify_tee: true`, validate
+  `x_0g_trace.tee_verified`, compare signed content byte-for-byte, and verify the
+  signature through `@0gfoundation/0g-compute-ts-sdk@0.9.0`. Added migrations
+  `0006` and `0007` for exact, non-null profile tuples, profile-aware HTTP and
+  sanitized evidence contracts, no-retry live diagnostics, privacy/fallback
+  documentation, and coverage scripts. Validation passed: 193 unit tests, 41
+  PostgreSQL integration tests, coverage at 85.34% lines / 86.94% branches /
+  87.49% functions, migration on real PostgreSQL, Drizzle no-drift generation,
+  typecheck, lint, build, and independent security review with no high or medium
+  findings. A single authorized live TeeTLS run selected the real provider and
+  received sanitized HTTP 402 after dispatch; no retry or evidence file was
+  produced.
+- next: fund the Router testnet Payment Layer account, then run exactly one real
+  TeeTLS ALLOW and DENY pair and review
+  `docs/evidence/0g-teetls-hackathon-verification.json` before human approval.
+- blockers: `TEEML_REAL_INTEGRATION_BLOCKED`; the 0G Router testnet Payment
+  Layer account returned HTTP 402 for insufficient credit. Real `tee_verified`,
+  signed-content verification, verdict hashes, latency, token usage, and the
+  sanitized ALLOW/DENY evidence cannot be recorded until that account is
+  funded. Production Private/TeeML mainnet evidence remains a separate future
+  deployment requirement.
+- interfaces touched: added `ZG_TEEML_SECURITY_PROFILE`, the exact production
+  and hackathon security tuples, `securityProfile`, `verificationMode`, and
+  `sealedInference` to final artifacts and HTTP responses, migrations `0006`
+  and `0007`, and separate opt-in commands/evidence paths for production TeeML
+  and hackathon TeeTLS.
+
+## 2026-07-25 05:46 PM - Codex - 0G verifier final integrity hardening
+- did: completed the production Private/TeeML and explicit hackathon testnet
+  TeeTLS separation. Reserved `TEEML_ALLOWED` for the exact production tuple,
+  introduced `TEETLS_HACKATHON_ALLOWED` for demo evidence, and released the
+  UsageHold for every hackathon result so it cannot reach the future signer or
+  execution handoff. Added upgrade-safe migrations through `0011`, including
+  reconciliation of legacy nullable proof rows, exact profile constraints, an
+  action handoff trigger, immutable final verification artifacts, and an
+  audit-to-verification/action binding trigger. Added direct SQL tampering,
+  empty-database, transactional upgrade, restart, concurrency, privacy, and
+  hold tests. Final validation passed: PostgreSQL migrations; 194 unit tests;
+  44 PostgreSQL integration tests; 85.31% line, 87.00% branch, and 87.53%
+  function coverage; agent-service typecheck, lint, and build; Drizzle no-drift
+  generation; Next.js typecheck, lint, and production build; privacy/fallback
+  audits; and two independent reviews after the reported database integrity
+  findings were fixed. The production opt-in preflight against the local
+  testnet configuration failed closed with `TEEML_CONFIG_ERROR` and
+  `requestDispatched: false`, confirming that no profile/network downgrade is
+  possible.
+- next: fund the 0G Router testnet Payment Layer account, run exactly one real
+  TeeTLS ALLOW and DENY pair, inspect the sanitized evidence, and obtain human
+  approval before any commit. For production deployment, switch to the default
+  mainnet `production-private-teeml` profile and obtain separate real
+  Private/TeeML evidence.
+- blockers: `TEEML_REAL_INTEGRATION_BLOCKED`; the only attempted real
+  hackathon call selected and reached the actual testnet TeeTLS provider but
+  returned Router HTTP 402 for insufficient Payment Layer credit. No retry,
+  model verdict, verified signed response, or evidence file was fabricated.
+- interfaces touched: distinct production and hackathon ALLOW states across
+  verification, action, HTTP, and sanitized audit contracts; hackathon ALLOW
+  now releases the UsageHold; final database artifacts are immutable and audit
+  rows must match the linked final verification and action tuple exactly.
+
+## 2026-07-25 07:08 PM - Codex - funded 0G TeeTLS live retry and branch handoff
+- did: re-ran the explicitly authorized hackathon test after the Router testnet
+  Payment Layer was funded. The real completion request was dispatched to the
+  selected TeeTLS provider, resolving the prior HTTP 402 blocker. The provider's
+  subsequent signed-response endpoint returned HTTP 400, and AEGIS failed
+  closed with `TEEML_NOT_VERIFIED / SIGNATURE_UNAVAILABLE`. No automatic retry,
+  unsigned verdict acceptance, raw artifact, or evidence file was produced.
+  Updated current-status documentation and prepared the full branch for the
+  human-approved commit and remote push.
+- next: confirm signed-response availability for the selected testnet TeeTLS
+  provider, then run one newly authorized ALLOW and DENY pair and inspect the
+  sanitized evidence.
+- blockers: `TEEML_REAL_INTEGRATION_BLOCKED`; real completion dispatch is
+  funded and functional, but the provider signature endpoint returns HTTP 400,
+  so no cryptographically verified ALLOW/DENY evidence exists yet. Production
+  Private/TeeML mainnet evidence remains a separate deployment requirement.
+- interfaces touched: none; runtime, HTTP, database, and evidence contracts are
+  unchanged by the live retry.
+
+## 2026-07-25 07:38 PM - Claude - full local flow validation and live signature diagnosis
+- did: ran the complete local acceptance path for the 0G TeeML semantic
+  verifier feature committed at c0779d5. `services/agent-service`: installed
+  the previously un-installed `@0gfoundation/0g-compute-ts-sdk` dependency,
+  then typecheck, 194 unit tests, and build all passed clean. Found and fixed
+  a real test-infra bug: `npm run test:integration` silently failed 2 of 3
+  suites (teeml, agentic-id-registration) because those files never loaded
+  `.env` - only `policy-engine.postgres.integration.ts` happened to work via a
+  transitive `dotenv/config` import through `index.ts`. Added the missing
+  import to both files and confirmed all 44/44 integration tests now pass in a
+  fully clean shell (`env -i`), not just one with a pre-sourced environment.
+  `packages/nextjs`: `yarn install` plus clearing a stale `.next` cache made
+  `check-types` clean. Dispatched a `grumpy-carlos-code-reviewer` pass over the
+  full teeml/0G integration code and migrations 0004-0011; verdict: no
+  fail-open bugs, profile downgrade paths, or DB-invariant gaps found. Applied
+  its two low-risk recommendations: a clarifying comment on the on-chain
+  `verifiability` check in `zero-g-signed-response-verifier.ts` (documents that
+  it is a different vocabulary from the Router catalog's field and must not be
+  keyed on `securityProfile`), and collapsed the `verify()` existence/ownership
+  check in `service.ts` into a single 404 to stop leaking `requestId`
+  existence to non-owning agents. Left two review suggestions (widen the
+  final-verification immutability trigger to cover `PROCESSING` rows;
+  consolidate the two independent `ZG_TEEML_SECURITY_PROFILE` env parses in
+  `index.ts` into one) as recommendations, not applied. The user then supplied
+  real testnet credentials (0G Router API key, 0G Galileo private key/contract
+  config) directly in the local `.env`/`.env.local` files (never committed;
+  both remain gitignored) so the live hackathon test could run for real. The
+  opt-in `test:0g:teetls:hackathon` command dispatched a real completion and
+  reproduced the same `TEEML_NOT_VERIFIED / SIGNATURE_UNAVAILABLE` (HTTP 400)
+  block from prior sessions. Root-caused it with an instrumented standalone
+  script (deleted after use, never committed): the provider's signed-response
+  endpoint returns `{"error":"...Chat id not found or expired, chat_id_not_found"}`
+  regardless of which chat identifier is used (`ZG-Res-Key` header or
+  `envelope.id`) and regardless of latency (as low as ~840ms after completion),
+  ruling out both a wrong-field bug and a TTL/timing bug in AEGIS's client
+  code. This is a provider-infrastructure issue on the selected testnet TeeTLS
+  provider (`compute-network-6.integratenetwork.work`, address
+  `0xa48f...67836`), most likely a signed-response GET landing on a different
+  backend replica than the one that served the completion POST, with no shared
+  chat-id cache between them.
+- next: escalate the confirmed provider-side bug to 0G/provider support, or
+  find a different eligible testnet TeeTLS provider; then run one authorized
+  ALLOW/DENY pair and review the sanitized evidence. Separately, consider
+  applying the two deferred review recommendations (broader immutability
+  trigger, single security-profile parse) when next touching `teeml/`.
+- blockers: `TEEML_REAL_INTEGRATION_BLOCKED`; confirmed provider-side
+  `chat_id_not_found` on the signed-response endpoint, not a credentials,
+  timing, or AEGIS client-code issue.
+- interfaces touched: none functionally; the two applied fixes are a
+  documentation comment and a response-code collapse (403+404 -> 404) on an
+  existing error path, both covered by the existing passing test suite.
+
+## 2026-07-25 08:18 PM - Claude - real end-to-end flow with fresh agent data; provider bug confirmed independent of agent identity
+- did: the user hypothesized the earlier `chat_id_not_found` block might be an
+  artifact of testing with an agent/data created in a different environment,
+  and asked for the complete real flow to be run from scratch with data
+  generated here. Discovered the local dev PostgreSQL database
+  (`aegis_dev`, DATABASE_URL) was still on the pre-c0779d5 migration state -
+  `aegis_agentic_id_registrations`, `aegis_agent_semantic_profiles`,
+  `aegis_teeml_verifications`, and `aegis_teeml_audit_events` were all missing
+  - because only `TEST_DATABASE_URL` had received migrations 0003-0011 via the
+  integration-test runs. Ran `npm run db:migrate` against the dev database
+  (additive/upgrade-safe, per the migration design) to fix this permanently.
+  Generated a shared `AEGIS_AGENTIC_ID_INTERNAL_TOKEN` and added it to both
+  `services/agent-service/.env` and `packages/nextjs/.env.local` (both
+  gitignored, never committed). Rather than touch the user's already-running
+  dev servers (ports 3000/4200, pre-dating this session's env changes),
+  started an isolated Next.js instance on port 3001 and a one-off
+  `agent-service` bootstrap (temporary script, deleted after use, never
+  committed) on port 4201 with a closure-based test-only authenticator, and
+  drove the entire real HTTP flow with brand-new data: real Hedera
+  `AccountCreateTransaction` (new account `0.0.9755293`), real 2-of-3 Safe
+  deployment on Hedera testnet, a real 0G Agentic ID mint on Galileo testnet
+  (token `108`, real explorer tx), a real EIP-712-signed Policy
+  create+activate, a real Level 1 precheck reaching `PENDING_TEEML`, and
+  finally a real `POST /actions/:requestId/teeml/verify` call through the real
+  0G Router. Result: steps 1-6 all succeeded for the first time end-to-end in
+  this environment; step 7 failed with the identical `TEEML_NOT_VERIFIED`
+  (502) as every prior session, using an agent, wallet, Agentic ID, and Policy
+  created entirely fresh in this run. This conclusively rules out the
+  "agent created elsewhere" hypothesis - the block is confirmed to be the
+  provider-side `chat_id_not_found` bug on the selected testnet TeeTLS
+  provider, independent of which AEGIS agent/policy/precheck data drives the
+  request.
+- next: escalate the confirmed provider-side bug to 0G/provider support, or
+  select a different eligible testnet TeeTLS provider; then rerun the same
+  real flow for one authorized ALLOW and one DENY pair and review the
+  sanitized evidence. Separately: run `npm run db:migrate` (or equivalent)
+  against any other environment's dev database that predates commit c0779d5,
+  since the missing-migrations gap found here could recur elsewhere.
+- blockers: `TEEML_REAL_INTEGRATION_BLOCKED`; unchanged - confirmed
+  provider-side `chat_id_not_found`, now verified independent of agent
+  identity/history.
+- interfaces touched: none; no source files changed this entry. The dev
+  PostgreSQL database was brought up to the current migration state (schema
+  change only, no code/interface change).
+
+## 2026-07-25 08:57 PM - Claude - fixed the hackathon TeeTLS block: 0G Direct SDK mode replaces the buggy Router path
+- did: the user suspected the recurring `chat_id_not_found` block was actually
+  fixable, not a dead end, and asked to dig further and try the official
+  SDK's "Direct" broker mode (bypassing the 0G Router entirely) against the
+  same pinned provider. Verified against the official 0G docs
+  (`docs.0g.ai/.../router/overview`, `.../faq`, `.../verifiable-execution`)
+  that `router-api-testnet.integratenetwork.work` is genuinely the documented
+  official testnet Router (not a rogue third-party endpoint), and that the
+  docs do not specify whether provider-side signature retrieval is
+  single-use or keyed differently internally - a real, confirmed
+  documentation gap. Ran a live A/B test calling the Router with
+  `verify_tee: true` vs `false`: both failed identically at the signature
+  endpoint, which rules out "the Router's own synchronous verification
+  consumes the record" and points at the Router's completion-proxying itself.
+  Then funded a real ledger and provider sub-account, acknowledged the
+  provider's TEE signer on-chain, and called the SAME provider's own
+  `/v1/proxy/chat/completions` directly (bypassing the Router) using the
+  SDK's broker-signed billing headers; `broker.inference.processResponse`
+  returned `true` - independent signature verification succeeded on the first
+  try. This conclusively isolated the bug to the Router's completion proxy,
+  not 0G's protocol, the provider, or AEGIS's prior Router-based
+  implementation.
+  Wrote a new `services/agent-service/src/integrations/0g/zero-g-direct-inference.ts`
+  implementing `ZeroGDirectInferenceGateway` (a `TeeMlInferenceGateway`) on
+  the SDK's Direct broker mode: lazy one-time ledger/acknowledgment setup,
+  exact provider address and provider-side model id pinning (new
+  `ZG_TEEML_PROVIDER_ADDRESS`/`ZG_TEEML_PROVIDER_MODEL_ID` env vars, no
+  catalog-based discovery), `response_format: json_object`, and
+  `processResponse` as the sole verification source of truth. Wired it into
+  `zero-g-semantic-inference.ts`: `createZeroGSemanticInferenceFromEnv` now
+  routes the `hackathon-testnet-teetls` profile to this new Direct-mode
+  gateway unconditionally, leaving the existing Router-based path completely
+  untouched and still exclusively used by `production-private-teeml`
+  (mainnet, still live-unproven, out of scope for this fix). Updated the
+  opt-in live harness (`zero-g-semantic.live.ts`) to require the new env vars
+  and emit accurate evidence fields per profile.
+  While validating, hit a second, previously-unreached bug: the real verdict
+  JSON (schemaVersion, verdict, reasonCode, four 66-char hex hashes) needs
+  well over 256 output tokens; `ZG_TEEML_MAX_OUTPUT_TOKENS`'s 256 default AND
+  hard ceiling (in `zero-g-router-client.ts`, shared by both profiles)
+  silently truncated valid model output mid-JSON, always failing closed as
+  `TEEML_OUTPUT_INVALID`. This was never hit before because no run had ever
+  gotten past the signature-verification step. Raised the default and ceiling
+  to 768 in all three places (router client ceiling, shared default constant,
+  direct-gateway default) and updated the one test that asserted the old 257
+  boundary to 769.
+  Result: `npm run test:0g:teetls:hackathon` now completes with
+  `TEETLS_HACKATHON_INTEGRATION_VERIFIED`, both ALLOW and DENY cases
+  independently signature-verified, real evidence written to
+  `docs/evidence/0g-teetls-hackathon-verification.json`. Reran the full real
+  HTTP flow (precheck against the already-persisted real agent/wallet/policy
+  from the earlier full-flow session) through the actual
+  `POST /actions/:requestId/teeml/verify` route and got a real
+  `TEETLS_HACKATHON_ALLOWED` / `verdict: "ALLOW"` response for the first time
+  this branch. Full validation suite reran clean: typecheck, 194 unit tests,
+  44 PostgreSQL integration tests, build. Updated
+  `docs/aegis-current-scope.md` and `docs/0g/teeml-semantic-verifier.md` to
+  describe the Direct-mode path and mark the Router-specific sections as
+  production-only. Dispatched a `grumpy-carlos-code-reviewer` pass over the
+  new gateway and its wiring; findings pending.
+- next: apply the code-review findings for `zero-g-direct-inference.ts` once
+  they land. Optionally report the confirmed Router bug to 0G/Integrate
+  Network support (courtesy - AEGIS itself is unblocked). Decide whether
+  `production-private-teeml` should eventually move to Direct mode too,
+  before that mainnet path is ever exercised for real.
+- blockers: none for the hackathon path - it is real, funded, and verified
+  end-to-end. Production Private/TeeML mainnet evidence remains a separate,
+  unstarted deployment requirement.
+- interfaces touched: `ZeroGSecurityProfile` resolution now routes
+  `hackathon-testnet-teetls` to a new Direct-SDK gateway instead of the
+  Router client; new required env vars for that profile
+  (`ZG_COMPUTE_PRIVATE_KEY`, `ZG_TEEML_PROVIDER_ADDRESS`,
+  `ZG_TEEML_PROVIDER_MODEL_ID`); `ZG_TEEML_MAX_OUTPUT_TOKENS` default/ceiling
+  raised 256 -> 768. `production-private-teeml`'s Router-based contract is
+  unchanged.
+
+## 2026-07-25 09:23 PM - Claude - full fresh end-to-end run, code review, and an honest correction to the Direct-mode verification claim
+- did: the user asked to test the complete flow again, starting from Hedera
+  agent creation, now that the Direct-mode fix was in place. Ran it fully
+  fresh (new Hedera account `0.0.9757226`, new Safe, new 0G Agentic ID token
+  `109`, new Policy, new precheck) through the real HTTP routes and got a
+  second real `TEETLS_HACKATHON_ALLOWED` verdict, confirming the fix is not a
+  one-off. In parallel, a `grumpy-carlos-code-reviewer` pass on
+  `zero-g-direct-inference.ts` landed with a critical finding: the gateway
+  trusted `broker.inference.processResponse`'s boolean as full content
+  verification, but that SDK method's `content` parameter is billing/usage
+  JSON per its own docstring - it never compares the provider's signed
+  response against the actual model content this gateway trusts as an
+  ALLOW/DENY verdict. The reviewer's suggested fix was to reuse
+  `ZeroGSignedResponseVerifier` (the Router path's verifier, which does
+  byte-for-byte compare the signed `text` against `content`) instead.
+  Attempting that fix failed closed on every real response
+  (`SIGNATURE_RESPONSE_INVALID`). Live debugging (temporary instrumentation,
+  removed after) revealed why: the provider's real signed response is
+  `{text: "<hash>:<hash>:centralized:aliyun:<tls_fingerprint>", signature,
+  signing_address, signing_algo, provider_type, provider_identity,
+  tls_cert_fingerprint}` - a compact hash commitment plus extra fields, not
+  the raw completion text `ZeroGSignedResponseVerifier` assumes. Tried roughly
+  a dozen candidate hash inputs (content, full request body, messages array,
+  system prompt, user content, chat ID, various combinations, sha256) against
+  the observed commitment hashes; none matched. This is a previously-unknown
+  fact: nobody had ever seen this provider's real signed-response body before
+  (every earlier Router-based attempt failed at `chat_id_not_found` first),
+  so the original assumption baked into `zero-g-signed-response-verifier.ts` -
+  written before any successful verification was ever observed - was never
+  actually validated against a real response, and is provably wrong for this
+  provider. Rather than keep guessing at an undocumented per-provider
+  commitment scheme, reverted `zero-g-direct-inference.ts` to
+  `broker.inference.processResponse` and added an explicit, prominent
+  "KNOWN LIMITATION" comment in the file plus corrections in
+  `docs/aegis-current-scope.md` and `docs/0g/teeml-semantic-verifier.md`:
+  verification here confirms a genuine signature from the provider's
+  acknowledged TEE signer exists for the exact chat ID, but does not
+  independently prove that signed payload corresponds byte-for-byte to the
+  specific model content this gateway trusts. This is disclosed, not silently
+  overstated - consistent with the hackathon profile's existing "may process
+  plaintext, never production-authorizing" status. Applied the reviewer's
+  other, unambiguous findings: bounded streaming reads for the completion
+  response (matching the Router client's pattern, replacing a buffer-then-check
+  read), conservative `requestDispatched: true` on completion timeout/abort
+  (matching the Router path's "assume dispatched, reconcile manually"
+  semantics), broker-creation retry-on-failure (matching the existing
+  ensure-ready reset pattern), constructor dependency injection for the broker
+  factory and fetch (for testability), and removed a false-positive strict
+  `body.model === metadata.model` check added during the fix attempt (the
+  completion body's self-reported model string uses a different, shorter
+  format than the on-chain registry value and was rejecting valid responses).
+  Re-ran the full validation suite clean: typecheck, 194 unit tests, 44
+  PostgreSQL integration tests, build, and the real opt-in hackathon test
+  (fresh real ALLOW/DENY pair, evidence file rewritten).
+- next: decide whether to invest further in reverse-engineering the
+  provider's commitment scheme (would need 0G/provider documentation or
+  source access neither available today) to close the byte-for-byte
+  verification gap, or accept `processResponse`'s signature-validity
+  guarantee as sufficient for a hackathon-only, explicitly-non-production
+  profile. Neither blocks the demo; both should be a conscious call, not a
+  default. Unrelated: still consider whether `production-private-teeml`
+  should eventually move to Direct mode, and whether to report the confirmed
+  Router `chat_id_not_found` bug to 0G/Integrate Network as a courtesy.
+- blockers: none for demo purposes - the hackathon path is real, funded, and
+  produces genuine (if narrower-than-originally-claimed) signature evidence.
+  The byte-for-byte content-commitment verification gap is open and
+  documented, not blocking.
+- interfaces touched: `zero-g-direct-inference.ts`'s internal verification
+  step only (now `processResponse`-based with DI-friendly constructor
+  dependencies); `TeeMlInferenceResult`/`TeeMlError` contracts unchanged. Two
+  documentation files corrected to remove an overstated "independently
+  signature-verified" / "byte-for-byte" claim about the hackathon path.
 ## 2026-07-25 12:43 PM - Codex - Frontend Policy integration review
 - did: reviewed the uncommitted `feat/frontend-integration` Policy onboarding
   and agent-detail changes against the Level 1 contract and backend source.

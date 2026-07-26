@@ -9,12 +9,16 @@
     "typecheck": "tsc --noEmit",
     "lint": "tsc --noEmit",
     "test": "npm run test:unit",
-    "test:unit": "tsx --test src/*.test.ts src/policy-engine/*.test.ts",
-    "test:integration": "tsx --test src/policy-engine/*.integration.ts",
+    "test:unit": "tsx --test src/*.test.ts src/policy-engine/*.test.ts src/teeml/*.test.ts src/integrations/0g/*.test.ts",
+    "test:coverage": "tsx --test --experimental-test-coverage src/*.test.ts src/policy-engine/*.test.ts src/teeml/*.test.ts src/integrations/0g/*.test.ts",
+    "test:integration": "tsx --test --test-concurrency=1 src/policy-engine/*.integration.ts src/teeml/*.integration.ts",
+    "test:0g:teeml": "ZG_TEEML_SECURITY_PROFILE=production-private-teeml tsx src/integrations/0g/zero-g-semantic.live.ts",
+    "test:0g:teetls:hackathon": "ZG_TEEML_SECURITY_PROFILE=hackathon-testnet-teetls tsx src/integrations/0g/zero-g-semantic.live.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate"
   },
   "dependencies": {
+    "@0gfoundation/0g-compute-ts-sdk": "0.9.0",
     "@hashgraph/hedera-agent-kit": "^4.0.0",
     "@hashgraph/hedera-agent-kit-langchain": "^1.0.0",
     "@hiero-ledger/sdk": "^2.80.0",
@@ -23,10 +27,12 @@
     "@safe-global/protocol-kit": "^6.1.0",
     "dotenv": "^16.4.5",
     "drizzle-orm": "^0.45.2",
+    "ethers": "6.17.0",
     "express": "^4.18.2",
     "langchain": "^1.5.3",
     "pg": "^8.13.1",
-    "viem": "^2.55.8"
+    "viem": "^2.55.8",
+    "zod": "3.25.76"
   },
   "devDependencies": {
     "@types/express": "^4.17.21",

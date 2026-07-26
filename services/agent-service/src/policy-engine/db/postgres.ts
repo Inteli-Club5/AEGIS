@@ -3,9 +3,11 @@ import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import pg from "pg";
 import { PolicyEngineError, conflict, notFound } from "../errors.js";
 import {
+  ACTION_HASH_SCHEMA,
   type ActionRequestRecord,
   type AssetCatalogEntry,
   type AuditEventRecord,
+  type PersistedNormalizedAction,
   type PrecheckRecordRecord,
   type PrecheckRepository,
   type PrecheckTransaction,
@@ -450,17 +452,29 @@ class PostgresPrecheckTransaction implements PrecheckTransaction {
     this.failIf("action_request");
     await this.client.query(
       `insert into aegis_action_requests (
-         request_id, agent_id, wallet_id, idempotency_key_hash, request_payload_hash, semantic_context_hash,
-         aegis_nonce, policy_id, policy_version, policy_hash, action_hash, status,
+         request_id, agent_id, wallet_id, idempotency_key_hash, request_payload_hash,
+         action_hash_schema_version, action_type, destination_kind, destination_value,
+         destination_chain_id, asset_id, amount, action_deadline, aegis_nonce,
+         policy_id, policy_version, policy_hash, action_hash, status,
          functional_response, created_at, updated_at
-       ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::jsonb, $14, $15)`,
+       ) values (
+         $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11,
+         $12, $13, $14, $15, $16, $17, $18, $19, $20::jsonb, $21, $22
+       )`,
       [
         record.requestId,
         record.agentId,
         record.walletId,
         record.idempotencyKeyHash,
         record.requestPayloadHash,
-        record.semanticContextHash,
+        record.actionHashSchemaVersion,
+        record.action?.actionType ?? null,
+        record.action?.destination.kind ?? null,
+        record.action?.destination.value ?? null,
+        record.action?.destination.chainId ?? null,
+        record.action?.assetId ?? null,
+        record.action?.amount ?? null,
+        record.action?.actionDeadline ?? null,
         record.aegisNonce,
         record.policyId,
         record.policyVersion,
@@ -699,13 +713,15 @@ function mapPolicyDbRow(row: Record<string, any>): PolicyRecord {
 }
 
 function mapActionRequest(row: Record<string, any>): ActionRequestRecord {
+  const actionHashSchemaVersion = mapActionHashSchemaVersion(row.action_hash_schema_version);
   return {
     requestId: row.request_id,
     agentId: row.agent_id,
     walletId: row.wallet_id,
     idempotencyKeyHash: row.idempotency_key_hash,
     requestPayloadHash: row.request_payload_hash,
-    semanticContextHash: row.semantic_context_hash,
+    actionHashSchemaVersion,
+    action: actionHashSchemaVersion === null ? null : mapPersistedAction(row),
     aegisNonce: row.aegis_nonce?.toString() ?? null,
     policyId: row.policy_id,
     policyVersion: row.policy_version,
@@ -715,6 +731,41 @@ function mapActionRequest(row: Record<string, any>): ActionRequestRecord {
     functionalResponse: row.functional_response,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+  };
+}
+
+function mapActionHashSchemaVersion(value: unknown): typeof ACTION_HASH_SCHEMA | null {
+  if (value === null || value === undefined) return null;
+  if (value !== ACTION_HASH_SCHEMA) {
+    throw new PolicyEngineError(500, "unsupported_action_hash_schema", "persisted action hash schema is not supported");
+  }
+  return ACTION_HASH_SCHEMA;
+}
+
+function mapPersistedAction(row: Record<string, any>): PersistedNormalizedAction {
+  if (
+    typeof row.action_type !== "string" ||
+    typeof row.destination_kind !== "string" ||
+    typeof row.destination_value !== "string" ||
+    typeof row.asset_id !== "string" ||
+    typeof row.amount !== "string" ||
+    !Number.isInteger(row.action_deadline)
+  ) {
+    throw new PolicyEngineError(500, "invalid_persisted_action", "persisted action commitment fields are incomplete");
+  }
+
+  const destination = {
+    kind: row.destination_kind,
+    value: row.destination_value,
+    ...(row.destination_chain_id === null ? {} : { chainId: Number(row.destination_chain_id) }),
+  } as PersistedNormalizedAction["destination"];
+
+  return {
+    actionType: row.action_type,
+    destination,
+    assetId: row.asset_id,
+    amount: row.amount,
+    actionDeadline: row.action_deadline,
   };
 }
 

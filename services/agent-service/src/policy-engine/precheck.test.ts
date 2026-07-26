@@ -7,9 +7,9 @@ import {
   type DeterministicPolicyEvaluationInput,
 } from "./evaluator.js";
 import {
+  ACTION_HASH_SCHEMA,
   computeActionHash,
   computePrecheckRequestPayloadHash,
-  computeSemanticContextHash,
   InMemoryPrecheckRepository,
   parsePrecheckActionRequest,
   PrecheckService,
@@ -22,9 +22,48 @@ import { NETWORK_ID, type AgentRecord, type Hex32, type PolicyRecord, type Polic
 const AGENT_ID = "018f0000-0000-7000-8000-000000000201";
 const WALLET_ID = "018f0000-0000-7000-8000-000000000202";
 const POLICY_HASH = `0x${"44".repeat(32)}` as Hex32;
-const GOLDEN_ACTION_HASH = "0x1c8a5088c6bea1bacbd47e663d5132795a61ed68784e1d06b0c7f366a88a2f48" as Hex32;
+const GOLDEN_ACTION_HASH = "0xb2ae75e52f43926076133f6bb66e06213aafb365950cedaa19eb797806ba2ddc" as Hex32;
 
 describe("PrecheckService", () => {
+  it("rejects caller-controlled semantic prose before evaluation or persistence", async () => {
+    for (const field of ["semanticContext", "reason", "detailedReason", "agentReason"]) {
+      const repository = seededRepository();
+      const service = precheckService(repository);
+
+      await rejectsWithCode(
+        () => service.precheck(validPrecheckInput(`idem-${field}`, { [field]: "caller-controlled prose" })),
+        "unknown_property",
+      );
+      assert.equal(repository.actionRequests.size, 0);
+      assert.equal(repository.precheckRecords.size, 0);
+      assert.equal(repository.usageHolds.size, 0);
+      assert.equal(repository.auditEvents.size, 0);
+    }
+  });
+
+  it("accepts structured action data without prose and persists the normalized v2 commitment input", async () => {
+    const repository = seededRepository();
+    const service = precheckService(repository);
+
+    const result = await service.precheck({
+      ...validPrecheckInput("idem-structured-v2"),
+      body: baseBody(),
+    });
+
+    assert.equal(result.response.status, "PENDING_TEEML");
+    const [request] = [...repository.actionRequests.values()];
+    assert.ok(request);
+    assert.equal(request.actionHashSchemaVersion, ACTION_HASH_SCHEMA);
+    assert.deepEqual(request.action, {
+      actionType: "HEDERA_HBAR_TRANSFER",
+      destination: { kind: "HEDERA_ACCOUNT_ID", value: "0.0.123456" },
+      assetId: "hedera:testnet:hbar",
+      amount: "1",
+      actionDeadline: 1_784_900_300,
+    });
+    assert.equal("semanticContextHash" in request, false);
+  });
+
   it("calls the deterministic evaluator with explicit now and creates a UsageHold only on PASS_TO_TEEML", async () => {
     const repository = seededRepository();
     const captured: DeterministicPolicyEvaluationInput[] = [];
@@ -132,13 +171,12 @@ describe("PrecheckService", () => {
     assert.equal(repository.nextNonces.size, 0);
   });
 
-  it("keeps semantic context text out of persisted records", async () => {
+  it("keeps idempotency secrets and prose fields out of persisted records", async () => {
     const repository = seededRepository();
     const service = precheckService(repository);
-    const rawSemanticContext = "Pay invoice 123 with private business context";
     const rawIdempotencyKey = "idem-sensitive-key";
 
-    await service.precheck(validPrecheckInput(rawIdempotencyKey, { semanticContext: rawSemanticContext }));
+    await service.precheck(validPrecheckInput(rawIdempotencyKey));
 
     const persisted = JSON.stringify({
       actionRequests: [...repository.actionRequests.values()],
@@ -147,11 +185,8 @@ describe("PrecheckService", () => {
       auditEvents: [...repository.auditEvents.values()],
     });
     const audit = JSON.stringify([...repository.auditEvents.values()]);
-    const [request] = [...repository.actionRequests.values()];
-    assert.ok(request);
-    assert.equal(request.semanticContextHash, computeSemanticContextHash(rawSemanticContext));
-    assert.equal(persisted.includes(rawSemanticContext), false);
-    assert.equal(audit.includes(rawIdempotencyKey), false);
+    assert.equal(persisted.includes(rawIdempotencyKey), false);
+    assert.equal(/"(?:semanticContext|reason|detailedReason|agentReason)"\s*:/.test(persisted), false);
     assert.match(audit, /idempotencyKeyHash/);
     assert.match(audit, /requestPayloadHash/);
   });
@@ -221,9 +256,10 @@ describe("PrecheckService", () => {
       [{ ...baseBody(), destination: { kind: "URL_ORIGIN", value: "ftp://api.example.com" } }, "invalid_url_origin"],
       [{ ...baseBody(), destination: { kind: "URL_ORIGIN", value: "not a url" } }, "invalid_url_origin"],
       [{ ...baseBody(), destination: { kind: "UNKNOWN", value: "0.0.123456" } }, "unsupported_destination_kind"],
-      [{ ...baseBody(), semanticContext: undefined }, "invalid_string"],
-      [{ ...baseBody(), semanticContext: "x".repeat(2_001) }, "invalid_semantic_context"],
+      [{ ...baseBody(), semanticContext: "private prose" }, "unknown_property"],
       [{ ...baseBody(), reason: "legacy private reason" }, "unknown_property"],
+      [{ ...baseBody(), detailedReason: "legacy detailed reason" }, "unknown_property"],
+      [{ ...baseBody(), agentReason: "legacy agent reason" }, "unknown_property"],
     ];
 
     for (const [body, code] of cases) {
@@ -232,6 +268,7 @@ describe("PrecheckService", () => {
   });
 
   it("computes deterministic actionHash golden values from normalized action context", () => {
+    assert.equal(ACTION_HASH_SCHEMA, "aegis.action.level1.v2");
     const action = parsePrecheckActionRequest({ agentId: AGENT_ID, walletId: WALLET_ID }, baseBody());
     const policy = basePolicy();
     const hash = computeActionHash({
@@ -313,7 +350,6 @@ function baseBody() {
     assetId: "hedera:testnet:hbar",
     amount: "1",
     actionDeadline: 1_784_900_300,
-    semanticContext: "Pay approved provider invoice",
   };
 }
 

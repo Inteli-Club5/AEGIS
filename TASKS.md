@@ -9,6 +9,73 @@ the current focus for the next agent session.
 
 ## Current Focus
 
+- [ ] Decide whether AEGIS should accept any agent/user free-text description
+  of intent into the TeeML flow. Today it deliberately does not: the
+  precheck v2 body and the TeeML verify body both reject `reason` /
+  `agentReason` / `semanticContext` as unknown properties, and the system
+  prompt instructs the model not to trust or request agent justification
+  (`POTENTIAL_PROMPT_INJECTION` on anything that tries). Four options were
+  laid out 2026-07-25, from safest to riskiest: (1) keep as-is, no free text
+  at all; (2) accept a declared-intent field for audit/dashboard display
+  only, never sent to the model or used in the verdict (recommended); (3)
+  reintroduce a bounded free-text field into the model prompt, sandboxed as
+  untrusted data per the existing prompt-injection guard, but with real
+  residual risk; (4) let free text genuinely influence the verdict (not
+  recommended - reopens the exact social-engineering-the-verifier risk the
+  current design was hardened against). No decision made yet; nothing
+  implemented for this.
+
+- [ ] Decide whether to invest in reverse-engineering the hackathon TeeTLS
+  provider's undocumented signed-response commitment scheme (`text` field is
+  `<hash>:<hash>:provider_type:provider_identity:tls_fingerprint`, not raw
+  content - discovered 2026-07-25, exact hash inputs unknown) to close the
+  byte-for-byte content-verification gap in `zero-g-direct-inference.ts`, or
+  accept the current `processResponse` signature-validity check (proves a
+  genuine signature from the acknowledged TEE signer exists for the exact
+  chat ID, not that it matches this content byte-for-byte) as sufficient for
+  this explicitly non-production, hackathon-only profile. Neither choice
+  blocks the demo. (Optional/courtesy, unrelated) report the confirmed
+  testnet Router `chat_id_not_found` bug to 0G/Integrate Network support.
+  Separately: decide whether `production-private-teeml` (mainnet) should
+  also move to Direct mode before that path is ever exercised for real.
+
+## Done
+
+- [x] 2026-07-25: Root-caused the hackathon TeeTLS `chat_id_not_found` block to
+  a bug in the testnet Router's completion proxy (confirmed independent of
+  agent identity and of `verify_tee` via live diagnosis and an A/B test), then
+  fixed it by moving the `hackathon-testnet-teetls` profile to the official
+  SDK's Direct broker mode (bypasses the Router; talks to the pinned provider
+  directly with a funded ledger, acknowledged TEE signer, and
+  `processResponse` verification). Also fixed a separate, previously-unhit bug:
+  `ZG_TEEML_MAX_OUTPUT_TOKENS` defaulted/ceilinged at 256, which silently
+  truncates the real verdict schema's four hex hashes mid-JSON; raised to 768
+  everywhere. A code review then caught that `processResponse` alone doesn't
+  prove signed content matches the trusted verdict text (it checks signature
+  validity, not a content commitment); attempting the suggested fix (reusing
+  the Router path's byte-for-byte verifier) failed closed on every real
+  response because the provider's actual signed response is an undocumented
+  hash commitment, not raw text - confirmed by live debugging, not fixable
+  without provider documentation. Reverted to `processResponse` with this
+  limitation explicitly disclosed in code comments and both 0G docs, rather
+  than silently overstating the verification. `npm run test:0g:teetls:hackathon`
+  now produces a real signed ALLOW/DENY evidence pair (twice, including a
+  second full fresh run from Hedera account creation), and a full real HTTP
+  flow (Hedera account, Safe, 0G Agentic ID, Policy, Level 1 precheck, TeeML
+  verify) completes with `TEETLS_HACKATHON_ALLOWED`. Production
+  `production-private-teeml` (mainnet, Router-based) is untouched and still
+  unproven.
+
+- [x] 2026-07-25: Implemented explicit 0G semantic-verification security
+  profiles: mainnet-only Private/TeeML for production and testnet-only TeeTLS
+  for the hackathon, with provider pinning, no Router or application fallback,
+  strict TEE/signature/content verification, honest persistence labels, profile
+  isolation, separate demo-only ALLOW state, PostgreSQL constraints and handoff
+  triggers, immutable final artifacts, audit-to-verification binding,
+  documentation, and full local tests. Router testnet funding is now
+  available and the real request reaches the provider; live evidence remains
+  externally blocked because its signed-response endpoint returns HTTP 400.
+
 - [ ] Manual real-browser / real-MetaMask QA pass - everything below was
   built and verified via `check-types`/`lint`/unit tests only, since it all
   sits behind `ConnectGate` and headless Chrome has no injected wallet

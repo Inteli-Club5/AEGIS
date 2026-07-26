@@ -14,6 +14,8 @@ import {
   UnconfiguredPrecheckRepository,
 } from "./policy-engine/db/postgres.js";
 import { createUuidV7 } from "./policy-engine/ids.js";
+import { PolicyEngineError } from "./policy-engine/errors.js";
+import { createEnvAgentActorAuthenticator } from "./policy-engine/agent-auth.js";
 import type { PrecheckRepository } from "./policy-engine/precheck.js";
 import {
   DEFAULT_AUDIT_RETENTION_DAYS,
@@ -28,6 +30,28 @@ import {
 } from "./policy-engine/routes.js";
 import { PolicyLifecycleService } from "./policy-engine/service.js";
 import { NETWORK_ID } from "./policy-engine/types.js";
+import {
+  createZeroGSemanticInferenceFromEnv,
+  DEFAULT_ZERO_G_TEEML_TIMEOUT_MS,
+  resolveZeroGSecurityProfileFromEnv,
+} from "./integrations/0g/zero-g-semantic-inference.js";
+import { createPostgresTeeMlRepository } from "./teeml/postgres-repository.js";
+import { createPostgresAgenticIdRegistrationRepository } from "./teeml/postgres-agentic-id-registration.js";
+import {
+  UnconfiguredAgenticIdRegistrationRepository,
+  type AgenticIdRegistrationRepository,
+} from "./teeml/agentic-id-registration.js";
+import type { TeeMlInferenceGateway } from "./teeml/inference-gateway.js";
+import type { ZeroGSecurityProfile } from "./teeml/security-profile.js";
+import {
+  UnconfiguredTeeMlRepository,
+  type TeeMlRepository,
+} from "./teeml/repository.js";
+import { createTeeMlRouter } from "./teeml/routes.js";
+import {
+  DEFAULT_TEEML_PROCESSING_LEASE_SECONDS,
+  TeeMlService,
+} from "./teeml/service.js";
 import { resolveRecoveryGuardianAddress } from "./walletConfig.js";
 
 const EVM_ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/;
@@ -42,11 +66,15 @@ const AGENT_TYPES: AgentType[] = [
 export type AgentServiceAppOptions = {
   policyRepository?: PolicyRepository;
   precheckRepository?: PrecheckRepository;
+  teemlRepository?: TeeMlRepository;
+  teemlInference?: TeeMlInferenceGateway;
+  teemlSecurityProfile?: ZeroGSecurityProfile;
   authenticateAgentActor?: AgentActorAuthenticator;
   createAgent?: typeof createAgentProfile;
   createWallet?: typeof createAgentWallet;
   proposeAction?: typeof proposeAgentAction;
   registerAgenticId?: typeof registerAgenticId;
+  agenticIdRegistrationRepository?: AgenticIdRegistrationRepository;
   getAgent?: typeof getStoredAgent;
 };
 
@@ -64,6 +92,16 @@ export function createAgentServiceApp(options: AgentServiceAppOptions = {}) {
     (process.env.DATABASE_URL
       ? createPostgresPrecheckRepository(process.env.DATABASE_URL)
       : new UnconfiguredPrecheckRepository());
+  const teemlRepository =
+    options.teemlRepository ??
+    (process.env.DATABASE_URL
+      ? createPostgresTeeMlRepository(process.env.DATABASE_URL)
+      : new UnconfiguredTeeMlRepository());
+  const agenticIdRegistrationRepository =
+    options.agenticIdRegistrationRepository ??
+    (process.env.DATABASE_URL
+      ? createPostgresAgenticIdRegistrationRepository(process.env.DATABASE_URL)
+      : new UnconfiguredAgenticIdRegistrationRepository());
   const policyService = new PolicyLifecycleService(policyRepository);
   const precheckService = new PrecheckService(precheckRepository, {
     idGenerator: createUuidV7,
@@ -76,6 +114,28 @@ export function createAgentServiceApp(options: AgentServiceAppOptions = {}) {
       DEFAULT_AUDIT_RETENTION_DAYS,
     ),
   });
+  const teemlTimeoutMs = envPositiveInteger(
+    "ZG_TEEML_TIMEOUT_MS",
+    DEFAULT_ZERO_G_TEEML_TIMEOUT_MS,
+  );
+  const teemlSecurityProfile =
+    options.teemlSecurityProfile ?? resolveZeroGSecurityProfileFromEnv();
+  const teemlService = new TeeMlService(
+    teemlRepository,
+    options.teemlInference ?? createZeroGSemanticInferenceFromEnv(),
+    {
+      idGenerator: createUuidV7,
+      auditRetentionDays: envPositiveInteger(
+        "AUDIT_RETENTION_DAYS",
+        DEFAULT_AUDIT_RETENTION_DAYS,
+      ),
+      processingLeaseSeconds: Math.max(
+        DEFAULT_TEEML_PROCESSING_LEASE_SECONDS,
+        Math.ceil(teemlTimeoutMs / 1_000) + 30,
+      ),
+      securityProfile: teemlSecurityProfile,
+    },
+  );
   const isPolicyDatabaseConfigured = !(
     policyRepository instanceof UnconfiguredPolicyRepository
   );
@@ -97,6 +157,7 @@ export function createAgentServiceApp(options: AgentServiceAppOptions = {}) {
       options.authenticateAgentActor,
     ),
   );
+  app.use(createTeeMlRouter(teemlService, options.authenticateAgentActor));
 
   app.post("/create-agents", async (req, res) => {
     const { ownerWallet, name, type, endpoint, description } = req.body ?? {};
@@ -138,9 +199,11 @@ export function createAgentServiceApp(options: AgentServiceAppOptions = {}) {
       }
       res.status(201).json(profile);
     } catch (error) {
-      res.status(500).json({
-        error: error instanceof Error ? error.message : "create_agent_failed",
-      });
+      res
+        .status(500)
+        .json({
+          error: error instanceof Error ? error.message : "create_agent_failed",
+        });
     }
   });
 
@@ -174,9 +237,12 @@ export function createAgentServiceApp(options: AgentServiceAppOptions = {}) {
       if (error instanceof Error && error.message === "agent_not_found") {
         return res.status(404).json({ error: "not_found" });
       }
-      res.status(500).json({
-        error: error instanceof Error ? error.message : "propose_action_failed",
-      });
+      res
+        .status(500)
+        .json({
+          error:
+            error instanceof Error ? error.message : "propose_action_failed",
+        });
     }
   });
 
@@ -208,7 +274,7 @@ export function createAgentServiceApp(options: AgentServiceAppOptions = {}) {
     ) {
       return res.status(400).json({
         error:
-          "recoveryGuardianAddress must be a valid EVM address (defaults to AEGIS_RECOVERY_GUARDIAN_ADDRESS, then the agent's ownerWallet)",
+          "recoveryGuardianAddress must be a valid EVM address (defaults to the agent's ownerWallet, which must also be one)",
       });
     }
 
@@ -229,29 +295,60 @@ export function createAgentServiceApp(options: AgentServiceAppOptions = {}) {
         updatedAt: now,
       });
 
-      const protectedWallet = {
-        ...wallet,
-        walletId: walletRecord.walletId,
-        networkId: walletRecord.networkId,
-        status: "PROTECTED" as const,
-      };
-      setAgentWallet(req.params.agentId, protectedWallet);
-      res.status(201).json(protectedWallet);
+      res
+        .status(201)
+        .json({
+          ...wallet,
+          walletId: walletRecord.walletId,
+          networkId: walletRecord.networkId,
+        });
     } catch (error) {
       if (error instanceof Error && error.message === "agent_not_found") {
         return res.status(404).json({ error: "not_found" });
       }
-      res.status(500).json({
-        error: error instanceof Error ? error.message : "create_wallet_failed",
-      });
+      res
+        .status(500)
+        .json({
+          error:
+            error instanceof Error ? error.message : "create_wallet_failed",
+        });
     }
   });
 
   app.post("/agents/:agentId/register-agentic-id", async (req, res) => {
     try {
-      const profile = await registerAgenticIdHandler(req.params.agentId);
+      if (!options.authenticateAgentActor) {
+        return res.status(503).json({
+          error: "agent_auth_unconfigured",
+        });
+      }
+      const actor = await options.authenticateAgentActor(req);
+      if (
+        actor.actorType !== "AGENT" ||
+        actor.authenticatedAgentId.trim().toLowerCase() !==
+          req.params.agentId.trim().toLowerCase()
+      ) {
+        return res.status(403).json({ error: "agent_context_mismatch" });
+      }
+      if (
+        req.body !== undefined &&
+        (req.body === null ||
+          typeof req.body !== "object" ||
+          Array.isArray(req.body) ||
+          Object.keys(req.body as Record<string, unknown>).length > 0)
+      ) {
+        return res.status(400).json({ error: "unknown_property" });
+      }
+      const profile = await registerAgenticIdHandler(req.params.agentId, {
+        registrationRepository: agenticIdRegistrationRepository,
+      });
       res.status(201).json(profile);
     } catch (error) {
+      if (error instanceof PolicyEngineError) {
+        return res
+          .status(error.status)
+          .json({ error: error.code, message: error.message });
+      }
       if (error instanceof Error && error.message === "agent_not_found") {
         return res.status(404).json({ error: "not_found" });
       }
@@ -259,10 +356,12 @@ export function createAgentServiceApp(options: AgentServiceAppOptions = {}) {
         error instanceof Error &&
         error.message === "agent_wallet_not_created"
       ) {
-        return res.status(409).json({
-          error:
-            "agent must have a Safe wallet (create-wallets) before registering an Agentic ID",
-        });
+        return res
+          .status(409)
+          .json({
+            error:
+              "agent must have a Safe wallet (create-wallets) before registering an Agentic ID",
+          });
       }
       if (error instanceof HttpError) {
         return res.status(error.status).json({ error: error.message });
@@ -311,7 +410,8 @@ function envPositiveInteger(name: string, fallback: number): number {
 
 const port = process.env.AGENT_SERVICE_PORT ?? 4200;
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  createAgentServiceApp().listen(port, () =>
-    console.log(`aegis-agent-service on :${port}`),
-  );
+  const authenticateAgentActor = createEnvAgentActorAuthenticator();
+  createAgentServiceApp({
+    ...(authenticateAgentActor ? { authenticateAgentActor } : {}),
+  }).listen(port, () => console.log(`aegis-agent-service on :${port}`));
 }
