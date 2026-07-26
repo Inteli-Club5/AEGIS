@@ -32,7 +32,12 @@ export type AgentProfile = {
     status: "PROTECTED";
     owners: string[];
     threshold: number;
-    transactionHash: string;
+    transactionHash: string | null;
+    deploymentProvenance:
+      | "BROADCAST_RECEIPT"
+      | "PREDICTED_SAFE_RECONCILIATION"
+      | "LEGACY_WALLET_RECONCILIATION";
+    guardianManaged?: boolean;
   };
   agenticId?: {
     agenticId: string;

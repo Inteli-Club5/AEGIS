@@ -5,10 +5,11 @@ system described in [`AEGIS_ARCHITECTURE.md`](AEGIS_ARCHITECTURE.md) to work,
 what each one shows, which states it needs to cover, and which data it
 consumes.
 
-The data layer (`lib/api/*` + `lib/fixtures/*`) is local and self-contained
-today, with the same function signatures the real backend calls will have —
-see §4. TODO(backend): swap the body of each `lib/api/*` function for the
-real call; the screens themselves don't change.
+Private workflow/profile data continues through the AEGIS API layer. Confirmed
+and historical onchain data uses the server-only clients in
+`lib/onchain-data/*`, with The Graph GraphQL endpoints as its canonical source.
+Runtime fixtures and direct RPC/Mirror/explorer/database fallbacks are not valid
+onchain sources.
 
 ---
 
@@ -19,17 +20,17 @@ Decisions assumed here (change one and the rest of the doc follows):
 - **UI language:** English. All product documentation is in English and the
   terms are domain vocabulary (`Protected Wallet`, `Decision Receipt`,
   `co-signature`).
-- **Stack:** Next.js 16 (App Router, already installed), React 19,
-  TypeScript, Tailwind v4. Recommend adding `shadcn/ui` — the table, dialog,
-  form, tabs, and toast patterns cover almost everything here and save days.
+- **Stack:** Next.js 15 (App Router), React 19, TypeScript, Tailwind v4, and
+  the existing Scaffold-HBAR/DaisyUI component system.
 - **Theme:** dark-first. It's a crypto security/infra product; light mode is
   a later adjustment.
-- **Network:** Hedera testnet, single chain (see `decisions.md`). The network
-  selector exists visually but only has one option.
-- **Data layer:** `lib/fixtures/*` holds the fixtures; `lib/api/*` exposes
-  async functions with simulated latency (200–800ms) and the ability to force
-  an error. Screens only ever talk to `lib/api`. TODO(backend): replace each
-  function's body with the real HTTP/RPC call.
+- **Networks:** Hedera Testnet is the operational chain and 0G Galileo is the
+  Agentic ID source. Their Subgraphs remain independent and are joined only in
+  the typed dashboard client.
+- **Data layer:** static GraphQL documents plus variables query the Hedera and
+  0G Subgraphs. Private/offchain fields come from the AEGIS API and must be
+  labelled separately. Onchain loading, partial, stale, indexing-error, empty,
+  and success states are first-class.
 - **Required states:** every data screen needs `loading`, `empty`, `error`,
   and `success`. They're listed per screen below because that's exactly what
   tends to be missing when a front end ships "done."
@@ -46,11 +47,9 @@ Decisions assumed here (change one and the rest of the doc follows):
 | `Denied`      | receipt with a `DENY` verdict, or failed an AEGIS check    | red        |
 | `Pending`     | proposal awaiting verification/co-signature                | blue       |
 | `Indexing`    | executed on-chain, not yet indexed by the subgraph (§9.7)  | light blue |
-| `Fallback`    | verdict generated without 0G, signed locally (§4.2)        | amber      |
 
-The `Fallback` badge can **never** look visually identical to a real 0G
-verdict — that's an explicit architecture requirement ("never present a
-fallback verdict as a real 0G verdict").
+`TEEML_FAILED` is a technical offchain state, not a verified verdict. The
+dashboard must never render a fallback or failed call as an onchain ALLOW/DENY.
 
 ---
 
@@ -63,7 +62,6 @@ fallback verdict as a real 0G verdict").
 │
 ├── /dashboard                Overview + agent grid
 │   └── /agents/[id]          Detail (tabs: Overview | Wallet | Policies | Activity | Settings)
-│       └── /agents/[id]/wallet/migrate    Wallet migration (break-glass)
 │
 ├── /policies                 Policy list
 │   ├── /policies/new         Policy builder
@@ -73,13 +71,12 @@ fallback verdict as a real 0G verdict").
 │   └── /activity/[receiptId] Decision Receipt viewer
 │
 ├── /approvals                Co-signature queue (pending)
-├── /security                 Recovery / break-glass / signer rotation
 ├── /settings                 Operator, alerts, billing, API keys
 └── /status                   Component health (0G, co-signer, subgraph, Hedera)
 ```
 
 Global layout: fixed sidebar (Dashboard, Policies, Activity, Approvals,
-Security, Settings) + topbar with network selector, system health badge,
+Settings) + topbar with network selector, system health badge,
 notification bell, and connected account.
 
 ---
@@ -122,15 +119,16 @@ Reused in the topbar.
 
 The screen step 6 of the user flow calls "Dashboard Ready."
 
-- **KPIs:** protected agents · active policies · approved actions (24h/7d) ·
-  blocked actions · volume moved (HBAR) · fees paid to AEGIS.
-- **Health banner:** 0G online/fallback, co-signer up/down, subgraph lag.
-  Only shows up when there's degradation; clickable → `/status`.
-- **Agent list** (cards): name, type, status, protected wallet balance, last
-  action, active policy.
-- **Recent activity:** last 10 receipts (verdict, agent, destination, amount,
-  time) → click goes to S14.
-- **Chart:** approved vs. denied per day (7 days).
+- **KPIs:** Agentic IDs and other facts returned by the live 0G Subgraph;
+  TeeML validation, Safe execution, and policy-reference counts only after the
+  corresponding real Hedera events are indexed. Missing producer events render
+  an honest unavailable state, never a fabricated zero or offchain substitute.
+- **Health banner:** separate Hedera and 0G indexer freshness, lag, and indexing
+  errors. There is no TeeML-verdict fallback state.
+- **Agent list** (cards): canonical cross-chain join state, source labels, and
+  public indexed references. Private/offchain profile fields remain API data.
+- **Recent facts:** bounded Agentic ID, TeeML registry, and Safe event records
+  returned by GraphQL, with transaction/block references when available.
 
 **States:**
 
@@ -189,11 +187,11 @@ retry.
 
 ### S06 — ~~Create Protected Wallet~~ (removed from the wizard)
 
-Removed 2026-07-24: creating the protected wallet is no longer a UI step.
-The backend provisions the 2-of-3 Safe after activation (arch §3.3). The
-read-only screen showing owners/threshold/status still exists as part of S11
-(Protected Wallet Detail) — it now only reads what the backend already
-created, instead of triggering the creation.
+Removed 2026-07-24: creating the protected wallet is no longer a separate UI
+step. The policy workflow asks the backend to provision or recover the 2-of-3
+Safe before the policy commitment is signed. The read-only S11 screen shows
+the resulting owners, threshold, and status; it does not reconstruct Safe
+history from a browser RPC.
 
 ---
 
@@ -201,18 +199,17 @@ created, instead of triggering the creation.
 
 **Route:** `/onboarding?step=policy`
 
-> **Deliberate placeholder.** The policy's real schema (which fields, which
-> types, which validation rules) hasn't been defined with the backend team
-> yet. Instead of simulating a spec that could change, this screen has
-> **5 generic fields with lorem-ipsum labels** — they exist so the form has
-> shape, generates a `policyHash`, and gives devs an obvious place to swap in
-> the real fields once the spec lands. This isn't the final S07; it's this
-> screen's state until the policy has a defined contract.
+This screen implements the Policy Engine Level 1 contract. It captures one
+HBAR or fungible HTS asset, the corresponding transfer action, exact base-unit
+amount limits, optional destination restrictions, usage limits, validity,
+and the recovery guardian. The form normalizes and validates those values,
+derives the canonical `policyHash`, obtains the operator's typed-data
+signatures, and sends the versioned policy to the AEGIS API. Existing versions
+remain immutable.
 
-Behavior: fill in the 5 fields → **Create policy** → generates a placeholder
-`policyHash` from the filled content → moves straight to the next step. No
-cross-field validation or side summary in this version — that comes back once
-the real fields exist.
+Behavior: configure the enforced rules → provision/recover the protected Safe
+→ sign the policy commitment → activate the selected version. No fixture,
+browser-generated verdict, or placeholder policy hash is accepted.
 
 **States:** submission in progress · error.
 
@@ -314,12 +311,15 @@ deadline, status (`Active` / `Expired` / `Revoked` / `Draft`), truncated
 The auditable log fed by the subgraph (§5.3). Likely the most-used screen
 after the dashboard.
 
-- Filters: agent, verdict (`ALLOW`/`DENY`), period, token, destination, mode
-  (`0G` vs `fallback`), amount range.
-- Columns: timestamp, agent, action type, destination, token, amount,
-  verdict, verification mode, AEGIS fee, tx hash.
-- Expandable row with the decision's reason.
-- **CSV export** (the architecture asks for an "exportable audit log").
+- Filters are limited to fields emitted by real indexed events: agent/join
+  key, verdict, reason-code hash, policy/action/model hash, recorder, Safe,
+  period, and transaction hash as applicable.
+- Columns show source chain/Subgraph, timestamp, indexed hashes/codes, block,
+  and transaction hash. Business amount/destination/fee columns stay
+  unavailable until a sanitized producer event exists.
+- Detail views show only sanitized public hashes and structured codes. They
+  never expose a detailed agent reason, prompt, raw TeeML output, or private
+  semantic context.
 - Pagination/infinite scroll.
 - Subgraph lag indicator: "Synced 12s ago" + `Indexing` items at the top,
   optimistic, before they show up indexed (§9.7).
@@ -342,8 +342,9 @@ Key screen for auditing and for the demo. Renders the Decision Receipt from
   `Safe executed` → `Hedera payment` → `Indexed by The Graph`.
   For denied cases, the step that failed turns red and the following ones
   turn gray.
-- **Proof block:** provider, `mode: real | fallback` (with the amber notice
-  when fallback), `receiptHash`, `proofRef`, timestamp, link to the raw log.
+- **Proof block:** provider, verified evidence status, sanitized commitment,
+  timestamp, and indexed transaction/block references. Technical TeeML
+  failures stay offchain and never appear as a verified verdict.
 - **Action block:** agentId, wallet, destination, token, amount, nonce,
   deadline, `actionHash`, `policyHash` (link to the policy), chainId.
 - **AEGIS checks block** (§4.4) as a checklist: identity, policyHash, amount,
@@ -382,22 +383,13 @@ transactions, via the backend. See §6.
 
 ---
 
-### S18 — Security / Recovery (break-glass)
+### S18 — Security / Recovery (out of scope)
 
-**Route:** `/security`
-
-Covers §2.5, §3.3, and §9.2/§9.3, which are requirements, not extras.
-
-- Signer status: agent signer, AEGIS co-signer, recovery guardian — each with
-  `healthy` / `unavailable` / `compromised`.
-- **Rotate signer** — flow with confirmation and a displayed timelock.
-- **Emergency migration** — migrate funds to another wallet using the
-  guardian + the remaining signer; explicitly shows the pending
-  timelock/2FA and a countdown.
-- **Break-glass** — deactivates the current protected wallet and forces
-  migration. Confirmation dialog requiring the agent's name to be typed, with
-  an explanation of the consequences.
-- Security event history.
+Recovery, signer rotation, break-glass, insurance, coverage, payout, and wallet
+migration are explicitly outside the current product/branch scope. There is no
+`/security` route or recovery API contract in this implementation. The Safe
+guardian remains a configured owner for future recovery design only; the
+dashboard must not imply that a recovery workflow exists.
 
 ---
 
@@ -421,9 +413,11 @@ Covers §2.5, §3.3, and §9.2/§9.3, which are requirements, not extras.
 
 **Route:** `/status`
 
-Health of each dependency: 0G/TeeML (online / degraded / fallback active),
-AEGIS co-signer, Hedera testnet, subgraph (with lag in seconds), contracts
-(`PolicyRegistry`, `AgentRegistry`, `ReceiptRegistry`) with address and link.
+Health of each live dependency: 0G and Hedera Subgraphs independently, indexed
+block, observed chain head when available, lag, indexing errors, and last
+refresh. Public contract references are limited to the verified Agentic ID
+deployment and the singleton `AegisTeeValidationRegistry` after its real
+artifact exists. No nonexistent registry contract or fallback verdict is shown.
 Recent incident history.
 
 ---
@@ -460,9 +454,9 @@ Build these first; the screens are just assembly after that.
 | ------------------------------ | -------------------------------------------------------- |
 | `AppShell`                     | sidebar + topbar + content area                          |
 | `StatusBadge`                  | §0.1 vocabulary, single source of truth for colors       |
-| `VerdictBadge`                 | `ALLOW` / `DENY` / `Pending`, with a `fallback` variant  |
+| `VerdictBadge`                 | verified `ALLOW` / `DENY` or transient `Pending`         |
 | `AddressChip`                  | truncated address + copy + explorer link                 |
-| `AgentCard`                    | used on the dashboard and in the list                    |
+| `OnchainAgentCard`             | partial/complete cross-chain entity with source labels   |
 | `PolicyCard` / `PolicySummary` | policy summary reused in the builder                     |
 | `ReceiptTimeline`              | S15's 7-step timeline                                    |
 | `CheckList`                    | AEGIS's objective checks (§4.4)                          |
@@ -477,31 +471,23 @@ Build these first; the screens are just assembly after that.
 
 ---
 
-## 4. Local data layer
+## 4. Data boundaries
 
 ```
 lib/
-├── types/          AgentProfile, ProtectedWallet, Policy, DecisionReceipt, Execution
-├── fixtures/       fixtures: agents.ts, policies.ts, receipts.ts, activity.ts
-└── api/            agents.ts, policies.ts, receipts.ts, system.ts
+├── api/            private AEGIS workflow clients and same-origin routes
+├── onboarding/     non-authoritative browser draft continuity only
+├── onchain-data/   static GraphQL operations, repositories, joins, freshness
+├── policy/         Policy Engine Level 1 form/hash/workflow helpers
+└── types/          public UI and private API response types
 ```
 
-TODO(backend): this whole layer is a stand-in for the real backend. Rules
-while it is:
-
-1. Types **literally** mirror the JSONs in arch §4.1 and §4.3. If the field
-   is called `proofRef.mode`, the type has `proofRef.mode`.
-2. `lib/api/*` exports async functions (`listAgents()`, `getReceipt(id)`,
-   `proposeTransaction(payload)`) with simulated latency. Swapping fixtures
-   for a real `fetch` is changing the body of these functions, nothing more.
-3. A `SIMULATED_LATENCY_MS` and a `SIMULATED_FAILURE_RATE`, configurable per
-   env, so devs can see the loading/error states without hacks.
-4. Mutation state (create agent, create policy, propose transaction) lives
-   in memory/`localStorage` for the session, so the demo has continuity.
-5. Minimal fixtures: 3 agents (one `Protected`, one `Unprotected`, one
-   `Paused`), 4 policies (active, expired, revoked, draft), ~25 receipts
-   mixing `ALLOW`, `DENY` from 0G, `DENY` from the AEGIS check, and one
-   `fallback`.
+Confirmed and historical onchain state is read only through the two Subgraph
+GraphQL endpoints. Private/offchain workflow state is read from the AEGIS API.
+`localAgentDraftStore` preserves onboarding presentation metadata in the same
+browser after successful API calls; it is neither canonical state nor an
+onchain-history fallback. Runtime fixture datasets and simulated verdicts are
+not part of either read path.
 
 ---
 
@@ -513,7 +499,7 @@ built to act out behavior the backend will produce.
 
 | Phase | Delivery                                              | Screens                 | Status  |
 | ----- | ----------------------------------------------------- | ----------------------- | ------- |
-| 1     | Foundation — tokens, base components, types, fixtures | —                       | ✅      |
+| 1     | Foundation — tokens, base components, types, API boundaries | —                  | ✅      |
 | 2     | Entry                                                 | S01, S02                | ✅      |
 | 3     | Dashboard                                             | S03                     | ✅      |
 | 4     | Onboarding / writes                                   | S04–S08                 | ✅      |
@@ -523,35 +509,39 @@ built to act out behavior the backend will produce.
 
 ### 5.1 Per-screen contract
 
-What each screen expects from the backend. This table is where the
-integration conversation should happen — the signature lives in `lib/api/`,
-and swapping fixtures for HTTP is changing the body of these functions.
+What each screen expects from the read boundary. Confirmed onchain operations
+are named GraphQL queries in `lib/onchain-data`; private workflow operations
+remain in `lib/api`.
 
 | Screen  | Expected operation                                                                          |
 | ------- | ------------------------------------------------------------------------------------------- |
-| S03     | `listAgents()`, `listActivity({ limit })`                                                   |
+| S03     | `getOnchainOverview()`, `listOnchainAgents({ first, cursor, filters })`, `_meta` freshness  |
 | S05     | `createAgent(payload)` → `AgentProfile` (connects an existing agent, doesn't provision one) |
-| S07     | `createPolicy(agentId, fields)` → `policyHash` (`fields` is a placeholder — schema TBD)     |
+| S07     | `createPolicy(agentId, ownerWallet, PolicyRules, signer, options)` → versioned `Policy` + Safe |
 | S08     | `activateProtection(agentId, policyHash)`                                                   |
-| S10     | `getAgent(id)`, `pauseAgent(id)`                                                            |
+| S10     | `getCrossChainAgentView(id)`, plus private `getAgent(id)` enrichment when available         |
 | S11     | `getWallet(agentId)`, `rotateSigner(...)`                                                   |
 | S12/S13 | `listPolicies({ agentId })`, `getPolicy(id)`, `revokePolicy(id)`                            |
-| S14     | `listActivity({ filters, cursor })`, `exportActivityCsv(filters)`                           |
-| S15     | `getReceipt(id)` → full `DecisionReceipt` (§4.3)                                            |
+| S14     | `listTeeMLValidations({ filters, first, cursor })`                                          |
+| S15     | `getTeeMLValidation(id)` with indexed transaction/block provenance                          |
 | S16     | `listPendingApprovals()`, `cancelProposal(id)`                                              |
-| S18     | `getSignerHealth()`, `startRecovery(...)`, `breakGlass(agentId)`                            |
-| S20     | `getSystemHealth()` → 0G, co-signer, subgraph, contracts                                    |
+| S18     | Out of scope — no recovery/break-glass API in this branch                                   |
+| S20     | Subgraph `_meta`/indexing status for Hedera and 0G, with honest partial states               |
 
 ---
 
-## 6. Out of scope for this delivery
+## 6. Out of scope for the The Graph data-layer branch
 
 Recorded so it doesn't turn into an expectation:
 
-- Real signing, Safe deployment. (Wallet connection is now real
-  wagmi/RainbowKit as of 2026-07-25.)
-- Calls to 0G, to the co-signer, or to Hedera.
-- Real GraphQL queries against the subgraph.
+- Implementing the TeeML model call, co-signer, or Safe execution pipeline.
+- Creating payment/policy/execution facts when no current contract emits them.
+- Deploying unsupported networks to Subgraph Studio/The Graph Network.
+- Generating arbitrary GraphQL or adding a general-purpose Audit Copilot
+  chatbot. The implemented minimum accepts only six allowlisted 0G intents,
+  runs static read-only GraphQL operations, and cites indexed entities,
+  transactions, blocks, and freshness. Hedera-backed intents remain gated by
+  live Hedera entities.
 - Server auth/session, multi-tenant, role-based permissions.
 - "Bring your own agent" — roadmap, not this version (`decisions.md`).
 - Internationalization and light mode.
@@ -560,11 +550,12 @@ Recorded so it doesn't turn into an expectation:
   once integration happens — which is why S17 left the scope.
 
 > **Criterion used to cut a screen.** A screen only leaves if it exists
-> _only_ because the backend doesn't exist yet. Screens that render a future
-> endpoint stay, even if they currently read from local fixtures — that's
-> exactly what devs are going to plug into. By this criterion, S17 was the
-> only one removed; S15 (Receipt Viewer) stays, because it's the UI for
-> `getReceipt(id)`.
+> _only_ because the backend doesn't exist yet. Runtime fixtures are not an
+> accepted substitute for an unavailable backend or onchain event. A screen
+> may remain only with an honest unavailable/empty state and a documented
+> producer task. By this criterion, S17 was the only one removed; S15
+> (Receipt Viewer) stays because it is backed by the typed GraphQL validation
+> detail operation.
 
 ---
 

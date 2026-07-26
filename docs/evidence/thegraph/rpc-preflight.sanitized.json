@@ -1,0 +1,35 @@
+{
+  "schema": "aegis.evidence.thegraph.rpc-preflight.v3",
+  "observedAt": "2026-07-25T23:04:49-03:00",
+  "hedera": {
+    "network": "hedera-testnet",
+    "rpcPath": "self-hosted Hiero JSON-RPC Relay v0.78.1 backed by the public Testnet Mirror Node",
+    "expectedChainId": 296,
+    "relayReadiness": "pass",
+    "repeatedBlockTransactionReceiptConsistency": "fail: transaction provenance did not match the recent source block",
+    "sampleTransactionHash": "0xdc5cb9bc79086b9dd93964e44cbb2126ea8086c8f74ae570429d03c131971315",
+    "sourceBlockNumberHex": "0x24ad1c4",
+    "registryArtifact": "absent",
+    "terminalMarker": "HEDERA_GRAPH_RPC_BLOCKED",
+    "overall": "fail",
+    "limitation": "Relay process health is insufficient: transaction provenance for a transaction listed by a recent block was not internally consistent. A dedicated current Mirror Node backend is required."
+  },
+  "zeroG": {
+    "network": "0g-galileo",
+    "expectedChainId": 16602,
+    "observedChainId": 16602,
+    "recentReceiptWindow": "pass: 8 receipts across all 8 non-empty blocks in the complete 64-block window",
+    "observedHeadBlockHex": "0x2bdbc30",
+    "headRpcMethods": "pass",
+    "deploymentAddress": "0x2700F6A3e505402C9daB154C5c6ab9cAEC98EF1F",
+    "deploymentBlock": 23544364,
+    "deploymentTransactionHash": "0xbdd5f9d5c4f3086c814e02be0757650f553a02a46f0341e6dea96d1eed2f7557",
+    "deploymentTransactionRepeatedReads": "pass: transaction and receipt were identical across three reads",
+    "eth_getCode_latest": "pass",
+    "eth_getCode_historical": "warning: historical state at the deployment block returned a missing-trie response",
+    "eventOnlyCompatibility": "allowed only because the mappings perform no eth_call; live Graph Node sync remains decisive",
+    "knownAegisEvidence": "pass: token 102 successful receipt, Transfer log, and source block",
+    "overall": "pass"
+  },
+  "containsSecrets": false
+}

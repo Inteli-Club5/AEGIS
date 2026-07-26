@@ -41,13 +41,6 @@ export class HttpError extends Error {
   }
 }
 
-// TODO(policy-registry): replace with the real on-chain PolicyRegistry hash
-// once that contract exists. Fixed placeholder so the 0G Agentic ID
-// registration can be exercised end-to-end before PolicyRegistry lands.
-const PLACEHOLDER_POLICY_HASH = keccak256(
-  stringToHex("aegis-default-policy-v0"),
-);
-
 function getDashboardUrl(): string {
   let url: URL;
   try {
@@ -77,6 +70,7 @@ function getDashboardUrl(): string {
 
 export type RegisterAgenticIdDependencies = {
   registrationRepository?: AgenticIdRegistrationRepository;
+  policyHash?: Hex;
   now?: () => number;
 };
 
@@ -121,7 +115,10 @@ async function performAgenticIdRegistration(
     throw new HttpError(503, "agentic_id_registration_store_unavailable");
   }
 
-  const request = buildNormalizedRegistrationRequest(profile);
+  const request = buildNormalizedRegistrationRequest(
+    profile,
+    requirePolicyHash(dependencies.policyHash),
+  );
   const expectedContractAddress = getExpectedAgenticIdContractAddress();
   const expectedChainId = getExpectedAgenticIdChainId();
   request.expectedAgenticIdContractAddress = expectedContractAddress;
@@ -312,6 +309,7 @@ type SuccessfulAgenticIdResponse = {
 
 function buildNormalizedRegistrationRequest(
   profile: AgentProfile,
+  policyHash: Hex,
 ): NormalizedRegistrationRequest {
   const aegisAgentId = profile.agentId.trim().toLowerCase();
   const agentName = profile.name.trim();
@@ -333,8 +331,22 @@ function buildNormalizedRegistrationRequest(
     agentType,
     capabilities: normalizeAgentCapabilityIds(profile.toolNames),
     agentWalletAddress: getAddress(profile.safeAddress!),
-    policyHash: PLACEHOLDER_POLICY_HASH,
+    policyHash,
   };
+}
+
+function requirePolicyHash(value: Hex | undefined): Hex {
+  if (
+    typeof value !== "string" ||
+    !/^0x[0-9a-fA-F]{64}$/.test(value) ||
+    /^0x0{64}$/i.test(value)
+  ) {
+    throw new HttpError(
+      409,
+      "an active non-zero policyHash is required for Agentic ID registration",
+    );
+  }
+  return value.toLowerCase() as Hex;
 }
 
 function getExpectedAgenticIdContractAddress(): `0x${string}` {

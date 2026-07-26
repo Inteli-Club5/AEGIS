@@ -6,7 +6,10 @@ import {
   stringToHex,
   type Hex,
 } from "viem";
-import { registerAgenticId } from "./registerAgenticId.js";
+import {
+  registerAgenticId as registerAgenticIdWithoutPolicy,
+  type RegisterAgenticIdDependencies,
+} from "./registerAgenticId.js";
 import { getAgent, saveAgent } from "./store.js";
 import type {
   AgenticIdRegistrationClaim,
@@ -29,6 +32,16 @@ const originalContract = process.env.ZERO_G_AGENTIC_ID_CONTRACT_ADDRESS;
 const originalChainId = process.env.ZERO_G_GALILEO_CHAIN_ID;
 const originalInternalToken = process.env.AEGIS_AGENTIC_ID_INTERNAL_TOKEN;
 const INTERNAL_TOKEN = "agentic-id-test-token-32-characters-minimum";
+
+function registerAgenticId(
+  agentId: string,
+  dependencies: RegisterAgenticIdDependencies = {},
+) {
+  return registerAgenticIdWithoutPolicy(agentId, {
+    policyHash: POLICY_HASH,
+    ...dependencies,
+  });
+}
 
 function storedAgent(
   agentId: string,
@@ -183,6 +196,27 @@ afterEach(() => {
 });
 
 describe("registerAgenticId trusted semantic profile boundary", () => {
+  it("rejects registration without an active policy hash before minting", async () => {
+    const agentId = "agent-registration-no-policy";
+    const profile = storedAgent(agentId);
+    const repository = new FakeRegistrationRepository();
+    saveAgent(profile, "private-key");
+    let fetchCalls = 0;
+    mock.method(globalThis, "fetch", async () => {
+      fetchCalls += 1;
+      return validResponse(profile);
+    });
+
+    await assert.rejects(
+      registerAgenticIdWithoutPolicy(agentId, {
+        registrationRepository: repository,
+      }),
+      /active non-zero policyHash is required/,
+    );
+    assert.equal(fetchCalls, 0);
+    assert.equal(repository.claimCalls, 0);
+  });
+
   it("validates the response commitments and persists only a normalized durable profile", async () => {
     const agentId = "agent-registration-success";
     const profile = storedAgent(agentId);

@@ -96,7 +96,7 @@ Usage rules:
 ## 3. Full palette
 
 The four colors above are the base, but aren't enough: the interface needs to
-communicate `Allowed` / `Denied` / `Fallback` / `Pending` (see §0.1 of
+communicate `Allowed` / `Denied` / `Degraded` / `Pending` (see §0.1 of
 `screen-specification.md`) and needs secondary text. The tokens below are derived
 from that base, kept desaturated so as not to break the sense of calm.
 
@@ -393,10 +393,9 @@ card (KPI, agent summary): `xl` radius, 32px padding. Card on top of `surface`
 Pill (`radius-full`), 24px height, `0 10px` padding, `mono-sm` at 500,
 `bg: *-soft`, `color: *-fg`, 12px icon on the left.
 
-The `Fallback` badge gets a **dashed** 1px border in `warning` in addition to
-the amber background. It's the only badge with a different shape treatment,
-precisely because the architecture requires that a fallback verdict never be
-mistaken for a real 0G verdict (§4.2 of `AEGIS_ARCHITECTURE.md`).
+The `Degraded` badge gets a **dashed** 1px border in `warning` in addition to
+the amber background. It describes source/indexer availability only. It must
+never be rendered as an ALLOW/DENY verdict or imply a local TeeML fallback.
 
 ### 8.4 Forms
 
@@ -537,7 +536,7 @@ What we adopt from it — the structure is organized **by capability**, with
 self-contained, copy-paste-ready examples going from fundamental to advanced:
 
 - **Group by capability, not by file type.** A feature carries its
-  components, hooks, types, and fixtures together, instead of spreading them
+  components, hooks, and types together, instead of spreading them
   across global `components/`, `hooks/`, and `types/` folders.
 - **Self-contained module.** Each feature should be readable without opening
   five folders — it's what makes the reference notebooks work in isolation.
@@ -550,13 +549,14 @@ components/
   ui/                     primitives: Button, Card, Badge, Input, Table, Dialog
   layout/                 AppShell, Sidebar, Topbar
 features/
-  agents/                 components/ · hooks/ · types.ts · fixtures.ts
+  agents/                 components/ · hooks/ · types.ts
   policies/
   receipts/
   simulator/
 lib/
-  api/                    swappable data layer — TODO(backend): swap fixtures for real calls
-  fixtures/                local fixtures — TODO(backend): remove once the backend exists
+  api/                    private/offchain AEGIS API clients
+  onchain-data/           static GraphQL queries, typed clients, joins, freshness
+  onboarding/             browser-only draft continuity; never an onchain fallback
   types/                  shared contracts (mirror the architecture)
   utils/                  formatters: address, amount, date, hash
 styles/                   tokens beyond globals.css, if needed
@@ -576,19 +576,19 @@ docs/                     this document and the others
   `lib/api` in the route's Server Component.
 - Every `components/ui` primitive accepts `className` and forwards `ref`.
 
-### 13.2 When real AI enters the picture
+### 13.2 AI analysis boundary
 
-There's no AI feature in the front end yet (the agent is provisioned by the
-backend), but when there is — natural-language explanation of a verdict,
-policy-builder assistant — the reference's practices apply:
+The minimum Audit Copilot is a constrained read-only analysis feature over
+live Subgraph GraphQL results. Any future model-based phrasing or policy
+assistant must preserve these practices:
 
 - API key **never** on the client. The call goes out from a Route Handler or
   Server Action.
 - Prompts in versioned files (`lib/ai/prompts/`), not in a template string in
   the middle of a component.
 - Structured responses with a typed schema, validated before rendering.
-- Streaming with a visible "generating" state, and always a deterministic
-  fallback if the model fails — same principle as the 0G fallback.
+- A model failure is explicit. It must never return a local verdict, fixture,
+  RPC result, or database record as a substitute for indexed evidence.
 - Model output is clearly labeled as AI-generated. In an audit product, model
   text can't pass for on-chain data.
 

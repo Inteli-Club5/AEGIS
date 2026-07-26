@@ -1,0 +1,58 @@
+{
+  "schema": "aegis.evidence.thegraph.agentic-id-event.v2",
+  "observedAt": "2026-07-25T21:43:57-03:00",
+  "network": "0g-galileo",
+  "chainId": 16602,
+  "contract": "0x2700F6A3e505402C9daB154C5c6ab9cAEC98EF1F",
+  "contractDeployment": {
+    "transactionHash": "0xbdd5f9d5c4f3086c814e02be0757650f553a02a46f0341e6dea96d1eed2f7557",
+    "transactionStatus": "success",
+    "blockNumber": 23544364,
+    "blockHash": "0x4607e55df9cf6928f80545bcbdc1b7e195b772c2babcb6c499fdbef4a498d49f",
+    "blockTimestamp": "2026-03-18T07:01:31.000Z",
+    "deployer": "0xaD8518cF3510eB2EBb843Eb51D209A5f98B768D2",
+    "receiptContractAddress": "0x2700F6A3e505402C9daB154C5c6ab9cAEC98EF1F"
+  },
+  "verifiedSource": {
+    "builderHub": "https://build.0g.ai/agentic-id",
+    "repository": "https://github.com/0gfoundation/agenticID-examples",
+    "commit": "fd3c58306bf45c42888d4acda949bac0d3d64522",
+    "sourcePath": "examples/01-mint-and-manage/contracts/AgenticID.sol",
+    "sourceSha256": "4d982fddb0472c4125c92f94218281d2db12fd719f7191efb584de1d19f46141",
+    "compiler": "solc 0.8.27",
+    "evmVersion": "cancun",
+    "optimizerRuns": 200,
+    "liveRuntimeBytes": 14442,
+    "compiledRuntimeBytes": 14442,
+    "metadataStrippedRuntimeMatch": true,
+    "canonicalFullAbiSha256": "190563da5a4a847b5118415fbb587f939d96eb6cbcb29e86ed1734c48d9e9e83"
+  },
+  "minimalEventAbi": {
+    "path": "subgraphs/aegis-0g/abis/AgenticID.json",
+    "sha256": "f32a9ef069db7e7f7d76c8db105d238f91fedc3d848b262aff7b0e6d2f598c19",
+    "events": [
+      "Transfer",
+      "UsageAuthorized",
+      "UsageRevoked",
+      "DelegateAccessSet"
+    ],
+    "dynamicPrivateOrDescriptiveDataIndexed": false
+  },
+  "aegisMint": {
+    "tokenId": "102",
+    "owner": "0x7F9FD465790184955cc9B8bf3B5e0AAabdfD8c97",
+    "transactionHash": "0x9f132d14dd4071eea5b7bb29eee83d76631b00c0aab8234c3fefddf093a69a51",
+    "transactionStatus": "success",
+    "blockNumber": 45806767,
+    "blockHash": "0x95d36d8c82e9a4e26c53971fb85e61ac48a2012cad240eb57632f731e0a86285",
+    "blockTimestamp": "2026-07-25T00:42:05.000Z",
+    "event": "Transfer",
+    "from": "0x0000000000000000000000000000000000000000",
+    "logIndex": 0
+  },
+  "subgraphStartBlock": 23544364,
+  "subgraphStartBlockBasis": "verified AgenticID contract creation block; the AEGIS mint remains separate evidence at block 45806767",
+  "source": "official 0G Builder Hub and repository, ChainScan contract creation metadata, and repeated eth_getTransactionReceipt/eth_getBlockByNumber verification against 0G Galileo RPC",
+  "containsPrivateMetadata": false,
+  "containsSecrets": false
+}

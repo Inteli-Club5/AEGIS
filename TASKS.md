@@ -1,6 +1,6 @@
 # AEGIS Tasks
 
-Branch task list for `feat/policy-engine-level-1`. Keep the top unchecked item as
+Branch task list for `feat/thegraph-aegis-onchain-data-layer`. Keep the top unchecked item as
 the current focus for the next agent session.
 
 > On this branch, `docs/aegis-current-scope.md` overrides older architecture,
@@ -8,6 +8,31 @@ the current focus for the next agent session.
 > Level 1 scope.
 
 ## Current Focus
+
+Canonical continuation details, exact commands, evidence requirements, and
+acceptance criteria live in
+`docs/handoffs/THEGRAPH_INTEGRATION_CONTINUATION.md`. Do not reopen decisions
+recorded there.
+
+- [ ] **TG-DEPLOY-001:** provide the ignored exact root file
+  `tee-smartcontract-validation`, then perform and verify the singleton Hedera
+  Testnet registry deployment.
+- [ ] **TG-HEDERA-RPC-001:** operate the documented dedicated Mirror Node ->
+  Hiero JSON-RPC Relay -> Graph Node path until the strict repeated-read
+  preflight ends in `HEDERA_GRAPH_RPC_READY`, then synchronize `aegis-hedera`.
+- [ ] **TG-TEEML-E2E-001:** connect an eligible production-private, sealed and
+  byte-for-byte verified 0G TeeML artifact to the registry writer, then prove
+  TeeML -> registry -> Hedera Subgraph -> GraphQL -> dashboard end to end. The
+  live hackathon TeeTLS profile is explicitly not production-authorizing.
+- [ ] **TG-EVENTS-001:** add the documented sanitized business execution/payment
+  producer event before enabling those dashboard views.
+- [ ] **TG-AUDIT-COPILOT-001:** add Hedera-backed constrained intents after their
+  live indexed entities exist; keep the working 0G-only minimum read-only.
+- [x] **TG-AGENTIC-ID-001:** recovered and verified the Agentic ID deployment,
+  source/runtime provenance, deployment block, and fixed-width event ABI.
+- [x] **Self-hosted Graph Node eligibility:** HUMAN-CONFIRMED / RESOLVED.
+
+## TeeML Follow-up Decisions
 
 - [ ] Decide whether AEGIS should accept any agent/user free-text description
   of intent into the TeeML flow. Today it deliberately does not: the
@@ -75,6 +100,8 @@ the current focus for the next agent session.
   documentation, and full local tests. Router testnet funding is now
   available and the real request reaches the provider; live evidence remains
   externally blocked because its signed-response endpoint returns HTTP 400.
+## Deferred Existing Frontend QA
+
 
 - [ ] Manual real-browser / real-MetaMask QA pass - everything below was
   built and verified via `check-types`/`lint`/unit tests only, since it all
@@ -111,6 +138,16 @@ the current focus for the next agent session.
 
 ## Done
 
+- [x] 2026-07-25: Completed the The Graph onchain read-layer core on
+  `feat/thegraph-aegis-onchain-data-layer`: singleton sanitized TeeML registry
+  contract and crash-safe exclusive-env deployment workflow; separate Hedera
+  and 0G Subgraphs; self-hosted Graph Node stack; typed GraphQL-only dashboard
+  reads, filters, pagination, freshness, cross-chain partial joins, and live
+  0G Audit Copilot intents. The real 0G deployment is healthy/synced; all
+  remaining external dependencies and exact continuation commands are in
+  `docs/handoffs/THEGRAPH_INTEGRATION_CONTINUATION.md`. Removed runtime fixture,
+  direct-RPC read, placeholder Agentic-ID policy, and unused starter-service
+  paths. Added durable cross-replica Safe creation checkpoints and migrations.
 - [x] 2026-07-25: Fixed a stale-wallet-after-disconnect bug: a specific real
   address with a `0.0` HBAR balance kept resurfacing after disconnect, even
   though it wasn't the user's actual connected account. Root cause (found
@@ -136,7 +173,7 @@ the current focus for the next agent session.
   agent" button in a new Danger zone section on the agent detail page,
   behind a confirm dialog reusing the existing `ConfirmDialog`, calling a
   new `deleteAgent()` (`lib/api/agents.ts`) that hits the backend then clears
-  the agent from the local dashboard cache (`lib/fixtures/store.ts`) and
+  the agent from the local onboarding draft cache (`lib/onboarding/localAgentDraftStore.ts`) and
   redirects to `/dashboard`. `check-types`, `lint`, and all 60
   `services/agent-service` unit tests pass.
 - [x] 2026-07-25: Fixed three navigation papercuts the user hit while testing

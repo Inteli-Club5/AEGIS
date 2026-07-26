@@ -463,6 +463,7 @@ export class TeeMlService {
         artifact.verdict === "ALLOW" &&
         artifact.securityProfile === PRODUCTION_PRIVATE_TEEML_PROFILE
       ) {
+        // TODO(TG-TEEML-E2E-001): Submit this sanitized artifact through VerifiedTeeMlRegistryWriter only after production-private TeeML provides sealed, byte-for-byte verified evidence and TG-DEPLOY-001 supplies the singleton registry plus runtime recorder. Remove this TODO after the successful receipt is durably persisted and the registry -> Hedera Subgraph -> GraphQL E2E passes for both ALLOW and DENY without a fallback path.
         // SECURITY(production-handoff): The future signer must accept only a production-private-teeml artifact with sealedInference=true. A hackathon TeeTLS artifact is demonstration evidence and must never authorize production execution.
         // TODO(final-policy-recheck): Re-run the deterministic policy evaluation with a fresh usage snapshot after TeeML approval and before any DecisionReceipt or Safe execution authorization.
         // TODO(agent-verifier-signer): After the TeeML artifact is verified and the final deterministic policy recheck succeeds, build and sign the final DecisionReceipt with the dedicated agentVerifierSigner. Never sign the raw model output directly.

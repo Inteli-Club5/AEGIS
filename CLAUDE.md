@@ -4,8 +4,9 @@
 
 ## AEGIS
 
-This repo is AEGIS, built at ETHGlobal Lisbon on top of scaffold-hbar (Hedera)
-+ the 0G Compute starter kit + a Safe-based co-signer skeleton.
+This repo is AEGIS, built at ETHGlobal Lisbon on top of scaffold-hbar (Hedera),
+with the 0G Compute starter kit used as a public reference and a Safe-based
+co-signer skeleton. The unintegrated 0G starter service is not runtime code.
 
 - `PLAYBOOK.md` - workflow, ownership lanes, commit/DEVLOG conventions (source of truth).
 - `TASKS.md` - each owner's priority-ordered task list; top unchecked item = current focus.
@@ -17,7 +18,7 @@ This repo is AEGIS, built at ETHGlobal Lisbon on top of scaffold-hbar (Hedera)
 ```
 packages/nextjs             dashboard (Next.js + RainbowKit + wagmi)
 packages/foundry            contracts (PolicyRegistry, AgentVault...)
-services/decision-verifier  0G TEE inference -> signed ALLOW/DENY
+services/agent-service      policy engine + verified TeeML registry writer port
 services/cosigner           policy re-check + co-signature (Safe SDK)
 ```
 

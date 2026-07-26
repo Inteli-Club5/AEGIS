@@ -1,0 +1,95 @@
+{
+  "schema": "aegis.evidence.thegraph.audit-copilot.v2",
+  "observedAt": "2026-07-26T01:24:11.000Z",
+  "runtime": "Next.js development server on loopback with the real self-hosted aegis-0g GraphQL endpoint",
+  "source": {
+    "subgraph": "aegis-0g",
+    "network": "0g-galileo",
+    "deployment": "QmaVs13eKCFLV9MAoZNkb4S5oqZ7ToV2nyVPu6kGHQqbY9",
+    "indexedBlock": 45984667,
+    "hasIndexingErrors": false,
+    "stale": false
+  },
+  "httpChecks": [
+    {
+      "intent": "AGENTIC_ID_REGISTRY_SUMMARY",
+      "status": 200,
+      "result": "111 identities, 111 active, 111 mints, 10 transfers, 0 burns",
+      "aggregateCitation": {
+        "provenance": "INDEXED_ENTITY_SNAPSHOT",
+        "entityType": "ZeroGProtocolSummary",
+        "entityId": "global",
+        "transactionHash": null,
+        "blockNumber": "45984667",
+        "meaning": "The aggregate was read from this summary entity snapshot at the indexed _meta block."
+      },
+      "transactionEvidence": {
+        "provenance": "EVENT_TRANSACTION",
+        "entityType": "AgenticIdentity",
+        "entityId": "0x1049cf8e25d177d2df7203f6d41b95565a25e6dbe359337fb3013e1f8aa1616a",
+        "transactionHash": "0x4fc86fe0747d7f1f8f4426fd082cf14c1f59baa91dfc3806fdd4921f9e8c082e",
+        "blockNumber": "45981165",
+        "meaning": "Separately required transaction-backed registry activity; it does not prove the aggregate totals."
+      }
+    },
+    {
+      "intent": "RECENT_AGENTIC_IDS",
+      "status": 200,
+      "citationType": "AgenticIdentity"
+    },
+    {
+      "intent": "AGENTIC_ID_OWNER_ACTIVITY",
+      "status": 200,
+      "citationType": "AgenticIdentity"
+    },
+    {
+      "intent": "RECENT_OWNERSHIP_CHANGES",
+      "status": 200,
+      "citation": {
+        "entityType": "AgenticIdentityOwnerChange",
+        "entityId": "0x4fc86fe0747d7f1f8f4426fd082cf14c1f59baa91dfc3806fdd4921f9e8c082e00000000",
+        "transactionHash": "0x4fc86fe0747d7f1f8f4426fd082cf14c1f59baa91dfc3806fdd4921f9e8c082e",
+        "blockNumber": "45981165"
+      }
+    },
+    {
+      "intent": "RECENT_USAGE_AUTHORIZATIONS",
+      "status": 200,
+      "citation": {
+        "entityType": "AgenticIdentityAuthorization",
+        "entityId": "0x80d1fcb2263a1722966095f1bcde6eedf85c97bd231c849f377648ccf82ee1b400000000",
+        "transactionHash": "0x80d1fcb2263a1722966095f1bcde6eedf85c97bd231c849f377648ccf82ee1b4",
+        "blockNumber": "33444554"
+      }
+    },
+    {
+      "intent": "RECENT_DELEGATIONS",
+      "status": 200,
+      "citation": {
+        "entityType": "AgenticIdentityDelegation",
+        "entityId": "0xc77fd924a93f65dabdcc7ad285850f21fad206b39106ef84b54e036ea672377100000000",
+        "transactionHash": "0xc77fd924a93f65dabdcc7ad285850f21fad206b39106ef84b54e036ea6723771",
+        "blockNumber": "31258157"
+      }
+    },
+    {
+      "intent": "UNSUPPORTED_PRIVATE_TEEML_PROMPT",
+      "status": 400,
+      "result": "rejected before any unsupported query"
+    }
+  ],
+  "constraintsVerified": {
+    "staticGraphqlOperations": true,
+    "boundedLimit": true,
+    "readOnly": true,
+    "entityTransactionBlockCitations": true,
+    "aggregateSnapshotAttribution": true,
+    "staleOrErroredAnswersFailClosed": true,
+    "bodyByteLimitIndependentOfContentLength": true,
+    "directRpc": false,
+    "privateDatabase": false,
+    "runtimeFixture": false,
+    "privateTeeMLData": false
+  },
+  "containsSecrets": false
+}

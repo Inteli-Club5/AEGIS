@@ -821,7 +821,7 @@ oldest at the top, newest at the bottom. Use English AM/PM timestamps. Format:
 - blockers: none.
 - interfaces touched: none.
 
-## 2026-07-25 10:07 AM - Codex - Policy Engine Level 1 privacy hardening
+## 2026-07-25 02:07 PM - Codex (Leunam) - Policy Engine Level 1 privacy hardening
 - did: inspected the Phase 3/4 private-context path and removed persisted
   private action payload storage from precheck orchestration. The precheck
   request now requires normalized `semanticContext`, calculates
@@ -849,7 +849,7 @@ oldest at the top, newest at the bottom. Use English AM/PM timestamps. Format:
   `semantic_context_hash` only for private semantic context, with cleanup
   migration `0002_precheck_semantic_context_privacy.sql`.
 
-## 2026-07-25 10:45 AM - Codex - Policy Engine Level 1 guided validation
+## 2026-07-25 02:45 PM - Codex (Leunam) - Policy Engine Level 1 guided validation
 - did: completed the guided Step 7 validation pass for the branch diff against
   `main` and covered the classified gaps in this step. Added focused regression
   coverage for lifecycle payload validation, operator auth normalization and
@@ -887,7 +887,7 @@ oldest at the top, newest at the bottom. Use English AM/PM timestamps. Format:
   migration upgrade semantics for legacy private precheck columns were
   clarified.
 
-## 2026-07-25 11:03 AM - Codex - Policy Engine Level 1 PR readiness
+## 2026-07-25 03:03 PM - Codex (Leunam) - Policy Engine Level 1 PR readiness
 - did: completed Step 8 PR-readiness cleanup. Investigated the remaining
   Drizzle metadata hygiene gap by running `drizzle-kit generate` against
   temporary migration folders, confirmed the missing `0001`/`0002` snapshots
@@ -1741,3 +1741,218 @@ oldest at the top, newest at the bottom. Use English AM/PM timestamps. Format:
   and no stale account/balance ever reappears.
 - blockers: none.
 - interfaces touched: none.
+
+## 2026-07-25 12:35 AM - Codex (Leunam) - The Graph onchain read layer
+
+- did: created and worked only on `feat/thegraph-aegis-onchain-data-layer`
+  after confirming that the starting worktree was clean. Audited the existing
+  Foundry/Hardhat, Hedera, Safe, 0G Agentic ID, TeeML, policy-engine, dashboard,
+  Docker, PostgreSQL, and identifier boundaries before implementation. Added a
+  non-upgradeable singleton `AegisTeeValidationRegistry` with final admin and
+  recorder roles, immutable request idempotency, fixed-size sanitized fields,
+  ALLOW/DENY-only verdicts, a domain-bound `recordHash`, and the exact indexed
+  event. Added the strict root-only `tee-smartcontract-validation` loader,
+  one-time deploy/verify workflow, sanitized public-artifact generation,
+  example file, ignore rules, typed backend recorder port/adapter, and the
+  required real-TeeML integration TODO. No deployment transaction was
+  broadcast because the exact ignored secret file was not present; generic
+  `.env` files were never used as a fallback.
+- did: added isolated local Graph Node v0.44.0, PostgreSQL 16, and IPFS 0.34.1
+  services with loopback-only ports, persistent volumes, and healthchecks.
+  Added complete RPC preflight, create/deploy/status/smoke/E2E scripts and
+  strengthened receipt checking to inspect every transaction in the full
+  64-block window instead of accepting a small valid sample. Implemented
+  separate Hedera and 0G Subgraphs with generated ABIs/manifests, deterministic
+  event IDs, immutable facts, summaries, dynamic Safe templates, Matchstick
+  tests, official linter integration, and no HTTP, contract-call, private-data,
+  or cross-chain mapping behavior. The real 0G Agentic ID Subgraph was deployed
+  locally at deployment `QmcUzJnzLLaHoqFDKi2YAS7j13KMRvwAP99u4VP94bPsaj`,
+  synchronized successfully, and returned the independently verified token 102
+  mint. Hedera remains unindexable through the tested public Hashio endpoint:
+  the live Graph Node sees receipt block-hash mismatches and the final preflight
+  found another recent transaction with no receipt.
+- did: replaced confirmed/historical dashboard reads with server-only GraphQL
+  clients and same-origin APIs. Added static variable-based queries, cursor
+  pagination, block-pinned cross-chain snapshots, exact filters, search,
+  source-specific freshness/errors, overview metrics, unified agent views,
+  0G identity views, TeeML validation views, Safe execution views, policy
+  views, detail routes, and an explicit unsupported payment state because no
+  real business-payment event exists. Cross-chain joins remain honest under
+  missing sources, duplicate candidates, truncation, mismatches, source
+  failures, and records beyond the first 100 rows. Removed the Mirror Node
+  proxy/hook and runtime fixture/local-storage/RPC fallbacks from the onchain
+  read model. The only remaining `useBalance` is connected-wallet UX, outside
+  confirmed history. A production HTTP smoke returned the real 0G token 102
+  through GraphQL while visibly marking Hedera unavailable and the relationship
+  ambiguous.
+- did: documented official The Graph sources and installed versions, all six
+  recommended Subgraph skill files, architecture and CROPS boundaries,
+  cross-chain join semantics, the named query catalog, privacy rules, current
+  network limitations, sponsor-eligibility uncertainty, and the complete
+  future-only Audit Copilot/Subgraph MCP boundary. Added sanitized evidence for
+  the Graph Node stack, RPC behavior, real 0G deployment/sync/query, Hedera
+  blocker, and production dashboard GraphQL response. The mandatory human-style
+  Grumpy review was rerun after pagination fixes and reported no remaining HIGH
+  or MEDIUM frontend finding.
+- validation: registry Solidity tests passed 19/19; loader/deploy/privacy tests
+  passed 18/18; agent-service tests passed 70/70; Matchstick passed 3/3 per
+  Subgraph; official Subgraph Linter reported no issues; Subgraph codegen and
+  builds passed; the 0G preflight, deploy, smoke, status, and E2E passed against
+  real indexed data; frontend tests passed 83/83, typecheck passed, aggregate
+  lint passed, production build passed, Docker Compose config passed, and
+  `git diff --check` passed. The deploy command failed closed without printing
+  provider or secret details, Hedera preflight/deploy/smoke/E2E failed honestly,
+  and no fake artifact or fallback was generated.
+- next: provide the exact ignored root `tee-smartcontract-validation` file for
+  the single Hedera Testnet registry deployment; replace Hashio with a
+  Graph-Node-compatible Hedera RPC and synchronize the generated Hedera
+  manifest; connect the real verified 0G/TeeML response to the recorder port;
+  prove TeeML -> Hedera -> GraphQL -> dashboard end to end; obtain The Graph
+  mentor confirmation that local Graph Node mode is prize-eligible; and perform
+  final real-browser review.
+- blockers: the dedicated deploy file and resulting registry artifact/address/
+  transaction/start block are absent; the tested Hedera RPC does not preserve
+  Graph-Node-required block/receipt consistency; the real TeeML verified-result
+  integration is not merged; and local-node prize eligibility requires human
+  sponsor confirmation. No commit was created.
+- interfaces touched: new registry function/event and public deployment
+  artifact contract; new `TeeValidationRegistryRecorder` backend port; new
+  Hedera and 0G GraphQL schemas/endpoints; new server-only dashboard onchain
+  APIs; new `THEGRAPH_HEDERA_SUBGRAPH_URL`, `THEGRAPH_0G_SUBGRAPH_URL`, optional
+  `THEGRAPH_GATEWAY_API_KEY`, and local Graph Node status settings; exact
+  deployment variables remain isolated to `tee-smartcontract-validation`.
+
+## 2026-07-25 11:40 PM -03 - Codex - The Graph core completion and review hardening
+
+- did: completed the branch-level The Graph core and superseded the earlier
+  point-in-time entry above. Self-hosted Graph Node eligibility is now
+  **HUMAN-CONFIRMED / RESOLVED**. The reproducible loopback-only stack remains
+  Graph Node `v0.44.0`, PostgreSQL 16, IPFS `v0.34.1`, and the read-only Hiero
+  JSON-RPC Relay `v0.78.1`. The separate 0G Subgraph is healthy/synced at CID
+  `QmaVs13eKCFLV9MAoZNkb4S5oqZ7ToV2nyVPu6kGHQqbY9`; the final live GraphQL
+  sample at block `45993590` returned 117 identities/mints, 16 transfers, 133
+  owner-change facts, 14 authorization events, two delegation sets, and the
+  independently verified AEGIS token 102 mint. These are point-in-time full
+  configured-registry counts, not a claim that every identity belongs to AEGIS.
+- did: retained the singleton non-upgradeable `AegisTeeValidationRegistry`,
+  fixed-size sanitized event/record hash, role separation, duplicate-request
+  rejection, generated ABI flow, artifact-driven Hedera manifest generation,
+  and the exact root-only `tee-smartcontract-validation` loader. Hardened the
+  deployment path with owner-only regular-file checks, a pre-broadcast pending
+  journal, deterministic raw-transaction recovery, conclusive status-zero
+  failure acknowledgement, explicit hash-bound redeploy authority, and an
+  isolated chain-ID-296 Anvil integration that deploys, verifies roles/code,
+  and records a separately signed `AUTHORIZED CONTRACT/INDEXING TEST RECORD`.
+  The exact production secret file is still absent, so no real Hedera registry
+  address, transaction, block, or deployment artifact is claimed and no
+  broadcast was attempted.
+- did: finalized the separate Hedera/0G schemas, deterministic event-only
+  mappings, immutable facts, Safe dynamic data source, full Agentic ID event
+  surface, generated bindings, Matchstick tests, official linter gates, strict
+  repeated-read preflights, deploy/status/smoke/E2E scripts, typed static
+  GraphQL clients, cursor pagination, exact filters/search, `_meta` freshness,
+  partial cross-chain joins, and GraphQL-only dashboard APIs/pages. The live
+  read-only Audit Copilot now has six constrained 0G intents with indexed
+  entity/transaction/block citations; Hedera-backed intents remain explicitly
+  gated on real Hedera entities. No free-form GraphQL, RPC read, explorer,
+  fixture, or private-database fallback was added.
+- did: fixed every independent review finding. Safe creation now uses a durable
+  PostgreSQL state machine (`INITIALIZED`, `PREPARED`, `BROADCAST`, `FAILED`,
+  `COMPLETED`), deterministic salt/address, a unique `(agent_id, network_id)`
+  reservation, a dedicated advisory-lock pool, restart/replica reconciliation,
+  a legacy-wallet pre-broadcast gate, nullable transaction provenance when a
+  deployed Safe must be reconciled without inventing a hash, and explicit retry
+  only after a conclusively reverted receipt. Guardian provenance is source-
+  based and immutable before retry. Drizzle migrations `0003` and `0004` add
+  the durable model and FAILED checkpoint. Removed the unused decision-verifier
+  starter service, obsolete dashboard components/fixtures, direct historical
+  RPC hooks, dead policy workflow, and the legacy Agentic ID wrapper that had
+  manufactured a placeholder policy hash. The canonical real 0G Agentic ID API,
+  contract ABI, storage integration, verified address, and deployment history
+  remain intact and require a real bytes32 policy hash.
+- did: aligned active product documentation with the frozen scope: no local
+  TeeML verdict fallback, detailed reason, recovery/insurance/payout feature,
+  or nonexistent `PolicyRegistry`/`AgentVault` producer is claimed. Added the
+  canonical continuation handoff, exact task IDs/commands/acceptance evidence,
+  live query catalog, architecture, cross-chain join, Audit Copilot security
+  model, integration status, runbook, official-source ledger, and sanitized
+  evidence. The previously stale TASKS fixture path was corrected.
+- validation: Solidity registry tests passed 19/19 and the JavaScript/Anvil
+  deploy-loader-privacy-crash-safety suite passed 48/48; gas report: deployment
+  1,225,076 gas, bytecode size 6,064 bytes, and `recordTeeMLValidation` average
+  40,201/max 64,197 gas. Agent-service unit tests passed 82/82 and PostgreSQL
+  integration passed 16/16 against an isolated ephemeral database, including
+  two replicas with query/lock pools at max 1; typecheck, lint, and build passed.
+  Next.js tests passed 86/86, sequential typecheck passed, aggregate lint passed,
+  and the production build passed without the deleted legacy route. Subgraph
+  infrastructure tests passed 5/5, Hedera Matchstick 4/4, 0G Matchstick 5/5,
+  codegen/build passed, and both official linter runs reported no issues. Real
+  0G status/smoke/E2E passed at block `45993590` with no indexing errors. Docker
+  Compose config, cosigner build, evidence JSON parsing, privacy/boundary checks,
+  and `git diff --check` passed. Hedera strict preflight still terminates
+  honestly in `HEDERA_GRAPH_RPC_BLOCKED`; no check was weakened.
+- next: execute the external tasks in
+  `docs/handoffs/THEGRAPH_INTEGRATION_CONTINUATION.md` in order: operate the
+  dedicated Testnet Mirror Node -> Hiero relay path until
+  `HEDERA_GRAPH_RPC_READY`; locally create the ignored exact deployment file and
+  deploy/verify the singleton once; generate/deploy/sync the Hedera Subgraph and
+  submit the explicitly labelled authorized indexing test; wire the real
+  private/TEE/schema/hash-verified TeeML artifact; then add only real sanitized
+  business event producers and Hedera Audit Copilot intents. The human explicitly
+  authorized committing this completed branch and opening a PR to `main`; the PR
+  must not be merged automatically.
+- blockers: no internal core defect remains. External completion dependencies
+  are `TG-DEPLOY-001` (exact ignored deploy file/funded deployer),
+  `TG-HEDERA-RPC-001` (dedicated consistent Hedera data stack),
+  `TG-TEEML-E2E-001` (real verified TeeML producer), `TG-EVENTS-001` (missing
+  sanitized business event producers), and `TG-AUDIT-COPILOT-001` (live Hedera
+  entities). These do not justify fake data or a read fallback.
+- interfaces touched: the fixed TeeML registry function/event and public
+  artifact schema; typed verified-TeeML writer; Hedera/0G GraphQL schemas and
+  dashboard APIs; durable wallet-creation repository/state/provenance types;
+  migrations `0003`/`0004`; and the exact server-only The Graph endpoint
+  variables. No secret interface or private context was added to The Graph.
+
+## 2026-07-26 12:02 AM -03 - Codex - Resolve main integration for The Graph PR
+- did: merged `origin/main` at `f77b3e0` into
+  `feat/thegraph-aegis-onchain-data-layer` to resolve PR #11 without rebasing or
+  discarding either implementation. Preserved the newly merged real 0G
+  semantic-verifier and explicit hackathon TeeTLS profile while retaining the
+  durable Safe deployment state machine, GraphQL-only dashboard boundary, and
+  separate Hedera/0G Subgraphs. Rebased the concurrent Drizzle histories at the
+  migration level by retaining main migrations `0003` through `0011` and
+  regenerating the complete Safe operation schema as migration
+  `0012_heavy_ben_urich`, eliminating duplicate migration numbers and generated
+  snapshot conflicts.
+- did: removed the runtime Agentic ID placeholder policy commitment introduced
+  by the merged branch. Agentic ID registration now requires the real non-zero
+  hash of the active durable Policy selected for the exact agent and Safe
+  wallet; missing Policy state fails before minting. Added regression coverage
+  for the missing-policy gate. Updated the The Graph handoff and status docs to
+  reflect that the verifier module is merged but the live hackathon TeeTLS
+  artifact remains intentionally ineligible for the Hedera registry because it
+  is non-private, non-sealed, and lacks independent byte-for-byte content
+  commitment verification.
+- validation: agent-service typecheck/build passed; combined unit tests passed
+  221/221; PostgreSQL integration tests passed 45/45 against the healthy local
+  isolated test database and applied the complete migration chain through
+  `0012`. Next.js onchain/frontend tests passed 86/86, typecheck passed, and the
+  production build completed. Registry tests passed 19/19 Solidity plus 48/48
+  loader/deploy/privacy/Anvil tests. The Graph codegen/build passed, infrastructure
+  tests passed 5/5, Hedera Matchstick passed 4/4, 0G Matchstick passed 5/5, and
+  both Subgraph linter runs reported no issues. Aggregate lint, privacy/boundary
+  checks, and `git diff --check` passed.
+- next: commit this merge resolution, push the updated branch, and confirm PR
+  #11 is mergeable against `main`; do not merge it automatically. External
+  continuation remains ordered in
+  `docs/handoffs/THEGRAPH_INTEGRATION_CONTINUATION.md`.
+- blockers: no internal merge or core defect remains. Real completion still
+  depends on `TG-DEPLOY-001`, `TG-HEDERA-RPC-001`, an eligible production-private
+  and byte-for-byte verified `TG-TEEML-E2E-001` artifact, and the documented
+  onchain event producers. The live demo TeeTLS result is never relabelled as
+  production TeeML evidence.
+- interfaces touched: active-Policy selection for Agentic ID registration,
+  merged TeeML service boundary, Drizzle migration chain through `0012`, and
+  canonical The Graph continuation/status documentation. No secret, private
+  semantic context, fake verdict, RPC-read fallback, or database-history
+  fallback was added.

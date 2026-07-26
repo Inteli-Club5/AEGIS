@@ -27,18 +27,15 @@ This gives you `packages/nextjs` (dashboard), `packages/foundry` and
 `packages/nextjs/scaffold.config.ts`. Strategy: deploy ALL EVM contracts on
 Hedera testnet (kills the cross-chain atomicity gap; satisfies the Hedera bounty).
 
-## 2. Decision verifier = 0G starter kit (off-chain, TEE-signed)
+## 2. 0G/TeeML integration boundary
 
-```bash
-mkdir -p services
-git clone --depth 1 https://github.com/0glabs/0g-compute-ts-starter-kit.git services/decision-verifier
-rm -rf services/decision-verifier/.git
-printf 'PRIVATE_KEY=0x_your_0g_testnet_key\nPORT=4000\n' > services/decision-verifier/.env.example
-```
-
-This is an Express service that calls 0G Compute; the model runs in a TEE and the
-response is signed by the enclave. That signature becomes the `proofRef` in your
-Decision Receipt.
+Do not clone or run the generic 0G Compute starter as an AEGIS decision
+verifier. It is useful upstream reference material, but an unadapted starter
+does not prove private routing, TEE verification, schema validity, or commitment
+hashes. AEGIS exposes the verification-gated writer port in
+`services/agent-service/src/teeml-registry/`; the exact real integration and
+acceptance evidence are tracked as `TG-TEEML-E2E-001` in
+`docs/handoffs/THEGRAPH_INTEGRATION_CONTINUATION.md`.
 
 ## 3. Co-signer service (skeleton - you write the logic during the event)
 
@@ -135,8 +132,9 @@ yarn next:dev                                # http://localhost:3000
 yarn foundry:deploy --network hederaTestnet
 
 # services
-cd services/decision-verifier && npm install && cp .env.example .env && npm run dev
-cd ../cosigner            && npm install && cp .env.example .env && npm run dev
+npm --prefix services/agent-service install
+npm --prefix services/agent-service run dev
+cd services/cosigner && npm install && cp .env.example .env && npm run dev
 ```
 
 Testnet account + HBAR: https://portal.hedera.com
@@ -155,7 +153,7 @@ git push -u origin main
 
 ## Attribution (ETHGlobal transparency)
 
-Keep a short note in `README.md`: built during ETHGlobal Lisbon on public starter
-kits - scaffold-hbar (`packages/`), 0g-compute-ts-starter-kit
-(`services/decision-verifier`), Safe{Core} SDK (`services/cosigner`). All AEGIS
-logic written during the event. Commit in small steps so the history is visible.
+Keep a short note in `README.md`: built during ETHGlobal Lisbon using
+scaffold-hbar, the 0G Compute starter kit, and Safe{Core} SDK as public
+references. Do not describe an unintegrated upstream starter as a live AEGIS
+verifier. Commit in small steps so the history is visible.

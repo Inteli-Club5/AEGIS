@@ -11,7 +11,9 @@ The current branch stops at production `TEEML_ALLOWED`, demo-only
 `TEETLS_HACKATHON_ALLOWED`, `TEEML_DENIED`, or `TEEML_FAILED`. It does not sign
 a final DecisionReceipt, request Safe owner signatures, or execute Hedera.
 Verdict signing and execution signing remain separate future responsibilities.
-The Graph will later index sanitized public audit data.
+The Graph is the canonical confirmed/historical onchain read layer for the
+dashboard. Hedera and 0G remain separate Subgraphs and are joined only in the
+typed GraphQL client.
 
 TeeTLS verifies the broker TEE and signed response, but the upstream model may
 process plaintext. It is never an automatic fallback and its artifacts are
@@ -26,12 +28,12 @@ match the exact verification, action, profile, and commitment tuple.
 > implementation notes. Historical diagrams are intentionally not embedded
 > here because they contain superseded trust and execution flows.
 
-Started during ETHGlobal Lisbon on public starter kits: [scaffold-hbar](https://github.com/hedera-dev/scaffold-hbar)
-(`packages/`), [0g-compute-ts-starter-kit](https://github.com/0glabs/0g-compute-ts-starter-kit)
-(`services/decision-verifier`), and the [Safe{Core} SDK](https://docs.safe.global/)
-(`services/cosigner`). Historical design material includes future
-DecisionReceipt and co-signature concepts; they are not implemented by the
-current branch.
+Built during ETHGlobal Lisbon using [scaffold-hbar](https://github.com/hedera-dev/scaffold-hbar),
+the [0G Compute starter kit](https://github.com/0glabs/0g-compute-ts-starter-kit),
+and the [Safe{Core} SDK](https://docs.safe.global/) as public references. The
+unintegrated starter service is not shipped as an AEGIS runtime service.
+Historical design material includes future DecisionReceipt and co-signature
+concepts; they are not implemented by the current branch.
 
 - **Historical architecture:** [`docs/AEGIS_ARCHITECTURE.md`](docs/AEGIS_ARCHITECTURE.md) - design reference only; current scope and interfaces are normative.
 - **Current scope:** [`docs/aegis-current-scope.md`](docs/aegis-current-scope.md) - active Level 1 and TeeML scope, trust boundaries, handoff, and local commands.
@@ -46,8 +48,8 @@ current branch.
 ```
 packages/nextjs             dashboard (Next.js + RainbowKit + wagmi)
 packages/agentic-id-contract shared canonical Agentic ID metadata commitments
-packages/foundry            contracts (PolicyRegistry, AgentVault...)
-services/agent-service      agent, wallet, Agentic ID, Level 1, 0G verification
+packages/foundry            contracts (TeeML registry; Safe ABIs)
+services/agent-service      agent, wallet, Level 1, 0G verification, registry port
 services/cosigner           future final recheck and Safe authorization boundary
 docs/                       architecture, scope, decisions
 ```
