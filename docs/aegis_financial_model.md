@@ -4,7 +4,7 @@
 
 | Cost | Estimate | Note |
 |---|---:|---|
-| **0G decision verification** | ~US$0.0005–US$0.003 per simple action | Depends on token count, model, and real/fallback mode. |
+| **0G decision verification** | ~US$0.0005–US$0.003 per simple action | Depends on token count and model; an unavailable verifier fails closed and is not priced as a fallback verdict. |
 | **Hedera HBAR transfer** | ~US$0.0001 | Low network fee; it should be paid by the user together with network/gas costs. |
 | **The Graph** | US$0 for up to 100k queries/month; low cost afterward | Use only if there is actual indexing. |
 | **RPC/EVM** | variable | Can start on a free tier; increases with reliability and volume. |
@@ -26,7 +26,7 @@ These costs do not include team salaries, legal expenses, a formal audit, or ent
 | **BananaCrystal** | Free start; **0.3% transfer**, **0.5% swap**; no setup/monthly/minimum fees; OTP for transfers; caps and permissions. | BananaCrystal is a payment rail for agents. AEGIS charges more because it sells pre-transaction security, policy, verdicts, co-signing, and auditing. If the user only wants to transfer funds, Banana is cheaper. |
 | **Coinbase CDP** | Wallet operations at **US$0.005/operation** with a free tier; Commerce charges **1%** per transaction; the Trade API charges **0.15%** for stablecoins/USDC/EURC and **0.85%** for all others. | Coinbase is infrastructure at scale. AEGIS should not compete on wallet-operation pricing; it should compete on agentic security. The 1% fee has a precedent in crypto payments, but it must deliver clear value. |
 | **Hedera** | Predictable fees in USD; a simple HBAR transfer costs around **US$0.0001**. | Network cost is low and should be shown separately from the AEGIS fee. |
-| **0G Compute** | GLM-5/GLM-5.2 costs are in the thousandths-of-a-dollar range for a small verification. | The variable cost of a verdict is low, but it depends on the model, token count, and real/fallback mode. |
+| **0G Compute** | GLM-5/GLM-5.2 costs are in the thousandths-of-a-dollar range for a small verification. | The variable cost of a verified verdict is low, but it depends on the model and token count; technical failure never becomes a verdict. |
 | **The Graph** | 100k queries/month free; low cost afterward. | It only applies if there is actual indexing. In the MVP, the cost may be zero. |
 
 ### 2.2 How AEGIS does it

@@ -6,12 +6,43 @@ type RecoveryGuardianAddressInput = {
   ownerWallet?: string;
 };
 
+export type RecoveryGuardianSource =
+  | "REQUESTED"
+  | "CONFIGURED_AEGIS"
+  | "OWNER_FALLBACK";
+
+export type ResolvedRecoveryGuardian = {
+  address: string;
+  source: RecoveryGuardianSource;
+};
+
+export function resolveRecoveryGuardian({
+  requestedAddress,
+  configuredAddress,
+  ownerWallet,
+}: RecoveryGuardianAddressInput): ResolvedRecoveryGuardian | undefined {
+  if (requestedAddress !== undefined) {
+    return { address: requestedAddress, source: "REQUESTED" };
+  }
+  if (configuredAddress !== undefined) {
+    return { address: configuredAddress, source: "CONFIGURED_AEGIS" };
+  }
+  if (ownerWallet !== undefined) {
+    return { address: ownerWallet, source: "OWNER_FALLBACK" };
+  }
+  return undefined;
+}
+
 export function resolveRecoveryGuardianAddress({
   requestedAddress,
   configuredAddress,
   ownerWallet,
 }: RecoveryGuardianAddressInput): string | undefined {
-  return requestedAddress ?? configuredAddress ?? ownerWallet;
+  return resolveRecoveryGuardian({
+    requestedAddress,
+    configuredAddress,
+    ownerWallet,
+  })?.address;
 }
 
 export function buildSafeAccountConfig(

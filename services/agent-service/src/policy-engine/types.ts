@@ -17,6 +17,20 @@ export type EffectivePolicyStatus = PolicyStatus | "EXPIRED";
 
 export type AgentStatus = "ACTIVE" | "PAUSED" | "RETIRED";
 export type WalletStatus = "PROTECTED" | "PAUSED" | "RETIRED" | "DEAD";
+export type WalletCreationStatus =
+  | "INITIALIZED"
+  | "PREPARED"
+  | "BROADCAST"
+  | "FAILED"
+  | "COMPLETED";
+export type WalletCreationFailureCode = "TRANSACTION_REVERTED";
+export type WalletGuardianSource =
+  | "REQUESTED"
+  | "CONFIGURED_AEGIS"
+  | "OWNER_FALLBACK";
+export type WalletDeploymentProvenance =
+  | "BROADCAST_RECEIPT"
+  | "PREDICTED_SAFE_RECONCILIATION";
 
 export type DestinationIdentity = {
   kind: "EVM_ADDRESS" | "HEDERA_ACCOUNT_ID" | "URL_ORIGIN";
@@ -150,6 +164,35 @@ export type WalletRecord = {
   status: WalletStatus;
   createdAt: UnixSeconds;
   updatedAt: UnixSeconds;
+};
+
+export type WalletCreationOperationRecord = {
+  operationId: string;
+  agentId: string;
+  networkId: typeof NETWORK_ID;
+  walletId: string;
+  recoveryGuardianAddress: `0x${string}`;
+  guardianSource: WalletGuardianSource;
+  saltNonce: string;
+  status: WalletCreationStatus;
+  predictedSafeAddress: `0x${string}` | null;
+  transactionHash: `0x${string}` | null;
+  owners: `0x${string}`[] | null;
+  threshold: number | null;
+  deploymentProvenance: WalletDeploymentProvenance | null;
+  failureCode: WalletCreationFailureCode | null;
+  createdAt: UnixSeconds;
+  updatedAt: UnixSeconds;
+};
+
+export type CompleteWalletCreationInput = {
+  operationId: string;
+  safeAddress: `0x${string}`;
+  transactionHash: `0x${string}` | null;
+  owners: `0x${string}`[];
+  threshold: number;
+  deploymentProvenance: WalletDeploymentProvenance;
+  now: UnixSeconds;
 };
 
 export type OperatorAuth = {

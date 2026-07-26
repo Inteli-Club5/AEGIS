@@ -1,0 +1,106 @@
+{
+  "schema": "aegis.evidence.thegraph.zero-g-subgraph.v2",
+  "observedAt": "2026-07-25T23:39:14-03:00",
+  "network": "0g-galileo",
+  "chainId": 16602,
+  "subgraphName": "aegis-0g",
+  "deployment": "QmaVs13eKCFLV9MAoZNkb4S5oqZ7ToV2nyVPu6kGHQqbY9",
+  "localGraphqlEndpoint": "http://127.0.0.1:8000/subgraphs/name/aegis-0g",
+  "selfHostedGraphNode": true,
+  "publishedToTheGraphNetwork": false,
+  "manifest": {
+    "contract": "0x2700f6a3e505402c9dab154c5c6ab9caec98ef1f",
+    "startBlock": 23544364,
+    "startBlockBasis": "verified AgenticID contract creation block",
+    "indexedEvents": [
+      "Transfer(indexed address,indexed address,indexed uint256)",
+      "UsageAuthorized(indexed uint256,indexed address)",
+      "UsageRevoked(indexed uint256,indexed address)",
+      "DelegateAccessSet(indexed address,indexed address)"
+    ],
+    "indexerHistory": "never"
+  },
+  "indexingStatus": {
+    "synced": true,
+    "health": "healthy",
+    "fatalError": null,
+    "chainHeadBlock": "45993590",
+    "latestBlock": "45993590"
+  },
+  "graphqlSmoke": {
+    "operation": "ZeroGSmoke",
+    "variables": {
+      "first": 1,
+      "evidenceTokenId": "102",
+      "evidenceContract": "0x2700f6a3e505402c9dab154c5c6ab9caec98ef1f"
+    },
+    "meta": {
+      "blockNumber": 45993590,
+      "blockHash": "0xc9e9591ad230060fa002035000eb5a637e3866562d5c8ee07ee771d4ffccf140",
+      "blockTimestamp": 1785033542,
+      "deployment": "QmaVs13eKCFLV9MAoZNkb4S5oqZ7ToV2nyVPu6kGHQqbY9",
+      "hasIndexingErrors": false
+    },
+    "protocolSummary": {
+      "distinctIdentityCount": "117",
+      "mintEventCount": "117",
+      "transferEventCount": "16",
+      "burnEventCount": "0",
+      "currentIdentityCount": "117",
+      "totalOwnerChanges": "133",
+      "authorizationGrantedEventCount": "13",
+      "authorizationRevokedEventCount": "1",
+      "delegationSetEventCount": "2",
+      "delegationRevokedEventCount": "0"
+    },
+    "entityCounts": {
+      "authorizationFacts": 14,
+      "authorizationStates": 13,
+      "delegationFacts": 2
+    },
+    "authorizationEvidence": {
+      "id": "0x80d1fcb2263a1722966095f1bcde6eedf85c97bd231c849f377648ccf82ee1b400000000",
+      "tokenId": "99",
+      "user": "0x09c90c2f7de9def131b716ce982b3eea289e6ceb",
+      "action": "AUTHORIZE",
+      "transactionHash": "0x80d1fcb2263a1722966095f1bcde6eedf85c97bd231c849f377648ccf82ee1b4",
+      "blockNumber": "33444554"
+    },
+    "delegationEvidence": {
+      "id": "0xc77fd924a93f65dabdcc7ad285850f21fad206b39106ef84b54e036ea672377100000000",
+      "owner": "0x641ad78baca220c5bd28b51ce8e0f495e85fe689",
+      "assistant": "0xd4838b9fab3cd1fff04a7f73d1eef754fc12e8e4",
+      "action": "SET",
+      "transactionHash": "0xc77fd924a93f65dabdcc7ad285850f21fad206b39106ef84b54e036ea6723771",
+      "blockNumber": "31258157"
+    },
+    "knownAegisIdentity": {
+      "id": "0x592fae6b2c6cb37e8ccf9efaa2a47de16f50dd8257cd833b5f70b5de33e0ebf9",
+      "tokenId": "102",
+      "owner": "0x7f9fd465790184955cc9b8bf3b5e0aaabdfd8c97",
+      "status": "ACTIVE",
+      "seenMint": true,
+      "mintTransactionHash": "0x9f132d14dd4071eea5b7bb29eee83d76631b00c0aab8234c3fefddf093a69a51",
+      "mintBlockNumber": "45806767"
+    }
+  },
+  "syncAcceleration": {
+    "maxBlockRangeSize": 5000000,
+    "maxEventOnlyRange": 5000000,
+    "rpcRangeProbe": "5,000,000 blocks returned 76 allowlisted events in 803 ms before Graph Node restart",
+    "purpose": "bounded event-only historical catch-up; no check was disabled and no runtime fallback was introduced"
+  },
+  "commands": [
+    "rtk yarn thegraph:up",
+    "rtk bash scripts/thegraph/create.sh 0g",
+    "rtk yarn thegraph:deploy:0g",
+    "rtk bash -lc 'THEGRAPH_MAX_BLOCK_RANGE_SIZE=5000000 THEGRAPH_MAX_EVENT_ONLY_RANGE=5000000 docker compose -f compose.thegraph.yaml up -d --force-recreate graph-node'",
+    "rtk bash scripts/thegraph/status.sh 0g",
+    "rtk bash scripts/thegraph/smoke.sh 0g",
+    "rtk bash scripts/thegraph/e2e.sh 0g"
+  ],
+  "runtimeFixturesUsed": false,
+  "runtimeRpcFallbackUsed": false,
+  "containsPrivateMetadata": false,
+  "containsSecrets": false
+}

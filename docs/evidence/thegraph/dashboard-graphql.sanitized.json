@@ -1,0 +1,64 @@
+{
+  "schema": "aegis.evidence.thegraph.dashboard-graphql.v2",
+  "observedAt": "2026-07-26T01:46:19.000Z",
+  "runtime": "Next.js server on a loopback-only test port",
+  "requests": [
+    {
+      "path": "/api/onchain/overview",
+      "httpStatus": 200,
+      "result": {
+        "scope": "partial",
+        "agenticIds": 111,
+        "hederaMetrics": null,
+        "paymentsSupport": "unsupported"
+      }
+    },
+    {
+      "path": "/api/onchain/identities?limit=5&tokenId=102",
+      "httpStatus": 200,
+      "result": {
+        "itemCount": 1,
+        "nextCursor": null,
+        "tokenId": "102",
+        "owner": "0x7f9fd465790184955cc9b8bf3b5e0aaabdfd8c97",
+        "mintTransactionHash": "0x9f132d14dd4071eea5b7bb29eee83d76631b00c0aab8234c3fefddf093a69a51",
+        "mintBlockNumber": "45806767",
+        "currentAuthorizationCount": "0"
+      }
+    },
+    {
+      "path": "/api/onchain/agents?limit=5&tokenId=102",
+      "httpStatus": 200,
+      "result": {
+        "itemCount": 1,
+        "state": "ambiguous",
+        "missingSources": ["hedera-testnet"],
+        "reason": "Hedera source unavailable; no relationship was invented"
+      }
+    }
+  ],
+  "freshness": {
+    "hedera": {
+      "available": false,
+      "indexedBlock": null,
+      "chainHeadBlock": null,
+      "sourceError": "Hedera Subgraph query unavailable."
+    },
+    "zeroG": {
+      "available": true,
+      "indexedBlock": 45987298,
+      "lagAgeSeconds": 6,
+      "hasIndexingErrors": false,
+      "deployment": "QmaVs13eKCFLV9MAoZNkb4S5oqZ7ToV2nyVPu6kGHQqbY9"
+    }
+  },
+  "assertions": {
+    "responseCameFromRealLocalSubgraph": true,
+    "partialSourceFailureWasVisible": true,
+    "missingHederaRelationWasNotInvented": true,
+    "runtimeFixtureUsed": false,
+    "rpcReadFallbackUsed": false,
+    "privateDatabaseFallbackUsed": false
+  },
+  "containsSecrets": false
+}

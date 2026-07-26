@@ -41,7 +41,7 @@ Guiding principles for sequencing:
 ## 3. Phase 0 — Hackathon MVP (24-26/jul)
 
 Scope: Hedera testnet only, the user's own agent wrapped in a Safe 2-of-3
-protected wallet, policy gate, 0G/TeeML verification (or a declared
+protected wallet, policy gate, verified 0G/TeeML result (with no local-verdict
 fallback), AEGIS co-signature, HBAR execution, The Graph indexing. Full
 definition of done in `PLAYBOOK.md` ("Definition of done — hackathon core").
 

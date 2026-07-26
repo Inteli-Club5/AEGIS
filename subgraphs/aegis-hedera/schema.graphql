@@ -1,0 +1,150 @@
+enum TeeMLVerdict {
+  ALLOW
+  DENY
+}
+
+enum SafeConfigurationChangeKind {
+  OWNER_ADDED
+  OWNER_REMOVED
+  THRESHOLD_CHANGED
+}
+
+type TeeMLValidation @entity(immutable: true) {
+  id: Bytes!
+  requestId: Bytes!
+  agentIdHash: Bytes!
+  agenticIdTokenId: BigInt!
+  safe: Bytes!
+  policyHash: Bytes!
+  actionHash: Bytes!
+  semanticContextHash: Bytes!
+  teemlRequestHash: Bytes!
+  artifactHash: Bytes!
+  modelIdHash: Bytes!
+  verdict: TeeMLVerdict!
+  reasonCodeHash: Bytes!
+  recorder: Bytes!
+  schemaVersion: Int!
+  transactionHash: Bytes!
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  logIndex: BigInt!
+  agent: AgentOnchainSummary!
+  policy: PolicyReference!
+  safeSummary: SafeOnchainSummary!
+}
+
+type SafeExecution @entity(immutable: true) {
+  id: Bytes!
+  safe: Bytes!
+  agentIdHash: Bytes
+  safeTxHash: Bytes!
+  success: Boolean!
+  refundPayment: BigInt!
+  transactionHash: Bytes!
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  logIndex: BigInt!
+  agent: AgentOnchainSummary
+  safeSummary: SafeOnchainSummary!
+}
+
+type SafeConfigurationChange @entity(immutable: true) {
+  id: Bytes!
+  safe: Bytes!
+  kind: SafeConfigurationChangeKind!
+  owner: Bytes
+  threshold: BigInt
+  transactionHash: Bytes!
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  logIndex: BigInt!
+  safeSummary: SafeOnchainSummary!
+}
+
+type AgentOnchainSummary @entity(immutable: false) {
+  id: Bytes!
+  agentIdHash: Bytes!
+  safe: Bytes!
+  agenticIdTokenId: BigInt!
+  validationCount: BigInt!
+  allowCount: BigInt!
+  denyCount: BigInt!
+  executionCount: BigInt!
+  executionSuccessCount: BigInt!
+  executionFailureCount: BigInt!
+  policyCount: BigInt!
+  firstActivityAt: BigInt!
+  lastActivityAt: BigInt!
+  validations: [TeeMLValidation!]! @derivedFrom(field: "agent")
+  executions: [SafeExecution!]! @derivedFrom(field: "agent")
+  policies: [AgentPolicyReference!]! @derivedFrom(field: "agent")
+  dailyMetrics: [DailyAgentMetric!]! @derivedFrom(field: "agent")
+}
+
+type SafeOnchainSummary @entity(immutable: false) {
+  id: Bytes!
+  safe: Bytes!
+  agentIdHash: Bytes!
+  agent: AgentOnchainSummary!
+  agentLinkConflict: Boolean!
+  validationCount: BigInt!
+  executionCount: BigInt!
+  executionSuccessCount: BigInt!
+  executionFailureCount: BigInt!
+  firstActivityAt: BigInt!
+  lastActivityAt: BigInt!
+  validations: [TeeMLValidation!]! @derivedFrom(field: "safeSummary")
+  executions: [SafeExecution!]! @derivedFrom(field: "safeSummary")
+  configurationChanges: [SafeConfigurationChange!]! @derivedFrom(field: "safeSummary")
+}
+
+type PolicyReference @entity(immutable: false) {
+  id: Bytes!
+  policyHash: Bytes!
+  validationCount: BigInt!
+  allowCount: BigInt!
+  denyCount: BigInt!
+  firstReferencedAt: BigInt!
+  lastReferencedAt: BigInt!
+  validations: [TeeMLValidation!]! @derivedFrom(field: "policy")
+  agents: [AgentPolicyReference!]! @derivedFrom(field: "policy")
+}
+
+type AgentPolicyReference @entity(immutable: false) {
+  id: Bytes!
+  agentIdHash: Bytes!
+  policyHash: Bytes!
+  validationCount: BigInt!
+  firstReferencedAt: BigInt!
+  lastReferencedAt: BigInt!
+  agent: AgentOnchainSummary!
+  policy: PolicyReference!
+}
+
+type DailyAgentMetric @entity(immutable: false) {
+  id: Bytes!
+  day: BigInt!
+  agentIdHash: Bytes!
+  validationCount: BigInt!
+  allowCount: BigInt!
+  denyCount: BigInt!
+  executionCount: BigInt!
+  executionSuccessCount: BigInt!
+  executionFailureCount: BigInt!
+  agent: AgentOnchainSummary!
+}
+
+type HederaProtocolSummary @entity(immutable: false) {
+  id: ID!
+  totalAgents: BigInt!
+  totalValidations: BigInt!
+  totalAllow: BigInt!
+  totalDeny: BigInt!
+  totalExecutions: BigInt!
+  totalExecutionSuccess: BigInt!
+  totalExecutionFailure: BigInt!
+  totalPolicies: BigInt!
+  firstActivityAt: BigInt
+  lastActivityAt: BigInt
+}

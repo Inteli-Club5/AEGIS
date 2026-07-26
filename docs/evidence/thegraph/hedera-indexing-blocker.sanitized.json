@@ -1,0 +1,35 @@
+{
+  "schema": "aegis.evidence.thegraph.hedera-indexing-blocker.v2",
+  "observedAt": "2026-07-25T23:04:49-03:00",
+  "network": "hedera-testnet",
+  "chainId": 296,
+  "graphNodeVersion": "0.44.0",
+  "relay": {
+    "implementation": "Hiero JSON-RPC Relay",
+    "version": "0.78.1",
+    "deployment": "self-hosted Compose service",
+    "mirrorBackend": "public Hedera Testnet Mirror Node",
+    "readiness": "healthy"
+  },
+  "strictPreflight": {
+    "command": "rtk bash scripts/thegraph/preflight.sh --network hedera",
+    "exitCode": 1,
+    "terminalMarker": "HEDERA_GRAPH_RPC_BLOCKED",
+    "category": "transaction provenance mismatch",
+    "sampleTransactionHash": "0xdc5cb9bc79086b9dd93964e44cbb2126ea8086c8f74ae570429d03c131971315",
+    "sourceBlockNumberHex": "0x24ad1c4",
+    "effect": "A transaction returned for a recent source block did not preserve matching provenance, so block/transaction/receipt consistency required by Graph Node is not established."
+  },
+  "chainIngestorHeadAvailable": false,
+  "hederaSubgraphDeploymentPresent": false,
+  "independentRegistryDependency": {
+    "exactEnvironmentFilePresent": false,
+    "publicDeploymentArtifactPresent": false,
+    "broadcastAttempted": false,
+    "reason": "The exact ignored root tee-smartcontract-validation file is absent; no registry transaction was attempted."
+  },
+  "requiredResolution": "Operate a dedicated current Hedera Mirror Node feeding Hiero JSON-RPC Relay v0.78.1, point Graph Node at that relay, and require HEDERA_GRAPH_RPC_READY before deployment or indexing.",
+  "selfHostedGraphNodeEligibility": "HUMAN-CONFIRMED / RESOLVED",
+  "fallbackIntroduced": false,
+  "containsSecrets": false
+}

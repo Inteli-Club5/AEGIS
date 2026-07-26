@@ -32,8 +32,8 @@ agents both follow it. Keep it short; if a rule stops helping, change it here.
 
 ```
 packages/nextjs         dashboard (Next.js + RainbowKit + wagmi)   -> Leunam
-packages/foundry        contracts (PolicyRegistry, AgentVault...)  -> Victor
-services/decision-verifier   0G TEE inference -> signed ALLOW/DENY -> Victor/Leunam
+packages/foundry        contracts (TeeML registry; Safe ABIs)      -> Victor
+services/agent-service  policy engine + verified TeeML writer port -> Victor/Leunam
 services/cosigner       policy re-check + co-signature (Safe SDK)  -> Victor
 docs/                   architecture, interfaces, decisions
 ```
@@ -43,7 +43,7 @@ docs/                   architecture, interfaces, decisions
 Three people work at once, but inside each lane there is exactly one "current
 task" - no ambiguous parallel blocks. Your top TASKS.md item is your focus.
 
-- **Victor - web3 core & contracts.** Foundry contracts, AgentVault 2-of-3
+- **Victor - web3 core & contracts.** Foundry contracts, Safe 2-of-3
   (agent signer + AEGIS co-signer + recovery guardian), payment executor,
   ABIs, cosigner signing logic, deploy scripts.
 - **Leunam - dashboard & integration.** Next.js UI (connect, protect agent,
@@ -128,11 +128,13 @@ Every task should move one of these six steps forward. Owner in brackets.
 
 1. Create/register agent, AEGIS-created on Hedera [Leunam UI / Victor profile]
 2. Sign mandate/policy with on-chain commitment [Victor contract + Leunam UI]
-3. Approved action passes the gate -> executed + HBAR paid (incl. AEGIS fee,
-   same batched Safe tx) [Victor + Leunam]
+3. Approved action passes the gate -> proposed through the real Safe/Hedera flow
+   [Victor + Leunam]
 4. Live gate block on a disallowed action [Victor + Leunam]
-5. Forced violation -> same-block payout / DeniedReceipt [Victor]
-6. Dashboard shows green action, fee, blocked action [Leunam]
+5. Verified TeeML ALLOW/DENY is recorded only after the real private/TEE/hash
+   checks; technical failures remain offchain [Victor]
+6. Dashboard shows confirmed public facts only through The Graph GraphQL
+   [Leunam]
 
 Plus: 0G verifier produces a TEE-signed verdict feeding steps 3-5, and the
 3-min video (Rodrigo).
@@ -140,7 +142,7 @@ Plus: 0G verifier produces a TEE-signed verdict feeding steps 3-5, and the
 ## Definition of done - hackathon core (arch doc 12)
 
 Connect wallet - register/protect agent - create/link agent wallet (Safe
-2-of-3) - create policy - 0G verify (or declared fallback) - decision receipt
+2-of-3) - create policy - verified 0G/TeeML result (fail closed if unavailable) - decision receipt
 - Accepted/Denied receipt - co-signature model - action allowed - action
 blocked - audit logs - HBAR transfer on Hedera testnet. Everything else is
 stretch.

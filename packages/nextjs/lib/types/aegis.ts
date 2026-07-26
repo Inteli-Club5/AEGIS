@@ -9,9 +9,7 @@ export type Agent = {
   type: string;
   status: AgentStatus;
   wallet: string;
-  balanceHbar: number;
   policySummary: string;
-  lastActionAgo: string;
 };
 
 export type AgentType = "Payment Agent" | "API Buyer" | "Treasury Agent" | "DeFi Agent" | "Custom";
@@ -96,29 +94,4 @@ export type AgentDetail = Agent & {
   policyLoadError?: string;
   hederaAccountId?: string;
   agenticId?: AgenticIdInfo;
-};
-
-export type StatsPeriod = 7 | 30 | 90 | "all";
-
-export type DashboardStats = {
-  totalTrades: number;
-  approved: number;
-  denied: number;
-  hbarTransacted: number;
-};
-
-export type Verdict = "ALLOW" | "DENY";
-export type VerificationMode = "real" | "fallback";
-
-export type ActivityEntry = {
-  id: string;
-  agentId: string;
-  agentName: string;
-  actionType: string;
-  timestamp: string;
-  verdict: Verdict;
-  mode: VerificationMode;
-  amountHbar: number;
-  token: "HBAR";
-  reason?: string;
 };

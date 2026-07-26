@@ -17,8 +17,11 @@ import { type PolicyRepository, type SupersededPolicySummary } from "../reposito
 import {
   NETWORK_ID,
   type AgentRecord,
+  type CompleteWalletCreationInput,
   type OperatorProof,
   type PolicyRecord,
+  type WalletCreationOperationRecord,
+  type WalletCreationFailureCode,
   type WalletRecord,
 } from "../types.js";
 import * as schema from "./schema.js";
@@ -29,11 +32,14 @@ type PolicyDb = NodePgDatabase<typeof schema>;
 type PolicyRow = typeof schema.policies.$inferSelect;
 type AgentRow = typeof schema.agents.$inferSelect;
 type WalletRow = typeof schema.wallets.$inferSelect;
+type WalletCreationOperationRow =
+  typeof schema.walletCreationOperations.$inferSelect;
 
 export function createPostgresPolicyRepository(connectionString: string): PostgresPolicyRepository {
   const pool = new Pool({ connectionString });
+  const walletCreationLockPool = new Pool({ connectionString });
   const db = drizzle(pool, { schema });
-  return new PostgresPolicyRepository(db);
+  return new PostgresPolicyRepository(db, walletCreationLockPool);
 }
 
 export function createPostgresPrecheckRepository(connectionString: string, options: PostgresPrecheckRepositoryOptions = {}): PostgresPrecheckRepository {
@@ -42,7 +48,42 @@ export function createPostgresPrecheckRepository(connectionString: string, optio
 }
 
 export class PostgresPolicyRepository implements PolicyRepository {
-  constructor(private readonly db: PolicyDb) {}
+  constructor(
+    private readonly db: PolicyDb,
+    private readonly walletCreationLockPool: pg.Pool,
+  ) {}
+
+  async withWalletCreationLock<T>(
+    agentId: string,
+    networkId: typeof NETWORK_ID,
+    operation: () => Promise<T>,
+  ): Promise<T> {
+    const lockKey = `wallet-creation:${agentId.toLowerCase()}:${networkId}`;
+    const client = await this.walletCreationLockPool.connect();
+    let locked = false;
+    try {
+      await client.query(
+        "select pg_advisory_lock(hashtextextended($1, 0))",
+        [lockKey],
+      );
+      locked = true;
+      return await operation();
+    } finally {
+      try {
+        if (locked) {
+          const unlock = await client.query(
+            "select pg_advisory_unlock(hashtextextended($1, 0)) as unlocked",
+            [lockKey],
+          );
+          if (unlock.rows[0]?.unlocked !== true) {
+            throw new Error("wallet_creation_advisory_unlock_failed");
+          }
+        }
+      } finally {
+        client.release();
+      }
+    }
+  }
 
   async getAgent(agentId: string): Promise<AgentRecord | null> {
     const [row] = await this.db.select().from(schema.agents).where(eq(schema.agents.agentId, agentId.toLowerCase())).limit(1);
@@ -52,6 +93,334 @@ export class PostgresPolicyRepository implements PolicyRepository {
   async getWallet(walletId: string): Promise<WalletRecord | null> {
     const [row] = await this.db.select().from(schema.wallets).where(eq(schema.wallets.walletId, walletId.toLowerCase())).limit(1);
     return row ? mapWallet(row) : null;
+  }
+
+  async getWalletByAgentNetwork(
+    agentId: string,
+    networkId: typeof NETWORK_ID,
+  ): Promise<WalletRecord | null> {
+    const [row] = await this.db
+      .select()
+      .from(schema.wallets)
+      .where(
+        and(
+          eq(schema.wallets.agentId, agentId.toLowerCase()),
+          eq(schema.wallets.networkId, networkId),
+        ),
+      )
+      .limit(1);
+    return row ? mapWallet(row) : null;
+  }
+
+  async getWalletCreationOperation(
+    agentId: string,
+    networkId: typeof NETWORK_ID,
+  ): Promise<WalletCreationOperationRecord | null> {
+    const [row] = await this.db
+      .select()
+      .from(schema.walletCreationOperations)
+      .where(
+        and(
+          eq(
+            schema.walletCreationOperations.agentId,
+            agentId.toLowerCase(),
+          ),
+          eq(schema.walletCreationOperations.networkId, networkId),
+        ),
+      )
+      .limit(1);
+    return row ? mapWalletCreationOperation(row) : null;
+  }
+
+  async beginWalletCreation(
+    operation: WalletCreationOperationRecord,
+  ): Promise<WalletCreationOperationRecord> {
+    const normalized = toWalletCreationOperationRow(operation);
+    const [inserted] = await this.db
+      .insert(schema.walletCreationOperations)
+      .values(normalized)
+      .onConflictDoNothing({
+        target: [
+          schema.walletCreationOperations.agentId,
+          schema.walletCreationOperations.networkId,
+        ],
+      })
+      .returning();
+    if (inserted) return mapWalletCreationOperation(inserted);
+
+    const existing = await this.getWalletCreationOperation(
+      operation.agentId,
+      operation.networkId,
+    );
+    if (!existing) {
+      throw new Error("wallet_creation_reservation_failed");
+    }
+    return existing;
+  }
+
+  async markWalletCreationPrepared(
+    operationId: string,
+    predictedSafeAddress: `0x${string}`,
+    expectedOwners: `0x${string}`[],
+    expectedThreshold: number,
+    now: number,
+  ): Promise<WalletCreationOperationRecord> {
+    const operation = await this.requireWalletCreationOperation(operationId);
+    const normalizedAddress = predictedSafeAddress.toLowerCase() as `0x${string}`;
+    if (
+      operation.predictedSafeAddress !== null &&
+      operation.predictedSafeAddress !== normalizedAddress
+    ) {
+      conflict(
+        "wallet_prediction_conflict",
+        "the persisted Safe prediction does not match this deployment",
+      );
+    }
+    if (operation.status === "COMPLETED" || operation.status === "BROADCAST") {
+      return operation;
+    }
+
+    const [row] = await this.db
+      .update(schema.walletCreationOperations)
+      .set({
+        status: "PREPARED",
+        predictedSafeAddress: normalizedAddress,
+        owners: expectedOwners.map(
+          owner => owner.toLowerCase() as `0x${string}`,
+        ),
+        threshold: expectedThreshold,
+        updatedAt: now,
+      })
+      .where(
+        eq(schema.walletCreationOperations.operationId, operation.operationId),
+      )
+      .returning();
+    if (!row) {
+      notFound(
+        "wallet_creation_operation_not_found",
+        "wallet creation operation not found",
+      );
+    }
+    return mapWalletCreationOperation(row);
+  }
+
+  async markWalletCreationBroadcast(
+    operationId: string,
+    transactionHash: `0x${string}`,
+    now: number,
+  ): Promise<WalletCreationOperationRecord> {
+    const operation = await this.requireWalletCreationOperation(operationId);
+    const normalizedHash = transactionHash.toLowerCase() as `0x${string}`;
+    if (
+      operation.transactionHash !== null &&
+      operation.transactionHash !== normalizedHash
+    ) {
+      conflict(
+        "wallet_deployment_transaction_conflict",
+        "the persisted deployment transaction does not match this deployment",
+      );
+    }
+    if (operation.status === "COMPLETED") return operation;
+
+    const [row] = await this.db
+      .update(schema.walletCreationOperations)
+      .set({
+        status: "BROADCAST",
+        transactionHash: normalizedHash,
+        failureCode: null,
+        updatedAt: now,
+      })
+      .where(
+        eq(schema.walletCreationOperations.operationId, operation.operationId),
+      )
+      .returning();
+    if (!row) {
+      notFound(
+        "wallet_creation_operation_not_found",
+        "wallet creation operation not found",
+      );
+    }
+    return mapWalletCreationOperation(row);
+  }
+
+  async markWalletCreationFailed(
+    operationId: string,
+    transactionHash: `0x${string}`,
+    failureCode: WalletCreationFailureCode,
+    now: number,
+  ): Promise<WalletCreationOperationRecord> {
+    const operation = await this.requireWalletCreationOperation(operationId);
+    const normalizedHash = transactionHash.toLowerCase() as `0x${string}`;
+    if (
+      operation.status !== "BROADCAST" ||
+      operation.transactionHash !== normalizedHash
+    ) {
+      conflict(
+        "wallet_creation_failure_checkpoint_conflict",
+        "only the persisted broadcast transaction can be marked failed",
+      );
+    }
+    const [row] = await this.db
+      .update(schema.walletCreationOperations)
+      .set({ status: "FAILED", failureCode, updatedAt: now })
+      .where(
+        eq(schema.walletCreationOperations.operationId, operation.operationId),
+      )
+      .returning();
+    if (!row) {
+      notFound(
+        "wallet_creation_operation_not_found",
+        "wallet creation operation not found",
+      );
+    }
+    return mapWalletCreationOperation(row);
+  }
+
+  async resetFailedWalletCreation(
+    operationId: string,
+    now: number,
+  ): Promise<WalletCreationOperationRecord> {
+    const operation = await this.requireWalletCreationOperation(operationId);
+    if (
+      operation.status !== "FAILED" ||
+      operation.failureCode !== "TRANSACTION_REVERTED"
+    ) {
+      conflict(
+        "wallet_creation_not_retryable",
+        "only a conclusively reverted deployment can be explicitly retried",
+      );
+    }
+    const [row] = await this.db
+      .update(schema.walletCreationOperations)
+      .set({
+        status: "PREPARED",
+        transactionHash: null,
+        failureCode: null,
+        updatedAt: now,
+      })
+      .where(
+        eq(schema.walletCreationOperations.operationId, operation.operationId),
+      )
+      .returning();
+    if (!row) {
+      notFound(
+        "wallet_creation_operation_not_found",
+        "wallet creation operation not found",
+      );
+    }
+    return mapWalletCreationOperation(row);
+  }
+
+  async completeWalletCreation(
+    input: CompleteWalletCreationInput,
+  ): Promise<WalletCreationOperationRecord> {
+    try {
+      return await this.db.transaction(async tx => {
+        const [operationRow] = await tx
+          .select()
+          .from(schema.walletCreationOperations)
+          .where(
+            eq(
+              schema.walletCreationOperations.operationId,
+              input.operationId.toLowerCase(),
+            ),
+          )
+          .limit(1);
+        if (!operationRow) {
+          notFound(
+            "wallet_creation_operation_not_found",
+            "wallet creation operation not found",
+          );
+        }
+        const operation = mapWalletCreationOperation(operationRow);
+        const safeAddress = input.safeAddress.toLowerCase() as `0x${string}`;
+        const transactionHash = input.transactionHash
+          ? (input.transactionHash.toLowerCase() as `0x${string}`)
+          : null;
+        assertWalletCompletionMatchesOperation(
+          operation,
+          safeAddress,
+          transactionHash,
+        );
+        if (operation.status === "COMPLETED") return operation;
+
+        const [insertedWallet] = await tx
+          .insert(schema.wallets)
+          .values({
+            walletId: operation.walletId,
+            agentId: operation.agentId,
+            networkId: operation.networkId,
+            safeAddress,
+            status: "PROTECTED",
+            createdAt: operation.createdAt,
+            updatedAt: input.now,
+          })
+          .onConflictDoNothing({
+            target: [schema.wallets.agentId, schema.wallets.networkId],
+          })
+          .returning();
+
+        let wallet: WalletRecord;
+        if (insertedWallet) {
+          wallet = mapWallet(insertedWallet);
+        } else {
+          const [existingWallet] = await tx
+            .select()
+            .from(schema.wallets)
+            .where(
+              and(
+                eq(schema.wallets.agentId, operation.agentId),
+                eq(schema.wallets.networkId, operation.networkId),
+              ),
+            )
+            .limit(1);
+          if (!existingWallet) {
+            throw new Error("wallet_creation_completion_failed");
+          }
+          wallet = mapWallet(existingWallet);
+        }
+        if (
+          wallet.walletId !== operation.walletId ||
+          wallet.safeAddress !== safeAddress
+        ) {
+          conflict(
+            "wallet_agent_network_conflict",
+            "the agent already has a different wallet on this network",
+          );
+        }
+
+        const [completed] = await tx
+          .update(schema.walletCreationOperations)
+          .set({
+            status: "COMPLETED",
+            predictedSafeAddress: safeAddress,
+            transactionHash,
+            owners: input.owners.map(
+              owner => owner.toLowerCase() as `0x${string}`,
+            ),
+            threshold: input.threshold,
+            deploymentProvenance: input.deploymentProvenance,
+            failureCode: null,
+            updatedAt: input.now,
+          })
+          .where(
+            eq(
+              schema.walletCreationOperations.operationId,
+              operation.operationId,
+            ),
+          )
+          .returning();
+        if (!completed) {
+          notFound(
+            "wallet_creation_operation_not_found",
+            "wallet creation operation not found",
+          );
+        }
+        return mapWalletCreationOperation(completed);
+      });
+    } catch (error) {
+      throw mapPgConflict(error);
+    }
   }
 
   async saveAgent(agent: AgentRecord): Promise<AgentRecord> {
@@ -261,17 +630,69 @@ export class PostgresPolicyRepository implements PolicyRepository {
         await tx.delete(schema.walletNonces).where(inArray(schema.walletNonces.walletId, walletIds));
       }
       await tx.delete(schema.policies).where(eq(schema.policies.agentId, normalized));
+      await tx
+        .delete(schema.walletCreationOperations)
+        .where(eq(schema.walletCreationOperations.agentId, normalized));
       await tx.delete(schema.wallets).where(eq(schema.wallets.agentId, normalized));
       await tx.delete(schema.agents).where(eq(schema.agents.agentId, normalized));
     });
   }
+
+  private async requireWalletCreationOperation(
+    operationId: string,
+  ): Promise<WalletCreationOperationRecord> {
+    const [row] = await this.db
+      .select()
+      .from(schema.walletCreationOperations)
+      .where(
+        eq(
+          schema.walletCreationOperations.operationId,
+          operationId.toLowerCase(),
+        ),
+      )
+      .limit(1);
+    if (!row) {
+      notFound(
+        "wallet_creation_operation_not_found",
+        "wallet creation operation not found",
+      );
+    }
+    return mapWalletCreationOperation(row);
+  }
 }
 
 export class UnconfiguredPolicyRepository implements PolicyRepository {
+  async withWalletCreationLock(): Promise<never> {
+    this.throwUnconfigured();
+  }
   async getAgent(): Promise<never> {
     this.throwUnconfigured();
   }
   async getWallet(): Promise<never> {
+    this.throwUnconfigured();
+  }
+  async getWalletByAgentNetwork(): Promise<never> {
+    this.throwUnconfigured();
+  }
+  async getWalletCreationOperation(): Promise<never> {
+    this.throwUnconfigured();
+  }
+  async beginWalletCreation(): Promise<never> {
+    this.throwUnconfigured();
+  }
+  async markWalletCreationPrepared(): Promise<never> {
+    this.throwUnconfigured();
+  }
+  async markWalletCreationBroadcast(): Promise<never> {
+    this.throwUnconfigured();
+  }
+  async markWalletCreationFailed(): Promise<never> {
+    this.throwUnconfigured();
+  }
+  async resetFailedWalletCreation(): Promise<never> {
+    this.throwUnconfigured();
+  }
+  async completeWalletCreation(): Promise<never> {
     this.throwUnconfigured();
   }
   async saveAgent(): Promise<never> {
@@ -616,6 +1037,33 @@ function toPolicyRow(policy: PolicyRecord): typeof schema.policies.$inferInsert 
   };
 }
 
+function toWalletCreationOperationRow(
+  operation: WalletCreationOperationRecord,
+): typeof schema.walletCreationOperations.$inferInsert {
+  return {
+    operationId: operation.operationId.toLowerCase(),
+    agentId: operation.agentId.toLowerCase(),
+    networkId: NETWORK_ID,
+    walletId: operation.walletId.toLowerCase(),
+    recoveryGuardianAddress:
+      operation.recoveryGuardianAddress.toLowerCase(),
+    guardianSource: operation.guardianSource,
+    saltNonce: operation.saltNonce,
+    status: operation.status,
+    predictedSafeAddress: operation.predictedSafeAddress?.toLowerCase() ?? null,
+    transactionHash: operation.transactionHash?.toLowerCase() ?? null,
+    owners:
+      operation.owners?.map(
+        owner => owner.toLowerCase() as `0x${string}`,
+      ) ?? null,
+    threshold: operation.threshold,
+    deploymentProvenance: operation.deploymentProvenance,
+    failureCode: operation.failureCode,
+    createdAt: operation.createdAt,
+    updatedAt: operation.updatedAt,
+  };
+}
+
 function mapAgent(row: AgentRow): AgentRecord {
   return {
     agentId: row.agentId,
@@ -636,6 +1084,55 @@ function mapWallet(row: WalletRow): WalletRecord {
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
+}
+
+function mapWalletCreationOperation(
+  row: WalletCreationOperationRow,
+): WalletCreationOperationRecord {
+  return {
+    operationId: row.operationId,
+    agentId: row.agentId,
+    networkId: NETWORK_ID,
+    walletId: row.walletId,
+    recoveryGuardianAddress:
+      row.recoveryGuardianAddress as `0x${string}`,
+    guardianSource: row.guardianSource,
+    saltNonce: row.saltNonce,
+    status: row.status,
+    predictedSafeAddress: row.predictedSafeAddress as `0x${string}` | null,
+    transactionHash: row.transactionHash as `0x${string}` | null,
+    owners: row.owners,
+    threshold: row.threshold,
+    deploymentProvenance: row.deploymentProvenance,
+    failureCode: row.failureCode as WalletCreationFailureCode | null,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  };
+}
+
+function assertWalletCompletionMatchesOperation(
+  operation: WalletCreationOperationRecord,
+  safeAddress: `0x${string}`,
+  transactionHash: `0x${string}` | null,
+): void {
+  if (
+    operation.predictedSafeAddress !== null &&
+    operation.predictedSafeAddress !== safeAddress
+  ) {
+    conflict(
+      "wallet_prediction_conflict",
+      "the deployed Safe does not match the persisted prediction",
+    );
+  }
+  if (
+    operation.transactionHash !== null &&
+    operation.transactionHash !== transactionHash
+  ) {
+    conflict(
+      "wallet_deployment_transaction_conflict",
+      "the completed deployment transaction does not match the persisted transaction",
+    );
+  }
 }
 
 function mapPolicy(row: PolicyRow): PolicyRecord {

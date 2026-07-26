@@ -2010,6 +2010,187 @@
       },
       "isRLSEnabled": false
     },
+    "public.aegis_wallet_creation_operations": {
+      "name": "aegis_wallet_creation_operations",
+      "schema": "",
+      "columns": {
+        "operation_id": {
+          "name": "operation_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "agent_id": {
+          "name": "agent_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "network_id": {
+          "name": "network_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'hedera:testnet'"
+        },
+        "wallet_id": {
+          "name": "wallet_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "recovery_guardian_address": {
+          "name": "recovery_guardian_address",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "guardian_source": {
+          "name": "guardian_source",
+          "type": "aegis_wallet_guardian_source",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "salt_nonce": {
+          "name": "salt_nonce",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "aegis_wallet_creation_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "predicted_safe_address": {
+          "name": "predicted_safe_address",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "transaction_hash": {
+          "name": "transaction_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "owners": {
+          "name": "owners",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "threshold": {
+          "name": "threshold",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "deployment_provenance": {
+          "name": "deployment_provenance",
+          "type": "aegis_wallet_deployment_provenance",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "failure_code": {
+          "name": "failure_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "aegis_wallet_creation_operations_agent_network_unique": {
+          "name": "aegis_wallet_creation_operations_agent_network_unique",
+          "columns": [
+            {
+              "expression": "agent_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "network_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "aegis_wallet_creation_operations_wallet_unique": {
+          "name": "aegis_wallet_creation_operations_wallet_unique",
+          "columns": [
+            {
+              "expression": "wallet_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "aegis_wallet_creation_operations_agent_id_aegis_agents_agent_id_fk": {
+          "name": "aegis_wallet_creation_operations_agent_id_aegis_agents_agent_id_fk",
+          "tableFrom": "aegis_wallet_creation_operations",
+          "tableTo": "aegis_agents",
+          "columnsFrom": [
+            "agent_id"
+          ],
+          "columnsTo": [
+            "agent_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "aegis_wallet_creation_operations_network_check": {
+          "name": "aegis_wallet_creation_operations_network_check",
+          "value": "\"network_id\" = 'hedera:testnet'"
+        },
+        "aegis_wallet_creation_operations_salt_nonce_check": {
+          "name": "aegis_wallet_creation_operations_salt_nonce_check",
+          "value": "\"salt_nonce\" ~ '^(0|[1-9][0-9]*)$'"
+        },
+        "aegis_wallet_creation_operations_threshold_check": {
+          "name": "aegis_wallet_creation_operations_threshold_check",
+          "value": "\"threshold\" IS NULL OR \"threshold\" > 0"
+        },
+        "aegis_wallet_creation_operations_failure_code_check": {
+          "name": "aegis_wallet_creation_operations_failure_code_check",
+          "value": "\"failure_code\" IS NULL OR \"failure_code\" = 'TRANSACTION_REVERTED'"
+        }
+      },
+      "isRLSEnabled": false
+    },
     "public.aegis_wallet_nonces": {
       "name": "aegis_wallet_nonces",
       "schema": "",
@@ -2132,6 +2313,27 @@
             },
             {
               "expression": "wallet_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "aegis_wallets_agent_network_unique": {
+          "name": "aegis_wallets_agent_network_unique",
+          "columns": [
+            {
+              "expression": "agent_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "network_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -2284,6 +2486,34 @@
         "RELEASED",
         "EXPIRED",
         "COMMITTED"
+      ]
+    },
+    "public.aegis_wallet_creation_status": {
+      "name": "aegis_wallet_creation_status",
+      "schema": "public",
+      "values": [
+        "INITIALIZED",
+        "PREPARED",
+        "BROADCAST",
+        "FAILED",
+        "COMPLETED"
+      ]
+    },
+    "public.aegis_wallet_deployment_provenance": {
+      "name": "aegis_wallet_deployment_provenance",
+      "schema": "public",
+      "values": [
+        "BROADCAST_RECEIPT",
+        "PREDICTED_SAFE_RECONCILIATION"
+      ]
+    },
+    "public.aegis_wallet_guardian_source": {
+      "name": "aegis_wallet_guardian_source",
+      "schema": "public",
+      "values": [
+        "REQUESTED",
+        "CONFIGURED_AEGIS",
+        "OWNER_FALLBACK"
       ]
     },
     "public.aegis_wallet_status": {

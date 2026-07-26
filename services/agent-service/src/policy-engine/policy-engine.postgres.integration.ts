@@ -116,16 +116,25 @@ describe("Policy Engine PostgreSQL integration", () => {
     await rejectsWithCode(async () => service.createPolicy(body, await signCreate(body, other)), "operator_not_owner");
 
     await repository.saveWallet({
-      walletId: "018f0000-0000-7000-8000-000000000199",
+      walletId: WALLET_ID,
       agentId: AGENT_ID,
       networkId: NETWORK_ID,
-      safeAddress: "0x0000000000000000000000000000000000000aaa",
+      safeAddress: SAFE_ADDRESS,
       status: "PAUSED",
       createdAt: 1,
       updatedAt: 1,
     });
-    const pausedWalletBody = { ...body, walletId: "018f0000-0000-7000-8000-000000000199" };
+    const pausedWalletBody = { ...body, walletId: WALLET_ID };
     await rejectsWithCode(async () => service.createPolicy(pausedWalletBody, await signCreate(pausedWalletBody)), "wallet_not_protected");
+    await repository.saveWallet({
+      walletId: WALLET_ID,
+      agentId: AGENT_ID,
+      networkId: NETWORK_ID,
+      safeAddress: SAFE_ADDRESS,
+      status: "PROTECTED",
+      createdAt: 1,
+      updatedAt: 2,
+    });
 
     const commitment = createCommitment(body, owner.address.toLowerCase() as `0x${string}`);
     const badSignature = await signCommitment({ ...commitment, policyHash: ("0x" + "22".repeat(32)) as Hex32 }, owner);
@@ -161,6 +170,111 @@ describe("Policy Engine PostgreSQL integration", () => {
     assert.equal([left.status, right.status].filter(status => status === "fulfilled").length, 1);
     assert.equal([left.status, right.status].filter(status => status === "rejected").length, 1);
     assert.equal((await service.getPolicy(policy.policyId)).status, "ACTIVE");
+  });
+
+  it("serializes wallet creation reservations across PostgreSQL repository replicas", async () => {
+    const { pool, repository: firstRepository } = await postgresRepository({
+      queryPoolMax: 1,
+      walletLockPoolMax: 1,
+    });
+    const secondQueryPool = new Pool({
+      connectionString: testDatabaseUrl,
+      max: 1,
+    });
+    const secondLockPool = new Pool({
+      connectionString: testDatabaseUrl,
+      max: 1,
+    });
+    openPools.push(secondQueryPool, secondLockPool);
+    const secondRepository = new PostgresPolicyRepository(
+      drizzle(secondQueryPool, { schema }),
+      secondLockPool,
+    );
+    await firstRepository.saveAgent({
+      agentId: AGENT_ID,
+      ownerAddress: owner.address.toLowerCase() as `0x${string}`,
+      status: "ACTIVE",
+      createdAt: 1,
+      updatedAt: 1,
+    });
+    const owners = [
+      owner.address.toLowerCase() as `0x${string}`,
+      other.address.toLowerCase() as `0x${string}`,
+      "0x0000000000000000000000000000000000000abc" as `0x${string}`,
+    ];
+    const transactionHash = `0x${"ab".repeat(32)}` as `0x${string}`;
+    let deploymentCount = 0;
+
+    const createOnce = (repository: PostgresPolicyRepository) =>
+      repository.withWalletCreationLock(AGENT_ID, NETWORK_ID, async () => {
+        let operation = await repository.getWalletCreationOperation(
+          AGENT_ID,
+          NETWORK_ID,
+        );
+        if (operation?.status === "COMPLETED") return operation;
+        operation ??= await repository.beginWalletCreation({
+          operationId: createUuidV7(),
+          agentId: AGENT_ID,
+          networkId: NETWORK_ID,
+          walletId: createUuidV7(),
+          recoveryGuardianAddress: owners[2],
+          guardianSource: "REQUESTED",
+          saltNonce: "1234",
+          status: "INITIALIZED",
+          predictedSafeAddress: null,
+          transactionHash: null,
+          owners: null,
+          threshold: null,
+          deploymentProvenance: null,
+          failureCode: null,
+          createdAt: 1,
+          updatedAt: 1,
+        });
+        deploymentCount += 1;
+        await repository.markWalletCreationPrepared(
+          operation.operationId,
+          SAFE_ADDRESS,
+          owners,
+          2,
+          2,
+        );
+        await new Promise(resolve => setTimeout(resolve, 25));
+        await repository.markWalletCreationBroadcast(
+          operation.operationId,
+          transactionHash,
+          3,
+        );
+        return repository.completeWalletCreation({
+          operationId: operation.operationId,
+          safeAddress: SAFE_ADDRESS,
+          transactionHash,
+          owners,
+          threshold: 2,
+          deploymentProvenance: "BROADCAST_RECEIPT",
+          now: 4,
+        });
+      });
+
+    const [first, second] = await Promise.all([
+      createOnce(firstRepository),
+      createOnce(secondRepository),
+    ]);
+    assert.equal(deploymentCount, 1);
+    assert.equal(first.operationId, second.operationId);
+    assert.equal(first.status, "COMPLETED");
+    assert.equal(
+      (await pool.query("select count(*)::int as count from aegis_wallets"))
+        .rows[0].count,
+      1,
+    );
+    assert.equal(
+      (
+        await pool.query(
+          "select count(*)::int as count from aegis_wallet_creation_operations",
+        )
+      ).rows[0].count,
+      1,
+    );
   });
 
   it("enforces PostgreSQL unique, check, and active-policy constraints", async () => {
@@ -833,11 +947,23 @@ async function seededPostgresService() {
   return { pool, repository, service: new PolicyLifecycleService(repository, () => 1000) };
 }
 
-async function postgresRepository() {
-  const pool = new Pool({ connectionString: testDatabaseUrl });
-  openPools.push(pool);
+async function postgresRepository(
+  options: { queryPoolMax?: number; walletLockPoolMax?: number } = {},
+) {
+  const pool = new Pool({
+    connectionString: testDatabaseUrl,
+    max: options.queryPoolMax,
+  });
+  const walletCreationLockPool = new Pool({
+    connectionString: testDatabaseUrl,
+    max: options.walletLockPoolMax,
+  });
+  openPools.push(pool, walletCreationLockPool);
   const db = drizzle(pool, { schema });
-  const repository = new PostgresPolicyRepository(db);
+  const repository = new PostgresPolicyRepository(
+    db,
+    walletCreationLockPool,
+  );
   const precheckRepository = new PostgresPrecheckRepository(pool);
   return { pool, repository, precheckRepository };
 }

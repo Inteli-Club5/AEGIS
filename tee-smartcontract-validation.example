@@ -1,0 +1,9 @@
+# Dedicated Hedera testnet deployment environment for AegisTeeValidationRegistry only.
+# Copy this file to the repository-root filename `tee-smartcontract-validation` and replace every placeholder.
+# The deployer key is never reused by the authorized indexing-test recorder driver.
+TEE_VALIDATION_HEDERA_RPC_URL=https://testnet.hashio.io/api
+TEE_VALIDATION_HEDERA_CHAIN_ID=296
+TEE_VALIDATION_DEPLOYER_PRIVATE_KEY=0x_your_dedicated_registry_deployer_private_key
+TEE_VALIDATION_ADMIN_ADDRESS=0x_your_final_registry_admin_address
+TEE_VALIDATION_RECORDER_ADDRESS=0x_your_runtime_registry_recorder_address
+TEE_VALIDATION_CONFIRMATIONS=1

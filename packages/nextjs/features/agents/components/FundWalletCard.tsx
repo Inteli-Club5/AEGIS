@@ -2,13 +2,13 @@
 
 import { useState } from "react";
 import { AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
-import { UserRejectedRequestError, formatUnits, parseEther } from "viem";
+import { UserRejectedRequestError, parseEther } from "viem";
 import { hederaTestnet } from "viem/chains";
-import { useBalance, useSendTransaction } from "wagmi";
+import { useSendTransaction } from "wagmi";
 import { waitForTransactionReceipt } from "wagmi/actions";
 import { Button } from "~~/components/ui/Button";
 import { useConnectWallet } from "~~/features/wallet/components/ConnectWalletProvider";
-import { formatHbar, truncateAddress } from "~~/lib/utils/format";
+import { truncateAddress } from "~~/lib/utils/format";
 import { wagmiConfig } from "~~/services/web3/wagmiConfig";
 
 const inputClass =
@@ -21,9 +21,6 @@ export function FundWalletCard({ safeAddress }: { safeAddress: `0x${string}` }) 
   const [amount, setAmount] = useState("");
   const [phase, setPhase] = useState<Phase>("idle");
   const [error, setError] = useState<string | null>(null);
-
-  const safeBalance = useBalance({ address: safeAddress });
-  const senderBalance = useBalance({ address: senderAddress ?? undefined });
 
   const { sendTransactionAsync } = useSendTransaction();
 
@@ -54,8 +51,6 @@ export function FundWalletCard({ safeAddress }: { safeAddress: `0x${string}` }) 
       await waitForTransactionReceipt(wagmiConfig, { hash, chainId: hederaTestnet.id });
       setPhase("success");
       setAmount("");
-      safeBalance.refetch();
-      senderBalance.refetch();
     } catch (err) {
       setPhase("error");
       setError(describeSendError(err));
@@ -66,15 +61,7 @@ export function FundWalletCard({ safeAddress }: { safeAddress: `0x${string}` }) 
     <div className="mt-4 rounded-md border border-border bg-surface-raised p-4">
       <p className="text-label text-muted">Fund this wallet</p>
 
-      <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-        <p className="text-caption text-subtle">From {truncateAddress(senderAddress)}</p>
-        <p className="font-mono text-caption text-subtle">
-          Balance:{" "}
-          {senderBalance.data
-            ? formatHbar(Number(formatUnits(senderBalance.data.value, senderBalance.data.decimals)))
-            : "—"}
-        </p>
-      </div>
+      <p className="mt-2 text-caption text-subtle">From connected wallet {truncateAddress(senderAddress)}</p>
 
       <div className="mt-3 flex flex-wrap items-end gap-3">
         <label className="min-w-0 flex-1 text-label" htmlFor="fund-wallet-amount">
@@ -103,7 +90,7 @@ export function FundWalletCard({ safeAddress }: { safeAddress: `0x${string}` }) 
       {phase === "success" && (
         <p className="mt-2 flex items-center gap-1.5 text-caption text-success">
           <CheckCircle2 className="h-3 w-3" aria-hidden="true" />
-          Sent. The wallet balance will update shortly.
+          Sent and confirmed. This view does not query the Safe balance directly.
         </p>
       )}
       {phase === "error" && error && (

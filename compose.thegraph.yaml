@@ -1,0 +1,126 @@
+name: aegis-thegraph
+
+services:
+  hedera-json-rpc-relay:
+    image: ghcr.io/hiero-ledger/hiero-json-rpc-relay:0.78.1
+    restart: unless-stopped
+    environment:
+      READ_ONLY: "true"
+      RPC_HTTP_ENABLED: "true"
+      RPC_WS_ENABLED: "false"
+      CHAIN_ID: "0x128"
+      HEDERA_NETWORK: testnet
+      MIRROR_NODE_URL: "${THEGRAPH_HEDERA_MIRROR_NODE_URL:-https://testnet.mirrornode.hedera.com}"
+      MIRROR_NODE_URL_WEB3: "${THEGRAPH_HEDERA_MIRROR_NODE_WEB3_URL:-https://testnet.mirrornode.hedera.com}"
+      SERVER_PORT: "7546"
+      REDIS_ENABLED: "false"
+    ports:
+      - "127.0.0.1:7546:7546"
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - >-
+          fetch('http://127.0.0.1:7546/health/readiness').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+    networks:
+      - thegraph
+
+  graph-postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    command:
+      - postgres
+      - -cshared_preload_libraries=pg_stat_statements
+      - -cmax_connections=200
+    environment:
+      POSTGRES_USER: graph-node
+      POSTGRES_PASSWORD: graph-node-local
+      POSTGRES_DB: graph-node
+      POSTGRES_INITDB_ARGS: "-E UTF8 --locale=C"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U graph-node -d graph-node"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    volumes:
+      # v2 intentionally preserves the earlier non-C-locale volume instead of deleting it.
+      - graph-postgres-data-v2:/var/lib/postgresql/data
+    networks:
+      - thegraph
+
+  ipfs:
+    image: ipfs/kubo:v0.34.1
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:5001:5001"
+    healthcheck:
+      test: ["CMD", "ipfs", "id"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+    volumes:
+      - ipfs-data:/data/ipfs
+    networks:
+      - thegraph
+
+  graph-node:
+    image: graphprotocol/graph-node:v0.44.0
+    restart: unless-stopped
+    depends_on:
+      hedera-json-rpc-relay:
+        condition: service_healthy
+      graph-postgres:
+        condition: service_healthy
+      ipfs:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8000:8000"
+      - "127.0.0.1:8001:8001"
+      - "127.0.0.1:8020:8020"
+      - "127.0.0.1:8030:8030"
+      - "127.0.0.1:8040:8040"
+    environment:
+      postgres_host: graph-postgres
+      postgres_user: graph-node
+      postgres_pass: graph-node-local
+      postgres_db: graph-node
+      ipfs: ipfs:5001
+      # The official image's start script shell-expands this value after one
+      # --ethereum-rpc flag, so the second flag must be part of the value.
+      # The known-inconsistent public Hashio endpoint is intentionally not a
+      # Graph Node fallback. The relay remains subject to the strict preflight.
+      ethereum: "hedera-testnet:archive:${THEGRAPH_HEDERA_GRAPH_NODE_RPC_URL:-http://hedera-json-rpc-relay:7546} --ethereum-rpc 0g-galileo:${THEGRAPH_0G_RPC_URL:-https://evmrpc-testnet.0g.ai}"
+      GRAPH_NODE_ID: aegis-local-indexer
+      GRAPH_LOG: info
+      GRAPH_ALLOW_NON_DETERMINISTIC_IPFS: "false"
+      ETHEREUM_BLOCK_BATCH_SIZE: "1"
+      ETHEREUM_POLLING_INTERVAL: "1000"
+      ETHEREUM_REORG_THRESHOLD: "0"
+      GRAPH_ETHEREUM_BLOCK_INGESTOR_MAX_CONCURRENT_JSON_RPC_CALLS_FOR_TXN_RECEIPTS: "100"
+      GRAPH_ETHEREUM_CLEANUP_BLOCKS: "true"
+      GRAPH_ETHEREUM_GENESIS_BLOCK_NUMBER: "0"
+      GRAPH_ETHEREUM_MAX_BLOCK_RANGE_SIZE: "${THEGRAPH_MAX_BLOCK_RANGE_SIZE:-1000}"
+      GRAPH_ETHEREUM_MAX_EVENT_ONLY_RANGE: "${THEGRAPH_MAX_EVENT_ONLY_RANGE:-1000}"
+    healthcheck:
+      test: ["CMD", "wait_for", "127.0.0.1:8040", "-t", "5"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+    networks:
+      - thegraph
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+networks:
+  thegraph:
+    driver: bridge
+
+volumes:
+  graph-postgres-data-v2:
+  ipfs-data:

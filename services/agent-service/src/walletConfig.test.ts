@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   buildSafeAccountConfig,
+  resolveRecoveryGuardian,
   resolveRecoveryGuardianAddress,
 } from "./walletConfig.js";
 
@@ -19,6 +20,28 @@ describe("Safe wallet configuration", () => {
         ownerWallet: COSIGNER_ADDRESS,
       }),
       DEMO_GUARDIAN_ADDRESS,
+    );
+  });
+
+  it("marks only the configured guardian source as AEGIS-managed", () => {
+    assert.deepEqual(
+      resolveRecoveryGuardian({
+        configuredAddress: DEMO_GUARDIAN_ADDRESS,
+        ownerWallet: COSIGNER_ADDRESS,
+      }),
+      { address: DEMO_GUARDIAN_ADDRESS, source: "CONFIGURED_AEGIS" },
+    );
+    assert.deepEqual(
+      resolveRecoveryGuardian({ ownerWallet: COSIGNER_ADDRESS }),
+      { address: COSIGNER_ADDRESS, source: "OWNER_FALLBACK" },
+    );
+    assert.deepEqual(
+      resolveRecoveryGuardian({
+        requestedAddress: DEMO_GUARDIAN_ADDRESS,
+        configuredAddress: DEMO_GUARDIAN_ADDRESS,
+        ownerWallet: COSIGNER_ADDRESS,
+      }),
+      { address: DEMO_GUARDIAN_ADDRESS, source: "REQUESTED" },
     );
   });
 

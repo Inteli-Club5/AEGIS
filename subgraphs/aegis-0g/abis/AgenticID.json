@@ -1,0 +1,39 @@
+[
+  {
+    "anonymous": false,
+    "inputs": [
+      { "indexed": true, "internalType": "address", "name": "owner", "type": "address" },
+      { "indexed": true, "internalType": "address", "name": "assistant", "type": "address" }
+    ],
+    "name": "DelegateAccessSet",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      { "indexed": true, "internalType": "address", "name": "from", "type": "address" },
+      { "indexed": true, "internalType": "address", "name": "to", "type": "address" },
+      { "indexed": true, "internalType": "uint256", "name": "tokenId", "type": "uint256" }
+    ],
+    "name": "Transfer",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      { "indexed": true, "internalType": "uint256", "name": "tokenId", "type": "uint256" },
+      { "indexed": true, "internalType": "address", "name": "user", "type": "address" }
+    ],
+    "name": "UsageAuthorized",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      { "indexed": true, "internalType": "uint256", "name": "tokenId", "type": "uint256" },
+      { "indexed": true, "internalType": "address", "name": "user", "type": "address" }
+    ],
+    "name": "UsageRevoked",
+    "type": "event"
+  }
+]

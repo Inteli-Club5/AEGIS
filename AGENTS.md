@@ -96,25 +96,20 @@ yarn next:vercel:yolo --prod # deploy frontend
 
 ### Frontend Contract Interaction
 
-**Correct interact hook names (use these):**
+**Current branch interaction boundary:**
 
-- `useScaffoldReadContract` - NOT ~~useScaffoldContractRead~~
-- `useScaffoldWriteContract` - NOT ~~useScaffoldContractWrite~~
+- `useScaffoldWriteContract` is available for authorized writes.
+- Confirmed and historical onchain reads must use the server-only The Graph
+  clients in `packages/nextjs/lib/onchain-data` and the same-origin
+  `/api/onchain/*` routes.
+- Direct RPC read/history hooks were intentionally removed. Do not recreate
+  `useScaffoldReadContract`, `useScaffoldEventHistory`, log polling, or event
+  watchers as a dashboard fallback.
 
 Contract data is read from two files in `packages/nextjs/contracts/`:
 
 - `deployedContracts.ts`: Auto-generated from deployments
 - `externalContracts.ts`: Manually added external contracts
-
-#### Reading Contract Data
-
-```typescript
-const { data: totalCounter } = useScaffoldReadContract({
-  contractName: "YourContract",
-  functionName: "userGreetingCounter",
-  args: ["0xd8da6bf26964af9d7eed9e03e53415d37aa96045"],
-});
-```
 
 #### Writing to Contracts
 
@@ -130,21 +125,14 @@ await writeContractAsync({
 });
 ```
 
-#### Reading Events
+For confirmed state and event history, add a static GraphQL operation with
+variables to the query catalog and expose it through the existing repository
+and same-origin API boundary. Wallet connection, signing, writes, and a pending
+transaction's immediate optimistic state remain permitted.
 
-```typescript
-const { data: events, isLoading } = useScaffoldEventHistory({
-  contractName: "YourContract",
-  eventName: "GreetingChange",
-  watch: true,
-  fromBlock: 31231n,
-  blockData: true,
-});
-```
-
-Scaffold-HBAR also provides other hooks to interact with blockchain data: `useScaffoldWatchContractEvent`, `useScaffoldEventHistory`, `useDeployedContractInfo`, `useScaffoldContract`, `useTransactor`.
-
-**IMPORTANT: Always use hooks from `packages/nextjs/hooks/scaffold-hbar` for contract interactions (legacy path segment; project branding is Scaffold-HBAR / `sh`). Always refer to the hook names as they exist in the codebase.**
+**IMPORTANT: Use hooks from `packages/nextjs/hooks/scaffold-hbar` only for the
+write/wallet surface they actually expose. Never reconstruct confirmed history
+through RPC, Mirror Node, explorer, or the application database.**
 
 ### UI Components
 

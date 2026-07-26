@@ -12,7 +12,7 @@ import {
   readCreatedAgentDetails,
   readCreatedAgents,
   upsertCreatedAgent,
-} from "~~/lib/fixtures/store";
+} from "~~/lib/onboarding/localAgentDraftStore";
 import {
   POLICY_COMMITMENT_DOMAIN,
   POLICY_COMMITMENT_TYPES,
@@ -70,6 +70,7 @@ type AgentServiceWallet = {
   owners: string[];
   threshold: number;
   transactionHash: string;
+  guardianManaged?: boolean;
 };
 
 export async function getAgentServiceProfile(agentId: string): Promise<AgentServiceProfile> {
@@ -116,9 +117,7 @@ export async function createAgent(input: {
     type: profile.type,
     status: "unprotected",
     wallet: "",
-    balanceHbar: 0,
     policySummary: "—",
-    lastActionAgo: "just connected",
     description: profile.description,
     agentLifecycleStatus: "ACTIVE",
     capabilities: profile.capabilities,
@@ -341,9 +340,9 @@ export async function activateProtection(
 }
 
 async function ensureWallet(agentId: string, recoveryGuardianAddress?: string): Promise<ProtectedWalletInfo> {
-  const existing = readCreatedAgentDetails().find(agent => agent.id === agentId);
-  if (existing?.walletInfo) return existing.walletInfo;
-
+  // The browser cache is continuity-only. The serialized, persistence-gated
+  // agent-service endpoint must reconcile the authoritative wallet before its
+  // ID enters a policy.
   const wallet = await requestJson<AgentServiceWallet>(
     `/api/agent-service/agents/${encodeURIComponent(agentId)}/wallet`,
     { method: "POST", body: recoveryGuardianAddress ? { recoveryGuardianAddress } : {} },
@@ -363,7 +362,7 @@ async function ensureWallet(agentId: string, recoveryGuardianAddress?: string): 
     agentSigner: wallet.owners[0],
     aegisCosigner: wallet.owners[1],
     guardian: wallet.owners[2],
-    guardianManaged: !recoveryGuardianAddress,
+    guardianManaged: wallet.guardianManaged ?? false,
     threshold: "2-of-3",
   };
   patchCreatedAgent(agentId, { wallet: wallet.safeAddress, walletInfo });
