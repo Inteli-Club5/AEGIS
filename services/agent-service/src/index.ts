@@ -64,6 +64,9 @@ import {
   DEFAULT_TEEML_PROCESSING_LEASE_SECONDS,
   TeeMlService,
 } from "./teeml/service.js";
+import { getAgentPrivateKey } from "./store.js";
+import { ExecutionError, PaymentExecutionService } from "./payment/execute.js";
+import { createPostgresExecutionRepository } from "./payment/execution-repository.js";
 import { resolveRecoveryGuardian } from "./walletConfig.js";
 
 const EVM_ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/;
@@ -149,10 +152,15 @@ export function createAgentServiceApp(options: AgentServiceAppOptions = {}) {
         Math.ceil(teemlTimeoutMs / 1_000) + 30,
       ),
       securityProfile: teemlSecurityProfile,
+      allowHackathonExecution: process.env.AEGIS_ALLOW_HACKATHON_EXECUTION === "true",
     },
   );
   const isPolicyDatabaseConfigured = !(
     policyRepository instanceof UnconfiguredPolicyRepository
+  );
+  const paymentExecutionService = createPaymentExecutionServiceFromEnv(
+    teemlRepository,
+    policyRepository,
   );
   const createAgent = options.createAgent ?? createAgentProfile;
   const createWallet = options.createWallet ?? createAgentWallet;
@@ -585,6 +593,39 @@ export function createAgentServiceApp(options: AgentServiceAppOptions = {}) {
       });
     }
   });
+
+  app.post("/actions/:requestId/execute", async (req, res) => {
+    if (!options.authenticateAgentActor) {
+      return res.status(503).json({ error: "agent_auth_unconfigured" });
+    }
+    if (!paymentExecutionService) {
+      return res.status(503).json({ error: "execution_unconfigured" });
+    }
+    try {
+      const actor = await options.authenticateAgentActor(req);
+      const result = await paymentExecutionService.execute(
+        req.params.requestId,
+        actor,
+      );
+      res.status(200).json(result);
+    } catch (error) {
+      if (error instanceof ExecutionError) {
+        return res
+          .status(error.httpStatus)
+          .json({ error: error.code, message: error.message });
+      }
+      if (error instanceof PolicyEngineError) {
+        return res
+          .status(error.status)
+          .json({ error: error.code, message: error.message });
+      }
+      res.status(502).json({
+        error: "execution_failed",
+        message: error instanceof Error ? error.message : "unknown_error",
+      });
+    }
+  });
+
   app.delete("/agents/:agentId", async (req, res) => {
     const agentId = req.params.agentId;
     deleteStoredAgent(agentId);
@@ -669,6 +710,43 @@ function envPositiveInteger(name: string, fallback: number): number {
     throw new Error(`${name} must be a positive integer`);
   }
   return parsed;
+}
+
+function createPaymentExecutionServiceFromEnv(
+  teemlRepository: TeeMlRepository,
+  policyRepository: PolicyRepository,
+): PaymentExecutionService | undefined {
+  const agentVerifierSignerPrivateKey = process.env.AGENT_VERIFIER_SIGNER_PRIVATE_KEY;
+  const feeRecipientAddress = process.env.AEGIS_FEE_RECIPIENT_ADDRESS;
+  const rpcUrl = process.env.RPC_URL;
+  const cosignerBaseUrl = process.env.COSIGNER_BASE_URL;
+  if (
+    !agentVerifierSignerPrivateKey ||
+    !feeRecipientAddress ||
+    !rpcUrl ||
+    !cosignerBaseUrl ||
+    !process.env.DATABASE_URL
+  ) {
+    return undefined;
+  }
+  return new PaymentExecutionService(
+    teemlRepository,
+    policyRepository,
+    createPostgresExecutionRepository(process.env.DATABASE_URL),
+    {
+      agentVerifierSignerPrivateKey: normalizeHexKey(agentVerifierSignerPrivateKey),
+      feeRecipientAddress: feeRecipientAddress as `0x${string}`,
+      rpcUrl,
+      cosignerBaseUrl,
+      getAgentPrivateKey,
+      idGenerator: createUuidV7,
+      clock: () => Math.floor(Date.now() / 1000),
+    },
+  );
+}
+
+function normalizeHexKey(key: string): `0x${string}` {
+  return key.startsWith("0x") ? (key as `0x${string}`) : `0x${key}`;
 }
 
 const port = process.env.AGENT_SERVICE_PORT ?? 4200;
