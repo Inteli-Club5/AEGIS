@@ -2,12 +2,19 @@ import type { Policy } from "../types/aegis.ts";
 import { formatBaseUnitAmount, parseDisplayAmount } from "./amount.ts";
 import {
   type DestinationIdentity,
+  NETWORK_ID,
   type PolicyRules,
+  type SemanticRule,
+  TRUSTED_SERVICE_DESCRIPTOR_RULE_KIND,
+  type TrustedServiceDescriptorV1,
+  computeTrustedServiceMetadataHash,
   evmAddressDestination,
   finalizePolicyRules,
   hederaAccountDestination,
   htsAsset,
   nativeHbarAsset,
+  normalizeTrustedServiceDestinationId,
+  trustedServiceDescriptorRule,
 } from "./hash.ts";
 import { getAddress, isAddress } from "viem";
 
@@ -22,6 +29,18 @@ export type PolicyDestinationFormValue = {
 };
 
 export type RecoveryGuardianMode = "DEFAULT" | "CUSTOM";
+
+// A trusted service is optional, but running an action through TeeML verify
+// requires the active policy to have exactly one (docs/aegis-current-scope.md).
+export type TrustedServiceFormValues = {
+  enabled: boolean;
+  providerId: string;
+  serviceId: string;
+  productId: string;
+  categoryIds: string; // comma-separated
+  capabilityIds: string; // comma-separated
+  shortDescription: string;
+};
 
 export type PolicyFormValues = {
   assetKind: PolicyAssetKind;
@@ -38,6 +57,7 @@ export type PolicyFormValues = {
   validUntilLocal: string;
   recoveryGuardianMode: RecoveryGuardianMode;
   recoveryGuardianAddress: string;
+  trustedService: TrustedServiceFormValues;
 };
 
 export function parsePolicyForm(
@@ -45,6 +65,7 @@ export function parsePolicyForm(
   nowSeconds = Math.floor(Date.now() / 1000),
 ): {
   rules: PolicyRules;
+  semanticRules: SemanticRule[];
   validFrom: number;
   validUntil: number | null;
   recoveryGuardianAddress?: `0x${string}`;
@@ -89,7 +110,66 @@ export function parsePolicyForm(
   const recoveryGuardianAddress =
     values.recoveryGuardianMode === "CUSTOM" ? parseRecoveryGuardianAddress(values.recoveryGuardianAddress) : undefined;
 
-  return { rules, validFrom, validUntil, recoveryGuardianAddress };
+  const semanticRules = parseTrustedServiceSemanticRules(values.trustedService, rules.allowedDestinations);
+
+  return { rules, semanticRules, validFrom, validUntil, recoveryGuardianAddress };
+}
+
+function parseTrustedServiceSemanticRules(
+  trustedService: TrustedServiceFormValues,
+  allowedDestinations: DestinationIdentity[],
+): SemanticRule[] {
+  if (!trustedService.enabled) return [];
+
+  const providerId = trustedService.providerId.trim();
+  const serviceId = trustedService.serviceId.trim();
+  if (!providerId) throw new Error("Enter a provider ID for the trusted service.");
+  if (!serviceId) throw new Error("Enter a service ID for the trusted service.");
+  if (allowedDestinations.length === 0) {
+    throw new Error("Add at least one destination above before enabling a trusted service.");
+  }
+
+  const productId = trustedService.productId.trim() || undefined;
+  const shortDescription = trustedService.shortDescription.trim() || undefined;
+  const descriptor: TrustedServiceDescriptorV1 = {
+    schemaVersion: "1.0",
+    providerId,
+    serviceId,
+    ...(productId ? { productId } : {}),
+    networkId: NETWORK_ID,
+    destinationIds: [...new Set(allowedDestinations.map(normalizeTrustedServiceDestinationId))].sort(),
+    categoryIds: splitIdentifierList(trustedService.categoryIds, "category"),
+    capabilityIds: splitIdentifierList(trustedService.capabilityIds, "capability"),
+    metadataHash: computeTrustedServiceMetadataHash({ providerId, serviceId, productId, shortDescription }),
+    ...(shortDescription ? { shortDescription } : {}),
+  };
+
+  return [trustedServiceDescriptorRule(descriptor)];
+}
+
+function splitIdentifierList(value: string, label: string): string[] {
+  const items = [
+    ...new Set(
+      value
+        .split(",")
+        .map(item => item.trim().toLowerCase())
+        .filter(Boolean),
+    ),
+  ].sort();
+  if (items.length === 0) throw new Error(`Add at least one ${label} for the trusted service.`);
+  return items;
+}
+
+export function emptyTrustedServiceFormValues(): TrustedServiceFormValues {
+  return {
+    enabled: false,
+    providerId: "",
+    serviceId: "",
+    productId: "",
+    categoryIds: "",
+    capabilityIds: "",
+    shortDescription: "",
+  };
 }
 
 function parseRecoveryGuardianAddress(value: string): `0x${string}` {
@@ -127,6 +207,23 @@ export function policyToFormValues(policy: Policy): PolicyFormValues {
     validUntilLocal: policy.validUntil === null ? "" : formatLocalDateTime(policy.validUntil),
     recoveryGuardianMode: "DEFAULT",
     recoveryGuardianAddress: "",
+    trustedService: trustedServiceFormValuesFromPolicy(policy),
+  };
+}
+
+function trustedServiceFormValuesFromPolicy(policy: Policy): TrustedServiceFormValues {
+  const rule = policy.semanticRules.find(candidate => candidate.kind === TRUSTED_SERVICE_DESCRIPTOR_RULE_KIND);
+  if (!rule) return emptyTrustedServiceFormValues();
+
+  const descriptor = rule.params as TrustedServiceDescriptorV1;
+  return {
+    enabled: true,
+    providerId: descriptor.providerId,
+    serviceId: descriptor.serviceId,
+    productId: descriptor.productId ?? "",
+    categoryIds: descriptor.categoryIds.join(", "),
+    capabilityIds: descriptor.capabilityIds.join(", "),
+    shortDescription: descriptor.shortDescription ?? "",
   };
 }
 
@@ -144,6 +241,7 @@ export function emptyPolicyFormValues(): PolicyFormValues {
     validFromLocal: "",
     validUntilMode: "NONE",
     validUntilLocal: "",
+    trustedService: emptyTrustedServiceFormValues(),
     recoveryGuardianMode: "DEFAULT",
     recoveryGuardianAddress: "",
   };

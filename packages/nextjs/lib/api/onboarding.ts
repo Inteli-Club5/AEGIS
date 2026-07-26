@@ -140,6 +140,7 @@ export async function savePolicyDraft(
     agentId: string;
     ownerWallet: `0x${string}`;
     rules: PolicyRules;
+    semanticRules?: Policy["semanticRules"];
     validFrom: number;
     validUntil: number | null;
     sourcePolicy?: Policy;
@@ -150,7 +151,7 @@ export async function savePolicyDraft(
 ): Promise<{ policy: Policy; wallet: ProtectedWalletInfo }> {
   onPhase?.("wallet");
   const wallet = await ensureWallet(input.agentId, input.recoveryGuardianAddress);
-  const semanticRules: Policy["semanticRules"] = [];
+  const semanticRules: Policy["semanticRules"] = input.semanticRules ?? [];
 
   let versions: Policy[] = [];
   if (input.sourcePolicy) {
@@ -257,6 +258,7 @@ export async function createPolicy(
     validUntil?: number | null;
     sourcePolicy?: Policy;
     recoveryGuardianAddress?: string;
+    semanticRules?: Policy["semanticRules"];
   },
 ): Promise<{ policy: Policy; wallet: ProtectedWalletInfo }> {
   return savePolicyDraft(
@@ -264,6 +266,7 @@ export async function createPolicy(
       agentId,
       ownerWallet,
       rules,
+      semanticRules: options?.semanticRules,
       validFrom: options?.validFrom ?? Math.floor(Date.now() / 1000),
       validUntil: options?.validUntil ?? null,
       sourcePolicy: options?.sourcePolicy,

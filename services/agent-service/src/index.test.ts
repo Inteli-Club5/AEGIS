@@ -3,7 +3,9 @@ import { once } from "node:events";
 import type { AddressInfo } from "node:net";
 import { describe, it } from "node:test";
 import { PolicyEngineError } from "./policy-engine/errors.js";
+import { createStoreAgentActorAuthenticator } from "./policy-engine/agent-auth.js";
 import { createAgentServiceApp, fixedAgentActor } from "./index.js";
+import { resolveAgentIdForAuthToken } from "./store.js";
 import type { AgentProfile } from "./types.js";
 
 const AGENT_ID = "agent-route-auth";
@@ -124,6 +126,7 @@ describe("Agentic ID registration route authentication", () => {
 async function postRegistration(
   app: ReturnType<typeof createAgentServiceApp>,
   body?: unknown,
+  bearerToken?: string,
 ): Promise<Response> {
   const server = app.listen(0, "127.0.0.1");
   await once(server, "listening");
@@ -133,14 +136,91 @@ async function postRegistration(
       `http://127.0.0.1:${port}/agents/${AGENT_ID}/register-agentic-id`,
       {
         method: "POST",
-        ...(body === undefined
-          ? {}
-          : {
-              body: JSON.stringify(body),
-              headers: { "content-type": "application/json" },
-            }),
+        headers: {
+          ...(body === undefined ? {} : { "content-type": "application/json" }),
+          ...(bearerToken === undefined ? {} : { authorization: `Bearer ${bearerToken}` }),
+        },
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       },
     );
+  } finally {
+    server.close();
+    await once(server, "close");
+  }
+}
+
+describe("Internal agent auth-token route", () => {
+  it("fails closed when no internal secret is configured", async () => {
+    const response = await withInternalTokenEnv(undefined, () =>
+      getAuthToken(createAgentServiceApp({ getAgent: () => profile() }), "correct-horse-battery-staple"),
+    );
+    assert.equal(response.status, 503);
+    assert.equal((await response.json()).error, "internal_auth_unconfigured");
+  });
+
+  it("rejects a missing or wrong internal secret", async () => {
+    const response = await withInternalTokenEnv("the-real-secret-value-32-chars-min", () =>
+      getAuthToken(createAgentServiceApp({ getAgent: () => profile() }), "wrong-secret"),
+    );
+    assert.equal(response.status, 401);
+    assert.equal((await response.json()).error, "invalid_internal_auth");
+  });
+
+  it("returns not_found for an agent the store doesn't know about", async () => {
+    const secret = "the-real-secret-value-32-chars-min";
+    const response = await withInternalTokenEnv(secret, () =>
+      getAuthToken(createAgentServiceApp({ getAgent: () => undefined }), secret),
+    );
+    assert.equal(response.status, 404);
+    assert.equal((await response.json()).error, "not_found");
+  });
+
+  it("returns a bearer token that then authenticates as that exact agent", async () => {
+    const secret = "the-real-secret-value-32-chars-min";
+    const app = createAgentServiceApp({ getAgent: () => profile() });
+    const response = await withInternalTokenEnv(secret, () => getAuthToken(app, secret));
+    assert.equal(response.status, 200);
+    const { token } = (await response.json()) as { token: string };
+    assert.ok(token.length >= 32);
+
+    const registration = await postRegistration(
+      createAgentServiceApp({
+        authenticateAgentActor: createStoreAgentActorAuthenticator(resolveAgentIdForAuthToken),
+        registerAgenticId: async agentId => {
+          assert.equal(agentId, AGENT_ID);
+          return profile();
+        },
+      }),
+      undefined,
+      token,
+    );
+    assert.equal(registration.status, 201);
+  });
+});
+
+async function withInternalTokenEnv<T>(value: string | undefined, run: () => Promise<T>): Promise<T> {
+  const previous = process.env.AEGIS_DASHBOARD_INTERNAL_TOKEN;
+  if (value === undefined) delete process.env.AEGIS_DASHBOARD_INTERNAL_TOKEN;
+  else process.env.AEGIS_DASHBOARD_INTERNAL_TOKEN = value;
+  try {
+    return await run();
+  } finally {
+    if (previous === undefined) delete process.env.AEGIS_DASHBOARD_INTERNAL_TOKEN;
+    else process.env.AEGIS_DASHBOARD_INTERNAL_TOKEN = previous;
+  }
+}
+
+async function getAuthToken(
+  app: ReturnType<typeof createAgentServiceApp>,
+  presentedToken: string,
+): Promise<Response> {
+  const server = app.listen(0, "127.0.0.1");
+  await once(server, "listening");
+  const { port } = server.address() as AddressInfo;
+  try {
+    return await fetch(`http://127.0.0.1:${port}/internal/agents/${AGENT_ID}/auth-token`, {
+      headers: { "x-aegis-internal-token": presentedToken },
+    });
   } finally {
     server.close();
     await once(server, "close");

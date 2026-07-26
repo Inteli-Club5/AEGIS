@@ -28,6 +28,54 @@ export type AssetIdentity =
 
 export type SemanticRule = { ruleId: string; kind: string; params: Record<string, unknown> };
 
+// Mirrors services/agent-service/src/policy-engine/{types,trusted-service-descriptor}.ts.
+// A policy needs exactly one of these for TeeML verify to have a service/product to
+// match against (docs/aegis-current-scope.md's "Trusted Semantic Sources").
+export const TRUSTED_SERVICE_DESCRIPTOR_RULE_KIND = "TRUSTED_SERVICE_DESCRIPTOR_V1";
+
+export type TrustedServiceDescriptorV1 = {
+  schemaVersion: "1.0";
+  providerId: string;
+  serviceId: string;
+  productId?: string;
+  networkId: typeof NETWORK_ID;
+  destinationIds: string[];
+  categoryIds: string[];
+  capabilityIds: string[];
+  metadataHash: Hex32;
+  shortDescription?: string;
+};
+
+export function trustedServiceDescriptorRule(descriptor: TrustedServiceDescriptorV1): SemanticRule {
+  return {
+    ruleId: `trusted-service:${descriptor.serviceId}${descriptor.productId ? `:${descriptor.productId}` : ""}`,
+    kind: TRUSTED_SERVICE_DESCRIPTOR_RULE_KIND,
+    params: descriptor,
+  };
+}
+
+// The descriptor's own fields (provider/service/product/description) hashed
+// deterministically, so the operator never hand-computes a hash by themselves.
+export function computeTrustedServiceMetadataHash(input: {
+  providerId: string;
+  serviceId: string;
+  productId?: string;
+  shortDescription?: string;
+}): Hex32 {
+  return keccak256(stringToHex(stableStringify(input))) as Hex32;
+}
+
+export function normalizeTrustedServiceDestinationId(destination: DestinationIdentity): string {
+  if (destination.kind === "EVM_ADDRESS") return destination.value.toLowerCase();
+  if (destination.kind === "HEDERA_ACCOUNT_ID") {
+    return destination.value
+      .split(".")
+      .map(part => BigInt(part).toString())
+      .join(".");
+  }
+  return new URL(destination.value).origin.toLowerCase();
+}
+
 export type PolicyRules = {
   allowedActionTypes: string[];
   allowedDestinations: DestinationIdentity[];

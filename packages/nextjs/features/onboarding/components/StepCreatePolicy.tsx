@@ -77,6 +77,20 @@ export function StepCreatePolicy({
     );
   }
 
+  function updateTrustedService(patch: Partial<PolicyFormValues["trustedService"]>) {
+    update("trustedService", { ...values.trustedService, ...patch });
+  }
+
+  function toggleTrustedService(enabled: boolean) {
+    updateTrustedService({
+      enabled,
+      capabilityIds:
+        enabled && !values.trustedService.capabilityIds
+          ? agent.capabilities.join(", ")
+          : values.trustedService.capabilityIds,
+    });
+  }
+
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
     setError(null);
@@ -105,6 +119,7 @@ export function StepCreatePolicy({
           validUntil: parsed.validUntil,
           sourcePolicy: initial,
           recoveryGuardianAddress: parsed.recoveryGuardianAddress,
+          semanticRules: parsed.semanticRules,
         },
       );
       onCreated(policy, wallet);
@@ -241,6 +256,90 @@ export function StepCreatePolicy({
                 <Plus className="h-4 w-4" />
                 Add destination
               </Button>
+            </fieldset>
+
+            <fieldset>
+              <legend className="text-label">Trusted service (optional)</legend>
+              <p className="mt-1 text-caption text-subtle">
+                Running an action through 0G TeeML verification requires the active policy to name exactly one trusted
+                service. Leave this off if you only need Level 1 (deterministic) checks for now.
+              </p>
+              <label className="mt-3 flex min-h-11 cursor-pointer items-start gap-3 rounded-md border border-border bg-surface-raised p-3 text-body-sm has-checked:border-brand">
+                <input
+                  type="checkbox"
+                  checked={values.trustedService.enabled}
+                  onChange={event => toggleTrustedService(event.target.checked)}
+                  className="mt-1 accent-(--color-brand-strong)"
+                />
+                <span>
+                  <span className="block font-semibold">Name a trusted service for this policy</span>
+                  <span className="mt-0.5 block text-caption text-muted">
+                    Requires at least one destination configured above.
+                  </span>
+                </span>
+              </label>
+              {values.trustedService.enabled && (
+                <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                  <label className="text-label">
+                    Provider ID
+                    <input
+                      value={values.trustedService.providerId}
+                      onChange={event => updateTrustedService({ providerId: event.target.value })}
+                      placeholder="acme-market-data"
+                      className={`${inputClass} font-mono`}
+                    />
+                  </label>
+                  <label className="text-label">
+                    Service ID
+                    <input
+                      value={values.trustedService.serviceId}
+                      onChange={event => updateTrustedService({ serviceId: event.target.value })}
+                      placeholder="market-data-api"
+                      className={`${inputClass} font-mono`}
+                    />
+                  </label>
+                  <label className="text-label">
+                    Product ID (optional)
+                    <input
+                      value={values.trustedService.productId}
+                      onChange={event => updateTrustedService({ productId: event.target.value })}
+                      placeholder="realtime-tier"
+                      className={`${inputClass} font-mono`}
+                    />
+                  </label>
+                  <label className="text-label">
+                    Categories (comma-separated)
+                    <input
+                      value={values.trustedService.categoryIds}
+                      onChange={event => updateTrustedService({ categoryIds: event.target.value })}
+                      placeholder="data, market-data"
+                      className={`${inputClass} font-mono`}
+                    />
+                  </label>
+                  <label className="text-label sm:col-span-2">
+                    Required agent capabilities (comma-separated)
+                    <input
+                      value={values.trustedService.capabilityIds}
+                      onChange={event => updateTrustedService({ capabilityIds: event.target.value })}
+                      placeholder="call_api, pay_service_provider"
+                      className={`${inputClass} font-mono`}
+                    />
+                  </label>
+                  <label className="text-label sm:col-span-2">
+                    Short description (optional)
+                    <input
+                      value={values.trustedService.shortDescription}
+                      onChange={event => updateTrustedService({ shortDescription: event.target.value })}
+                      placeholder="Real-time market data feed for treasury pricing"
+                      className={inputClass}
+                    />
+                  </label>
+                  <p className="text-caption text-subtle sm:col-span-2">
+                    Matched against the exact <code>serviceId</code>/<code>productId</code> supplied when running an
+                    action; destinations are taken from the allowlist above.
+                  </p>
+                </div>
+              )}
             </fieldset>
 
             <fieldset>
@@ -431,6 +530,14 @@ export function StepCreatePolicy({
             <ReviewItem
               label="Limits"
               value={`min ${values.minAmount || "none"} · max ${values.maxAmount || "none"} · daily ${values.dailyAmount || "none"}`}
+            />
+            <ReviewItem
+              label="Trusted service"
+              value={
+                values.trustedService.enabled
+                  ? values.trustedService.serviceId || "Configured, service ID missing"
+                  : "None (TeeML verify unavailable)"
+              }
             />
             <ReviewItem
               label="Validity"

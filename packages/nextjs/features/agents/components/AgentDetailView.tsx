@@ -25,6 +25,7 @@ import {
 import { Badge, type BadgeTone } from "~~/components/ui/Badge";
 import { Button } from "~~/components/ui/Button";
 import { ConfirmDialog } from "~~/components/ui/ConfirmDialog";
+import { ActionsPanel } from "~~/features/agents/components/ActionsPanel";
 import { FundWalletCard } from "~~/features/agents/components/FundWalletCard";
 import { deleteAgent } from "~~/lib/api/agents";
 import { agenticIdentityEntityId, hashCanonicalAgentId } from "~~/lib/onchain-data/aggregate";
@@ -68,6 +69,7 @@ const TABS = [
   { id: "overview", label: "Overview" },
   { id: "wallet", label: "Wallet" },
   { id: "policies", label: "Policies" },
+  { id: "actions", label: "Actions" },
   { id: "activity", label: "Activity" },
 ] as const;
 type TabId = (typeof TABS)[number]["id"];
@@ -195,6 +197,11 @@ export function AgentDetailView({ agent }: { agent: AgentDetail }) {
         {tab === "policies" && (
           <TabPanel id="policies">
             <PoliciesTab agent={agent} />
+          </TabPanel>
+        )}
+        {tab === "actions" && (
+          <TabPanel id="actions">
+            <ActionsPanel agent={agent} />
           </TabPanel>
         )}
         {tab === "activity" && (
