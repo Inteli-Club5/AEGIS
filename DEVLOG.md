@@ -2042,3 +2042,96 @@ oldest at the top, newest at the bottom. Use English AM/PM timestamps. Format:
   canonical The Graph continuation/status documentation. No secret, private
   semantic context, fake verdict, RPC-read fallback, or database-history
   fallback was added.
+
+## 2026-07-26 05:30 AM - Claude Code (CryptoVictor) - dashboard payment-flow integration + critical auth fix
+
+- did: wired the previously backend-only payment/action flow (Level 1 precheck
+  -> 0G TeeML verify -> Safe co-signed execute, already verified live by the
+  team via curl/scripts) into the Next.js dashboard for the first time:
+  Agentic ID registration and a new "Actions" tab
+  (`features/agents/components/ActionsPanel.tsx`) on the agent detail page, an
+  optional trusted-service (`TRUSTED_SERVICE_DESCRIPTOR_V1`) semantic-rule
+  section on policy creation (`StepCreatePolicy.tsx`, `lib/policy/form.ts`,
+  `lib/policy/hash.ts` - TeeML verify has nothing to match against without one),
+  and four new same-origin proxy routes plus `lib/api/actions.ts` client
+  wrappers.
+- did: closed a real gap the existing static-env agent-bearer auth couldn't
+  cover - agents created dynamically through onboarding get a random UUID
+  agentId unknowable in advance, so `AEGIS_AGENT_AUTH_TOKENS_JSON` can never be
+  pre-provisioned for them. Added dynamic per-agent token issuance at
+  agent-creation time (`services/agent-service/src/store.ts`'s
+  `issueAgentAuthToken`/`resolveAgentIdForAuthToken`), a composable
+  authenticator (`policy-engine/agent-auth.ts`'s `createStoreAgentActorAuthenticator`/
+  `composeAgentActorAuthenticators`, coexisting with the static env map), and a
+  new internal-only `GET /internal/agents/:agentId/auth-token` route gated by a
+  shared secret (`AEGIS_DASHBOARD_INTERNAL_TOKEN`) mirroring the existing
+  `AEGIS_AGENTIC_ID_INTERNAL_TOKEN` dashboard<->service pattern.
+- did: a `grumpy-carlos-code-reviewer` pass caught a critical vulnerability in
+  that first implementation before it shipped - the four new proxy routes
+  (register-agentic-id, precheck, TeeML verify, execute) fetched and used
+  *any* named agent's real bearer token with no check that the caller actually
+  owned that agent. An agentId is not a secret (visible in the URL, returned by
+  the already-unauthenticated `GET /agents/:agentId`), so this would have let
+  anyone who named an agent trigger a real Hedera testnet payment from its Safe,
+  up to that policy's own limits, with zero wallet signature. Fixed by adding a
+  new EIP-712 `AgentActionAuthorization` commitment
+  (`packages/nextjs/lib/policy/action-auth.ts`, distinct domain from the
+  existing `PolicyCommitment`/`DecisionReceipt` types to avoid any signature
+  confusion) that the operator's connected wallet signs fresh before every one
+  of the four calls, binding agentId + action + a hash of the exact request
+  content + an issuance timestamp (300s freshness window). The Next.js server
+  (`lib/server/agentService.ts::verifyAgentActionAuthorization`) recovers the
+  signer, then independently confirms it against the agent's real `ownerWallet`
+  (fetched from the existing `GET /agents/:agentId`) before ever fetching that
+  agent's bearer token - closing the gap the same way the existing Policy
+  Engine routes already prove operator ownership, just verified in the Next.js
+  layer instead of the backend since these routes authenticate as the agent,
+  not the operator.
+- did: separately, while testing, brought the dashboard's 0G-backed onchain
+  views back from "unavailable" by standing up the local Graph Node stack
+  (`docker compose -f compose.thegraph.yaml`; query port remapped to 18000
+  locally only, since 8000 was already held by an unrelated container on this
+  machine) and deploying the 0G subgraph - build hash
+  `QmaVs13eKCFLV9MAoZNkb4S5oqZ7ToV2nyVPu6kGHQqbY9` matches the team's
+  previously-verified deployment exactly, confirming reproducibility.
+  `THEGRAPH_HEDERA_SUBGRAPH_URL` was deliberately left unset: no TeeML registry
+  contract has been deployed to real Hedera testnet (`TG-DEPLOY-001`/
+  `TG-HEDERA-RPC-001`, external Mirror Node infra, unrelated to this session),
+  so there is nothing for a Hedera subgraph to index yet; the dashboard's
+  honest "unavailable" message there is correct, not a bug.
+- validation: `services/agent-service` unit suite passes 238/239 (the one
+  failure is pre-existing and unrelated to this work, confirmed via `git
+  stash`); new tests for the auth bridge (`store.test.ts`,
+  `agent-auth.test.ts`, `index.test.ts`'s new internal-route suite) and for the
+  EIP-712 ownership check (`lib/policy/action-auth.test.ts`, 13 new cases
+  covering signature recovery, freshness, and tamper-detection on every bound
+  field) all pass. `packages/nextjs` `check-types`, `next lint`, and `next
+  build` are clean; a live smoke test against the real running dev server
+  confirmed all four new proxy routes correctly round-trip through the new
+  internal-token bridge (404 for an unknown agent, proving the whole chain
+  works end to end).
+- next: a real-browser manual QA pass of the new Actions tab (same gap pattern
+  the onboarding flow had before its own manual pass) and a full live
+  Hedera+0G execute run through the new UI specifically (the underlying
+  precheck/TeeML/execute logic itself is unchanged and already
+  live-verified per the "payment execution phase" entry above; only the new
+  UI/auth-bridge layer on top of it is unverified live end-to-end). Carlos's
+  two minor findings (internal-token minimum-length check;
+  `computeTrustedServiceMetadataHash` never independently re-verified
+  server-side) remain open, non-blocking. See `TASKS.md`'s new "dashboard
+  payment-flow integration" section for the full punch list.
+- blockers: none for the demo. The Graph's Hedera side remains blocked on the
+  same pre-existing external dependencies as before (`TG-DEPLOY-001`,
+  `TG-HEDERA-RPC-001`) - unrelated to and unchanged by this session.
+- interfaces touched: new `GET /internal/agents/:agentId/auth-token`
+  (agent-service, internal-secret-gated); new `AEGIS_DASHBOARD_INTERNAL_TOKEN`
+  env var (both services); new EIP-712 `AgentActionAuthorization` commitment
+  and its three required request headers
+  (`x-aegis-operator-address`/`-signature`/`-issued-at`) on the four new
+  Next.js proxy routes - **loudly flagging this one**: any future route
+  reusing `proxyAgentServiceRequestAsAgent` must call
+  `verifyAgentActionAuthorization` first, or it reopens the exact
+  any-named-agent vulnerability described above. New optional
+  `TRUSTED_SERVICE_DESCRIPTOR_V1` semantic-rule section in policy creation.
+  `THEGRAPH_0G_SUBGRAPH_URL` now set locally; `THEGRAPH_HEDERA_SUBGRAPH_URL`
+  still intentionally unset.

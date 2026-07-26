@@ -1,4 +1,5 @@
 import "dotenv/config";
+import { timingSafeEqual } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import express from "express";
 import { createAgent as createAgentProfile } from "./createAgent.js";
@@ -23,7 +24,11 @@ import {
 } from "./policy-engine/db/postgres.js";
 import { createUuidV7 } from "./policy-engine/ids.js";
 import { PolicyEngineError } from "./policy-engine/errors.js";
-import { createEnvAgentActorAuthenticator } from "./policy-engine/agent-auth.js";
+import {
+  composeAgentActorAuthenticators,
+  createEnvAgentActorAuthenticator,
+  createStoreAgentActorAuthenticator,
+} from "./policy-engine/agent-auth.js";
 import type { PrecheckRepository } from "./policy-engine/precheck.js";
 import {
   DEFAULT_AUDIT_RETENTION_DAYS,
@@ -64,7 +69,11 @@ import {
   DEFAULT_TEEML_PROCESSING_LEASE_SECONDS,
   TeeMlService,
 } from "./teeml/service.js";
-import { getAgentPrivateKey } from "./store.js";
+import {
+  getAgentPrivateKey,
+  issueAgentAuthToken,
+  resolveAgentIdForAuthToken,
+} from "./store.js";
 import { ExecutionError, PaymentExecutionService } from "./payment/execute.js";
 import { createPostgresExecutionRepository } from "./payment/execution-repository.js";
 import { resolveRecoveryGuardian } from "./walletConfig.js";
@@ -175,6 +184,29 @@ export function createAgentServiceApp(options: AgentServiceAppOptions = {}) {
   app.get("/health", (_req, res) =>
     res.json({ ok: true, service: "aegis-agent-service" }),
   );
+
+  // Internal-only: lets the dashboard's server fetch an agent's own bearer
+  // token so it can act on that agent's behalf (precheck/TeeML verify/
+  // execute). Gated by a shared secret the browser never sees; see
+  // policy-engine/agent-auth.ts's createStoreAgentActorAuthenticator.
+  app.get("/internal/agents/:agentId/auth-token", (req, res) => {
+    const expectedToken = process.env.AEGIS_DASHBOARD_INTERNAL_TOKEN;
+    if (!expectedToken) {
+      return res.status(503).json({ error: "internal_auth_unconfigured" });
+    }
+    const presentedToken = req.headers["x-aegis-internal-token"];
+    if (
+      typeof presentedToken !== "string" ||
+      !timingSafeEqualStrings(presentedToken, expectedToken)
+    ) {
+      return res.status(401).json({ error: "invalid_internal_auth" });
+    }
+    const agentId = req.params.agentId.trim().toLowerCase();
+    if (!getAgent(agentId)) {
+      return res.status(404).json({ error: "not_found" });
+    }
+    res.json({ token: issueAgentAuthToken(agentId) });
+  });
 
   app.use(
     createPolicyRouter(
@@ -749,9 +781,19 @@ function normalizeHexKey(key: string): `0x${string}` {
   return key.startsWith("0x") ? (key as `0x${string}`) : `0x${key}`;
 }
 
+function timingSafeEqualStrings(a: string, b: string): boolean {
+  const bufferA = Buffer.from(a);
+  const bufferB = Buffer.from(b);
+  if (bufferA.length !== bufferB.length) return false;
+  return timingSafeEqual(bufferA, bufferB);
+}
+
 const port = process.env.AGENT_SERVICE_PORT ?? 4200;
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const authenticateAgentActor = createEnvAgentActorAuthenticator();
+  const authenticateAgentActor = composeAgentActorAuthenticators(
+    createStoreAgentActorAuthenticator(resolveAgentIdForAuthToken),
+    createEnvAgentActorAuthenticator(),
+  );
   createAgentServiceApp({
     ...(authenticateAgentActor ? { authenticateAgentActor } : {}),
   }).listen(port, () => console.log(`aegis-agent-service on :${port}`));

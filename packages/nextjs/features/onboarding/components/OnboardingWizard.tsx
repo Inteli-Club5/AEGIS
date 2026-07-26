@@ -6,13 +6,15 @@ import { type OnboardingDraft, clearDraft, writeDraft } from "../draft";
 import { StepActivate } from "./StepActivate";
 import { StepCreatePolicy } from "./StepCreatePolicy";
 import { StepRegisterAgent } from "./StepRegisterAgent";
+import { StepRegisterAgenticId } from "./StepRegisterAgenticId";
 import { SuccessScreen } from "./SuccessScreen";
 import { Button } from "~~/components/ui/Button";
 import { ConfirmDialog } from "~~/components/ui/ConfirmDialog";
 import { Stepper } from "~~/components/ui/Stepper";
+import type { AgentServiceProfile } from "~~/lib/api/onboarding";
 import type { AgentProfile, Policy, ProtectedWalletInfo } from "~~/lib/types/aegis";
 
-const STEPS = ["Register agent", "Policy", "Activate"];
+const STEPS = ["Register agent", "Policy", "Activate", "Agentic ID"];
 
 export function OnboardingWizard({ initialDraft }: { initialDraft: OnboardingDraft | null }) {
   const router = useRouter();
@@ -20,6 +22,7 @@ export function OnboardingWizard({ initialDraft }: { initialDraft: OnboardingDra
   const [agent, setAgent] = useState<AgentProfile | undefined>(initialDraft?.agent);
   const [policy, setPolicy] = useState<Policy | undefined>(initialDraft?.policy);
   const [wallet, setWallet] = useState<ProtectedWalletInfo | undefined>(initialDraft?.wallet);
+  const [agenticId, setAgenticId] = useState<NonNullable<AgentServiceProfile["agenticId"]> | undefined>(undefined);
   const [done, setDone] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
 
@@ -46,6 +49,12 @@ export function OnboardingWizard({ initialDraft }: { initialDraft: OnboardingDra
 
   function handleActivated(activePolicy: Policy) {
     setPolicy(activePolicy);
+    setStep(3);
+    writeDraft({ step: 3, agent, policy: activePolicy, wallet });
+  }
+
+  function handleAgenticIdRegistered(registered: NonNullable<AgentServiceProfile["agenticId"]>) {
+    setAgenticId(registered);
     clearDraft();
     setDone(true);
   }
@@ -55,6 +64,7 @@ export function OnboardingWizard({ initialDraft }: { initialDraft: OnboardingDra
     setAgent(undefined);
     setPolicy(undefined);
     setWallet(undefined);
+    setAgenticId(undefined);
     setStep(0);
     setDone(false);
   }
@@ -62,7 +72,9 @@ export function OnboardingWizard({ initialDraft }: { initialDraft: OnboardingDra
   const hasProgress = Boolean(agent || policy);
 
   if (done && agent && wallet) {
-    return <SuccessScreen agent={agent} policy={policy} wallet={wallet} onRestart={handleRestart} />;
+    return (
+      <SuccessScreen agent={agent} policy={policy} wallet={wallet} agenticId={agenticId} onRestart={handleRestart} />
+    );
   }
 
   return (
@@ -95,6 +107,9 @@ export function OnboardingWizard({ initialDraft }: { initialDraft: OnboardingDra
             onBack={handleBack}
             onActivated={handleActivated}
           />
+        )}
+        {step === 3 && agent && (
+          <StepRegisterAgenticId agent={agent} onBack={handleBack} onRegistered={handleAgenticIdRegistered} />
         )}
       </div>
 

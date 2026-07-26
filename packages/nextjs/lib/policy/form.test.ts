@@ -1,4 +1,4 @@
-import { parsePolicyForm, policyToFormValues } from "./form.ts";
+import { emptyTrustedServiceFormValues, parsePolicyForm, policyToFormValues } from "./form.ts";
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
@@ -20,6 +20,7 @@ describe("Policy form contract", () => {
         validUntilLocal: "",
         recoveryGuardianMode: "DEFAULT",
         recoveryGuardianAddress: "",
+        trustedService: emptyTrustedServiceFormValues(),
       },
       1_800_000_000,
     );
@@ -55,6 +56,7 @@ describe("Policy form contract", () => {
         validUntilLocal: "",
         recoveryGuardianMode: "DEFAULT",
         recoveryGuardianAddress: "",
+        trustedService: emptyTrustedServiceFormValues(),
       },
       1_800_000_000,
     );
@@ -95,6 +97,7 @@ describe("Policy form contract", () => {
       validUntilLocal: "2027-01-02T12:00",
       recoveryGuardianMode: "DEFAULT",
       recoveryGuardianAddress: "",
+      trustedService: emptyTrustedServiceFormValues(),
     });
 
     assert.deepEqual(parsed.rules.allowedAssets, [{ kind: "HTS", chainId: 296, tokenId: "0.0.456789", decimals: 6 }]);
@@ -126,6 +129,7 @@ describe("Policy form contract", () => {
           validUntilLocal: "2027-01-01T12:00",
           recoveryGuardianMode: "DEFAULT",
           recoveryGuardianAddress: "",
+          trustedService: emptyTrustedServiceFormValues(),
         }),
       /expiry must be after its start/i,
     );
@@ -148,6 +152,7 @@ describe("Policy form contract", () => {
         validUntilLocal: "",
         recoveryGuardianMode: "CUSTOM",
         recoveryGuardianAddress: "0x000000000000000000000000000000000000ae61",
+        trustedService: emptyTrustedServiceFormValues(),
       },
       1_800_000_000,
     );
@@ -173,6 +178,7 @@ describe("Policy form contract", () => {
           validUntilLocal: "",
           recoveryGuardianMode: "CUSTOM",
           recoveryGuardianAddress: "not-an-address",
+          trustedService: emptyTrustedServiceFormValues(),
         }),
       /must be a valid EVM address/i,
     );
@@ -214,5 +220,141 @@ describe("Policy form contract", () => {
     assert.equal(values.dailyActionCount, "4");
     assert.equal(values.validFromMode, "CUSTOM");
     assert.equal(values.validUntilMode, "CUSTOM");
+    assert.equal(values.trustedService.enabled, false);
+  });
+
+  it("rejects an enabled trusted service with no configured destination", () => {
+    assert.throws(
+      () =>
+        parsePolicyForm({
+          assetKind: "HBAR",
+          htsTokenId: "",
+          htsDecimals: "",
+          destinations: [],
+          minAmount: "",
+          maxAmount: "",
+          dailyAmount: "",
+          dailyActionCount: "",
+          validFromMode: "NOW",
+          validFromLocal: "",
+          validUntilMode: "NONE",
+          validUntilLocal: "",
+          recoveryGuardianMode: "DEFAULT",
+          recoveryGuardianAddress: "",
+          trustedService: {
+            enabled: true,
+            providerId: "acme",
+            serviceId: "market-data",
+            productId: "",
+            categoryIds: "data",
+            capabilityIds: "call_api",
+            shortDescription: "",
+          },
+        }),
+      /at least one destination/i,
+    );
+  });
+
+  it("builds a single TRUSTED_SERVICE_DESCRIPTOR_V1 semantic rule from an enabled trusted service", () => {
+    const parsed = parsePolicyForm(
+      {
+        assetKind: "HBAR",
+        htsTokenId: "",
+        htsDecimals: "",
+        destinations: [{ kind: "HEDERA_ACCOUNT_ID", value: "0.0.123456" }],
+        minAmount: "",
+        maxAmount: "",
+        dailyAmount: "",
+        dailyActionCount: "",
+        validFromMode: "NOW",
+        validFromLocal: "",
+        validUntilMode: "NONE",
+        validUntilLocal: "",
+        recoveryGuardianMode: "DEFAULT",
+        recoveryGuardianAddress: "",
+        trustedService: {
+          enabled: true,
+          providerId: "Acme",
+          serviceId: "Market-Data",
+          productId: "",
+          categoryIds: "Data, data, market",
+          capabilityIds: "call_api",
+          shortDescription: "  Real-time market data feed  ",
+        },
+      },
+      1_800_000_000,
+    );
+
+    assert.equal(parsed.semanticRules.length, 1);
+    const rule = parsed.semanticRules[0];
+    assert.equal(rule.kind, "TRUSTED_SERVICE_DESCRIPTOR_V1");
+    const descriptor = rule.params as {
+      providerId: string;
+      serviceId: string;
+      productId?: string;
+      destinationIds: string[];
+      categoryIds: string[];
+      capabilityIds: string[];
+      metadataHash: string;
+      shortDescription?: string;
+    };
+    assert.equal(descriptor.providerId, "Acme");
+    assert.equal(descriptor.serviceId, "Market-Data");
+    assert.equal(descriptor.productId, undefined);
+    assert.deepEqual(descriptor.destinationIds, ["0.0.123456"]);
+    assert.deepEqual(descriptor.categoryIds, ["data", "market"]);
+    assert.deepEqual(descriptor.capabilityIds, ["call_api"]);
+    assert.equal(descriptor.shortDescription, "Real-time market data feed");
+    assert.match(descriptor.metadataHash, /^0x[a-f0-9]{64}$/);
+  });
+
+  it("hydrates an enabled trusted service back from an existing policy's semantic rules", () => {
+    const values = policyToFormValues({
+      policyId: "pol_1",
+      agentId: "agent_1",
+      walletId: "wallet_1",
+      policyVersion: 1,
+      policyHash: `0x${"ab".repeat(32)}`,
+      status: "ACTIVE",
+      validFrom: 1_800_000_000,
+      validUntil: null,
+      rules: {
+        allowedActionTypes: ["HEDERA_HBAR_TRANSFER"],
+        allowedDestinations: [{ kind: "HEDERA_ACCOUNT_ID", value: "0.0.7" }],
+        allowedAssets: [{ kind: "NATIVE", chainId: 296, assetId: "hbar", decimals: 8 }],
+        amount: { min: null, max: null, dailyLimit: null },
+        actionCount: { dailyLimit: null },
+      },
+      semanticRules: [
+        {
+          ruleId: "trusted-service:market-data",
+          kind: "TRUSTED_SERVICE_DESCRIPTOR_V1",
+          params: {
+            schemaVersion: "1.0",
+            providerId: "acme",
+            serviceId: "market-data",
+            networkId: "hedera:testnet",
+            destinationIds: ["0.0.7"],
+            categoryIds: ["data"],
+            capabilityIds: ["call_api"],
+            metadataHash: `0x${"cd".repeat(32)}`,
+            shortDescription: "Real-time market data feed",
+          },
+        },
+      ],
+      createdAt: 1_800_000_000,
+      updatedAt: 1_800_000_000,
+      activatedAt: 1_800_000_000,
+      revokedAt: null,
+      supersededAt: null,
+      supersededByPolicyId: null,
+    });
+
+    assert.equal(values.trustedService.enabled, true);
+    assert.equal(values.trustedService.providerId, "acme");
+    assert.equal(values.trustedService.serviceId, "market-data");
+    assert.equal(values.trustedService.categoryIds, "data");
+    assert.equal(values.trustedService.capabilityIds, "call_api");
+    assert.equal(values.trustedService.shortDescription, "Real-time market data feed");
   });
 });

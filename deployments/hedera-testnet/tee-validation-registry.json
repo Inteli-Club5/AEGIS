@@ -1,0 +1,16 @@
+{
+  "contractName": "AegisTeeValidationRegistry",
+  "address": "0xDF562bCf61E1E8fD8FaedF0f2fF39863A1eeDB6B",
+  "chainId": 296,
+  "network": "hedera-testnet",
+  "deployTxHash": "0xa6159a1ff0d3fb8a4c73c3cdcbfbfc1cdf1d17aa66db085e8911b5bc3491c0a5",
+  "deployBlock": 38463395,
+  "deployerAddress": "0x03f197ABD7C8AcFecE274261cA20bee0E6BB3b5f",
+  "adminAddress": "0x03f197ABD7C8AcFecE274261cA20bee0E6BB3b5f",
+  "recorderAddress": "0x3276c05453f4893Ad1E37Ede0E75E8be2b428bE0",
+  "abiPath": "deployments/hedera-testnet/tee-validation-registry.abi.json",
+  "compiledArtifactPath": "packages/foundry/out/AegisTeeValidationRegistry.sol/AegisTeeValidationRegistry.json",
+  "bytecodeHash": "0x0638a8ac1a4bc6f6640820917314bc779391b6058667cee24f95724fa7d9a272",
+  "schemaVersion": 1,
+  "deployedAt": "2026-07-26T05:19:45.672Z"
+}

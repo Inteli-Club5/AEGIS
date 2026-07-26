@@ -1,13 +1,72 @@
 # AEGIS Tasks
 
-Branch task list for `feat/thegraph-aegis-onchain-data-layer`. Keep the top unchecked item as
-the current focus for the next agent session.
+Branch task list for `feat/integration-full` (branched from `main` after PR #12
+merged `feat/payment`; supersedes the stale `feat/thegraph-aegis-onchain-data-layer`
+reference below, which has since merged). Keep the top unchecked item as the
+current focus for the next agent session.
 
-> On this branch, `docs/aegis-current-scope.md` overrides older architecture,
-> bounty, demo, and implementation notes when they conflict with Policy Engine
-> Level 1 scope.
+> On `feat/policy-engine-level-1` (now merged), `docs/aegis-current-scope.md`
+> overrode older architecture, bounty, demo, and implementation notes when they
+> conflicted with Policy Engine Level 1 scope; it remains the best reference for
+> that subsystem's design.
 
-## Current Focus
+## Current Focus - dashboard payment-flow integration
+
+The precheck -> 0G TeeML verify -> Safe co-signed execute flow (previously
+backend-only, verified live by the team via curl/scripts) is now wired into the
+Next.js dashboard for the first time: Agentic ID registration and a new
+"Actions" tab (`features/agents/components/ActionsPanel.tsx`) on the agent
+detail page. Getting there required two structural additions beyond plain
+wiring, both flagged loudly per the playbook:
+
+1. A dynamic per-agent bearer token bridge (`services/agent-service/src/store.ts`,
+   `policy-engine/agent-auth.ts`, new `GET /internal/agents/:agentId/auth-token`)
+   since the existing `AEGIS_AGENT_AUTH_TOKENS_JSON` static env map can't cover
+   agents created dynamically through onboarding (random UUID agentId).
+2. An EIP-712 `AgentActionAuthorization` operator-ownership check
+   (`packages/nextjs/lib/policy/action-auth.ts`,
+   `lib/server/agentService.ts::verifyAgentActionAuthorization`) in front of all
+   four new agent-bearer proxy routes. This was **not in the original
+   implementation** - a code review (grumpy-carlos-code-reviewer) caught that
+   without it, anyone who knew an agent's ID (not a secret - visible in the URL,
+   returned by the unauthenticated `GET /agents/:agentId`) could fetch that
+   agent's real bearer token through the dashboard's proxy and trigger a real
+   Hedera testnet payment from its Safe, up to the policy's own limits, with
+   zero wallet signature. Fixed before merging; do not remove this check when
+   touching these routes.
+
+- [ ] Manual real-browser QA of the new Actions tab and Agentic ID registration
+  button (register -> precheck -> TeeML verify -> execute, both an ALLOW and a
+  DENY path) - built and verified via `check-types`/`lint`/unit tests/production
+  build/live curl smoke tests of the proxy chain only; no live browser
+  click-through yet (same gap pattern as the onboarding flow before its own
+  manual QA pass).
+- [ ] Carlos's minor (non-blocking) review findings, not yet addressed:
+  - `AEGIS_DASHBOARD_INTERNAL_TOKEN`'s check in
+    `services/agent-service/src/index.ts` only tests truthiness, not the
+    32+ character minimum the sibling `AEGIS_AGENTIC_ID_INTERNAL_TOKEN` pattern
+    enforces (`app/api/0g/agentic-id/route.ts`).
+  - `computeTrustedServiceMetadataHash` (`packages/nextjs/lib/policy/hash.ts`)
+    is client-computed and never independently re-verified server-side
+    (`trusted-service-descriptor.ts`'s `normalizedHex32` only checks format) -
+    harmless today since it's bound inside the operator-signed `policyHash`,
+    but either verify it or document plainly that it's a non-verified/reserved
+    field.
+- [ ] A full live Hedera+0G run (real testnet execute) through the new UI has
+  not been performed this session - the underlying precheck/TeeML/execute logic
+  itself is unchanged and was already verified live by the team (see the
+  "payment execution phase" DEVLOG entry); only the new UI/auth-bridge layer on
+  top of it is unverified live end-to-end.
+- [x] Stood up the local Graph Node stack and deployed the 0G subgraph
+  locally (`docker compose -f compose.thegraph.yaml`, query port remapped to
+  18000 locally since 8000 was already held by an unrelated container on this
+  machine) - build hash `QmaVs13eKCFLV9MAoZNkb4S5oqZ7ToV2nyVPu6kGHQqbY9` matches
+  the team's previously-verified deployment exactly. `THEGRAPH_0G_SUBGRAPH_URL`
+  is now set; the dashboard's 0G-backed views work (indexing catches up over
+  time in the background). `THEGRAPH_HEDERA_SUBGRAPH_URL` remains intentionally
+  unset - see `TG-DEPLOY-001`/`TG-HEDERA-RPC-001` below, unchanged blockers.
+
+## The Graph continuation (older, still open)
 
 Canonical continuation details, exact commands, evidence requirements, and
 acceptance criteria live in

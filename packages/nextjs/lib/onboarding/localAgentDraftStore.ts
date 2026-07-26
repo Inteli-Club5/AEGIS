@@ -53,3 +53,8 @@ export function patchCreatedAgent(id: string, patch: Partial<AgentDetail>) {
   if (!target) return;
   upsertCreatedAgent({ ...target, ...patch });
 }
+
+export function removeCreatedAgent(id: string) {
+  const rest = readCreatedAgentDetails().filter(candidate => candidate.id !== id);
+  localStorage.setItem(KEY, JSON.stringify(rest));
+}

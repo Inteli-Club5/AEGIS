@@ -633,6 +633,10 @@ export class PostgresPolicyRepository implements PolicyRepository {
       await tx
         .delete(schema.walletCreationOperations)
         .where(eq(schema.walletCreationOperations.agentId, normalized));
+      await tx.delete(schema.agentSemanticProfiles).where(eq(schema.agentSemanticProfiles.agentId, normalized));
+      await tx
+        .delete(schema.agenticIdRegistrations)
+        .where(eq(schema.agenticIdRegistrations.agentId, normalized));
       await tx.delete(schema.wallets).where(eq(schema.wallets.agentId, normalized));
       await tx.delete(schema.agents).where(eq(schema.agents.agentId, normalized));
     });
