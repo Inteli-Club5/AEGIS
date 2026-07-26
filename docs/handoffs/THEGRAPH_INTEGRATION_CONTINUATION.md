@@ -190,11 +190,11 @@ rtk bash scripts/thegraph/preflight.sh --network hedera
 
 **Status:** `WAITING_FOR_TEEML`
 
-**Dependency:** the real 0G TeeML completion branch/module must provide a private-mode, TEE-verified, schema-valid artifact with hashes already compared to the original AEGIS precheck. No fallback model or synthetic verdict qualifies.
+**Dependency:** the real verifier module is now merged in `services/agent-service/src/teeml/`. Its live hackathon TeeTLS profile is explicitly demo-only, non-private, non-sealed, and does not independently prove the signed provider commitment matches the selected content byte-for-byte. It must never call the registry writer. Completion requires production-private, sealed, TEE-verified and byte-for-byte verified evidence with every hash already compared to the original AEGIS precheck. No fallback model or synthetic verdict qualifies.
 
 **Files and functions:**
 
-- integration marker: `services/agent-service/src/policy-engine/precheck.ts` after `PENDING_TEEML` is persisted;
+- verified completion point: `services/agent-service/src/teeml/service.ts` immediately after the sanitized `VerifiedTeeMlArtifact` is durably completed;
 - port: `services/agent-service/src/teeml-registry/types.ts` -> `VerifiedTeeMlRegistryWriter.recordVerifiedVerdict(input)`;
 - adapter: `services/agent-service/src/teeml-registry/adapter.ts` -> `HederaTeeValidationRegistryAdapter.recordVerifiedVerdict()`;
 - tests: `services/agent-service/src/teeml-registry/adapter.test.ts` plus the future TeeML completion integration test.
@@ -209,7 +209,7 @@ rtk bash scripts/thegraph/preflight.sh --network hedera
 4. persist the public registry transaction/block/record hash in the sanitized audit record at the new completion boundary;
 5. after: continue the existing ALLOW/DENY workflow. A technical TeeML failure remains offchain and is not written as a verdict.
 
-**Exact validation commands after the TeeML module is merged:**
+**Exact validation commands after production-private credentials, an eligible model/provider, and the deployed runtime recorder are configured:**
 
 ```bash
 rtk yarn agent-service:test
@@ -312,7 +312,7 @@ After genuine The Graph Network publication, Subgraph MCP may replace the GraphQ
 5. Locally create and validate the exact exclusive deploy file; deploy the singleton once and verify its public artifact (`TG-DEPLOY-001`).
 6. Run strict Hedera preflight; proceed only on `HEDERA_GRAPH_RPC_READY`.
 7. Generate, build, lint, deploy, sync, and smoke-test `aegis-hedera`; record `_meta` and a real indexed event.
-8. Merge/wire the real verified TeeML completion module and prove TeeML -> registry -> GraphQL -> dashboard (`TG-TEEML-E2E-001`).
+8. Configure/wire an eligible production-private verified TeeML completion and prove TeeML -> registry -> GraphQL -> dashboard (`TG-TEEML-E2E-001`); never substitute the live demo-only TeeTLS profile.
 9. Add natural sanitized business producer events and update Subgraph/client/UI (`TG-EVENTS-001`).
 10. Add live Hedera Audit Copilot intents and cited acceptance evidence (`TG-AUDIT-COPILOT-001`).
 11. Run the full validation matrix, update `integration-status.md`, append `DEVLOG.md`, and request human review. Do not commit automatically.

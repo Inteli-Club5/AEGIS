@@ -18,6 +18,10 @@ keys/
 external/agenticID-examples/
 docs/0g/raw/
 docs/0g/*.html
+docs/evidence/private/
+artifacts/0g/raw/
+tmp/teeml/
+*.teeml.raw.json
 
 # --- AEGIS / generated local outputs ---
 tmp/

@@ -1,4 +1,4 @@
-CREATE TYPE "public"."aegis_wallet_creation_status" AS ENUM('INITIALIZED', 'PREPARED', 'BROADCAST', 'COMPLETED');--> statement-breakpoint
+CREATE TYPE "public"."aegis_wallet_creation_status" AS ENUM('INITIALIZED', 'PREPARED', 'BROADCAST', 'FAILED', 'COMPLETED');--> statement-breakpoint
 CREATE TYPE "public"."aegis_wallet_deployment_provenance" AS ENUM('BROADCAST_RECEIPT', 'PREDICTED_SAFE_RECONCILIATION');--> statement-breakpoint
 CREATE TYPE "public"."aegis_wallet_guardian_source" AS ENUM('REQUESTED', 'CONFIGURED_AEGIS', 'OWNER_FALLBACK');--> statement-breakpoint
 CREATE TABLE "aegis_wallet_creation_operations" (
@@ -15,11 +15,13 @@ CREATE TABLE "aegis_wallet_creation_operations" (
 	"owners" jsonb,
 	"threshold" integer,
 	"deployment_provenance" "aegis_wallet_deployment_provenance",
+	"failure_code" text,
 	"created_at" integer NOT NULL,
 	"updated_at" integer NOT NULL,
 	CONSTRAINT "aegis_wallet_creation_operations_network_check" CHECK ("network_id" = 'hedera:testnet'),
 	CONSTRAINT "aegis_wallet_creation_operations_salt_nonce_check" CHECK ("salt_nonce" ~ '^(0|[1-9][0-9]*)$'),
-	CONSTRAINT "aegis_wallet_creation_operations_threshold_check" CHECK ("threshold" IS NULL OR "threshold" > 0)
+	CONSTRAINT "aegis_wallet_creation_operations_threshold_check" CHECK ("threshold" IS NULL OR "threshold" > 0),
+	CONSTRAINT "aegis_wallet_creation_operations_failure_code_check" CHECK ("failure_code" IS NULL OR "failure_code" = 'TRANSACTION_REVERTED')
 );
 --> statement-breakpoint
 ALTER TABLE "aegis_wallet_creation_operations" ADD CONSTRAINT "aegis_wallet_creation_operations_agent_id_aegis_agents_agent_id_fk" FOREIGN KEY ("agent_id") REFERENCES "public"."aegis_agents"("agent_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint

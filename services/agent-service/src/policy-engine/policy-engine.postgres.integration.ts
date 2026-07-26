@@ -19,7 +19,7 @@ import {
 import * as schema from "./db/schema.js";
 import { PolicyEngineError } from "./errors.js";
 import { createUuidV7 } from "./ids.js";
-import { computeSemanticContextHash, PrecheckService, type AgentActorContext } from "./precheck.js";
+import { ACTION_HASH_SCHEMA, PrecheckService, type AgentActorContext } from "./precheck.js";
 import { createPolicyIdFromHash, PolicyLifecycleService } from "./service.js";
 import { NETWORK_ID, type CreatePolicyRequest, type Hex32, type Policy, type PolicyCommitment, type PolicyRules } from "./types.js";
 import { parseCreatePolicyRequest, parseUpdatePolicyRequest } from "./validation.js";
@@ -363,7 +363,7 @@ describe("Policy Engine PostgreSQL integration", () => {
     );
   });
 
-  it("upgrades legacy private precheck columns without inventing semantic context hashes", async () => {
+  it("preserves legacy rows while adding empty v2 action commitment columns", async () => {
     const pool = new Pool({ connectionString: testDatabaseUrl });
     try {
       await pool.query("drop schema public cascade");
@@ -394,32 +394,63 @@ describe("Policy Engine PostgreSQL integration", () => {
       );
 
       await applyMigrationFile(pool, "0002_precheck_semantic_context_privacy.sql");
+      await applyMigrationFile(pool, "0003_action_commitment_v2.sql");
 
       const rows = (
         await pool.query(`
-          select request_id, request_payload_hash, semantic_context_hash
+          select
+            request_id,
+            request_payload_hash,
+            semantic_context_hash,
+            action_hash_schema_version,
+            action_type,
+            destination_kind,
+            destination_value,
+            destination_chain_id,
+            asset_id,
+            amount,
+            action_deadline
           from aegis_action_requests
           order by request_id
         `)
       ).rows;
+      assert.deepEqual(rows.map(row => row.request_id), ["legacy-with-reason", "legacy-without-reason"]);
       assert.deepEqual(
         rows.map(row => row.semantic_context_hash),
         [LEGACY_SEMANTIC_CONTEXT_UNAVAILABLE_HASH, LEGACY_SEMANTIC_CONTEXT_UNAVAILABLE_HASH],
       );
       assert.notEqual(rows[0].semantic_context_hash, rows[0].request_payload_hash);
       assert.notEqual(rows[1].semantic_context_hash, rows[1].request_payload_hash);
+      for (const row of rows) {
+        assert.deepEqual(
+          [
+            row.action_hash_schema_version,
+            row.action_type,
+            row.destination_kind,
+            row.destination_value,
+            row.destination_chain_id,
+            row.asset_id,
+            row.amount,
+            row.action_deadline,
+          ],
+          [null, null, null, null, null, null, null, null],
+        );
+      }
 
       const columns = (
         await pool.query(`
-          select column_name
+          select column_name, is_nullable
           from information_schema.columns
           where table_schema = 'public' and table_name = 'aegis_action_requests'
           order by column_name
         `)
-      ).rows.map(row => row.column_name);
-      assert.equal(columns.includes("semantic_context_hash"), true);
-      assert.equal(columns.includes("private_payload"), false);
-      assert.equal(columns.includes("reason_hash"), false);
+      ).rows;
+      const columnNames = columns.map(row => row.column_name);
+      assert.equal(columnNames.includes("semantic_context_hash"), true);
+      assert.equal(columns.find(row => row.column_name === "semantic_context_hash")?.is_nullable, "YES");
+      assert.equal(columnNames.includes("action_hash_schema_version"), true);
+      assert.equal(columnNames.includes("private_payload"), false);
+      assert.equal(columnNames.includes("reason_hash"), false);
     } finally {
       await pool.end();
     }
@@ -638,9 +669,12 @@ describe("Policy Engine PostgreSQL integration", () => {
     const { pool, policyService, precheckService } = await seededPostgresPrecheckService();
     await createAndActivatePrecheckPolicy(policyService, { amount: { min: "1", max: "10", dailyLimit: "20" } });
 
-    const privateContext = "private reason";
-    const first = await precheckService.precheck(precheckInput("precheck-idempotent", { semanticContext: privateContext }));
-    const second = await precheckService.precheck(precheckInput("precheck-idempotent", { semanticContext: privateContext }));
+    const first = await precheckService.precheck(precheckInput("precheck-idempotent"));
+    const restartedService = new PrecheckService(new PostgresPrecheckRepository(pool), {
+      clock: () => 1000,
+      idGenerator: createUuidV7,
+    });
+    const second = await restartedService.precheck(precheckInput("precheck-idempotent"));
 
     assert.deepEqual(second.response, first.response);
     assert.equal(second.idempotentReplay, true);
@@ -653,10 +687,16 @@ describe("Policy Engine PostgreSQL integration", () => {
 
     const [requestRow] = (await pool.query("select * from aegis_action_requests")).rows;
     const [auditRow] = (await pool.query("select * from aegis_audit_events")).rows;
-    assert.equal(JSON.stringify(auditRow).includes(privateContext), false);
     assert.equal(JSON.stringify(auditRow).includes("precheck-idempotent"), false);
-    assert.equal(JSON.stringify(requestRow).includes(privateContext), false);
-    assert.equal(requestRow.semantic_context_hash, computeSemanticContextHash(privateContext));
+    assert.equal(requestRow.action_hash_schema_version, ACTION_HASH_SCHEMA);
+    assert.equal(requestRow.action_type, "HEDERA_HBAR_TRANSFER");
+    assert.equal(requestRow.destination_kind, "HEDERA_ACCOUNT_ID");
+    assert.equal(requestRow.destination_value, "0.0.123456");
+    assert.equal(requestRow.destination_chain_id, null);
+    assert.equal(requestRow.asset_id, "hedera:testnet:hbar");
+    assert.equal(requestRow.amount, "1");
+    assert.equal(requestRow.action_deadline, 2_000_000_000);
+    assert.equal(requestRow.semantic_context_hash, null);
     assert.equal("private_payload" in requestRow, false);
     assert.equal("reason_hash" in requestRow, false);
   });
@@ -738,12 +778,11 @@ describe("Policy Engine PostgreSQL integration", () => {
       authenticateAgentActor: testAgentAuthenticator(),
     });
 
-    const httpPrivateContext = "HTTP route private context";
     await withHttpApp(app, async baseUrl => {
       const pass = await httpJson(baseUrl, `/agents/${AGENT_ID}/wallets/${WALLET_ID}/actions/precheck`, {
         method: "POST",
         headers: { "Idempotency-Key": "http-pass", Authorization: "Bearer valid-agent" },
-        body: precheckBody({ amount: "4", semanticContext: httpPrivateContext }),
+        body: precheckBody({ amount: "4" }),
       });
       assert.equal(pass.status, 202, JSON.stringify(pass.data));
       assert.equal(pass.data.status, "PENDING_TEEML");
@@ -752,7 +791,7 @@ describe("Policy Engine PostgreSQL integration", () => {
       const replay = await httpJson(baseUrl, `/agents/${AGENT_ID}/wallets/${WALLET_ID}/actions/precheck`, {
         method: "POST",
         headers: { "Idempotency-Key": "http-pass", Authorization: "Bearer valid-agent" },
-        body: precheckBody({ amount: "4", semanticContext: httpPrivateContext }),
+        body: precheckBody({ amount: "4" }),
       });
       assert.equal(replay.status, 202);
       assert.equal(replay.data.requestId, pass.data.requestId);
@@ -775,13 +814,15 @@ describe("Policy Engine PostgreSQL integration", () => {
       assert.equal(unknownField.status, 400);
       assert.equal(unknownField.data.error, "unknown_property");
 
-      const legacyReason = await httpJson(baseUrl, `/agents/${AGENT_ID}/wallets/${WALLET_ID}/actions/precheck`, {
-        method: "POST",
-        headers: { "Idempotency-Key": "http-legacy-reason", Authorization: "Bearer valid-agent" },
-        body: { ...precheckBody(), reason: "legacy private reason" },
-      });
-      assert.equal(legacyReason.status, 400);
-      assert.equal(legacyReason.data.error, "unknown_property");
+      for (const field of ["semanticContext", "reason", "detailedReason", "agentReason"]) {
+        const forbiddenProse = await httpJson(baseUrl, `/agents/${AGENT_ID}/wallets/${WALLET_ID}/actions/precheck`, {
+          method: "POST",
+          headers: { "Idempotency-Key": `http-forbidden-${field}`, Authorization: "Bearer valid-agent" },
+          body: { ...precheckBody(), [field]: "caller-controlled prose" },
+        });
+        assert.equal(forbiddenProse.status, 400);
+        assert.equal(forbiddenProse.data.error, "unknown_property");
+      }
 
       const invalidAmount = await httpJson(baseUrl, `/agents/${AGENT_ID}/wallets/${WALLET_ID}/actions/precheck`, {
         method: "POST",
@@ -828,7 +869,7 @@ describe("Policy Engine PostgreSQL integration", () => {
       usageHolds: (await pool.query("select * from aegis_usage_holds")).rows,
       auditEvents: (await pool.query("select * from aegis_audit_events")).rows,
     };
-    assert.equal(JSON.stringify(precheckTables).includes(httpPrivateContext), false);
+    assert.equal(/"(?:semanticContext|reason|detailedReason|agentReason)"\s*:/.test(JSON.stringify(precheckTables)), false);
 
     const noAuthAdapterApp = createAgentServiceApp({
       policyRepository: repository,
@@ -1010,7 +1051,6 @@ function precheckBody(overrides: Record<string, unknown> = {}) {
     assetId: "hedera:testnet:hbar",
     amount: "1",
     actionDeadline: 2_000_000_000,
-    semanticContext: "Pay approved provider invoice",
     ...overrides,
   };
 }

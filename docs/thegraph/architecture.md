@@ -53,7 +53,7 @@ flowchart LR
 
 The exclusive deploy environment is the repository-root file named exactly `tee-smartcontract-validation`. The runtime service does not load it. The loader, deployer, verifier, and public artifact writer are implemented, but the real file is currently absent; therefore no registry address, transaction, block, or public deployment artifact is claimed. This external step is `TG-DEPLOY-001`.
 
-The typed runtime boundary is `VerifiedTeeMlRegistryWriter.recordVerifiedVerdict(...)` in `services/agent-service/src/teeml-registry/`. It accepts only a verified evidence input. Wiring the real TeeML producer remains `TG-TEEML-E2E-001` and cannot be satisfied with a local or mocked verdict.
+The typed runtime boundary is `VerifiedTeeMlRegistryWriter.recordVerifiedVerdict(...)` in `services/agent-service/src/teeml-registry/`. It accepts only a verified evidence input. The real verifier now lives in `services/agent-service/src/teeml/service.ts`, but the live hackathon TeeTLS profile is deliberately ineligible because it is non-private, non-sealed, and lacks independent byte-for-byte content commitment verification. Wiring an eligible production-private artifact remains `TG-TEEML-E2E-001` and cannot be satisfied with the demo profile, a local verdict, or a mock.
 
 ## Two Subgraphs
 
@@ -126,7 +126,7 @@ The core implementation is independently testable. Remaining external work is na
 | --- | --- | --- |
 | `TG-DEPLOY-001` | Locally supplied dedicated deploy environment and funded deployer | Real singleton registry deployment, artifact, test record, and Hedera manifest. |
 | `TG-HEDERA-RPC-001` | Dedicated Testnet Mirror Node data stack | Safe Hedera Graph Node ingestion and live Hedera GraphQL. |
-| `TG-TEEML-E2E-001` | Real private, TEE-verified TeeML artifact producer | Real TeeML -> registry -> Subgraph E2E only. |
+| `TG-TEEML-E2E-001` | Production-private, sealed, byte-for-byte verified TeeML evidence and deployed runtime recorder | Real TeeML -> registry -> Subgraph E2E only; hackathon TeeTLS is ineligible. |
 | `TG-EVENTS-001` | Sanitized business event producer | Business payment/execution/policy views. |
 | `TG-AUDIT-COPILOT-001` | Live Hedera entities from the tasks above | Hedera-backed Copilot intents. |
 

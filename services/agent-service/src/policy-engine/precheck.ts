@@ -25,9 +25,8 @@ import {
 
 export type { AssetCatalogEntry } from "./evaluator.js";
 
-export const PRECHECK_REQUEST_SCHEMA = "aegis.precheck.request.level1.v1";
-export const ACTION_HASH_SCHEMA = "aegis.action.level1.v1";
-export const SEMANTIC_CONTEXT_HASH_SCHEMA = "aegis.semantic-context.level1.v1";
+export const PRECHECK_REQUEST_SCHEMA = "aegis.precheck.request.level1.v2";
+export const ACTION_HASH_SCHEMA = "aegis.action.level1.v2";
 export const PRECHECK_EVALUATOR_VERSION = "aegis.deterministic-policy-evaluator.level1.v1";
 export const AUDIT_EVENT_SCHEMA_VERSION = "aegis.audit.precheck.level1.v1";
 export const DEFAULT_USAGE_HOLD_TTL_SECONDS = 300;
@@ -51,8 +50,14 @@ export type NormalizedPrecheckActionRequest = {
   assetId: string;
   amount: string;
   actionDeadline: number;
-  semanticContext: string;
-  semanticContextHash: Hex32;
+};
+
+export type PersistedNormalizedAction = {
+  actionType: string;
+  destination: DestinationIdentity;
+  assetId: string;
+  amount: string;
+  actionDeadline: number;
 };
 
 export type PendingTeemlResponse = {
@@ -84,7 +89,15 @@ export type DenyPrecheckHttpResponse = {
 };
 
 export type PrecheckHttpResponse = PendingTeemlResponse | DenyPrecheckHttpResponse;
-export type PrecheckActionRequestStatus = "RECEIVED" | "DENIED_PRECHECK" | "PENDING_TEEML";
+export type PrecheckActionRequestStatus =
+  | "RECEIVED"
+  | "DENIED_PRECHECK"
+  | "PENDING_TEEML"
+  | "TEEML_PROCESSING"
+  | "TEEML_ALLOWED"
+  | "TEETLS_HACKATHON_ALLOWED"
+  | "TEEML_DENIED"
+  | "TEEML_FAILED";
 export type PrecheckRecordStatus = typeof PASS_TO_TEEML | typeof DENY_PRECHECK;
 export type UsageHoldStatus = "HELD" | "RELEASED" | "EXPIRED" | "COMMITTED";
 
@@ -94,7 +107,8 @@ export type ActionRequestRecord = {
   walletId: string;
   idempotencyKeyHash: Hex32;
   requestPayloadHash: Hex32;
-  semanticContextHash: Hex32;
+  actionHashSchemaVersion: typeof ACTION_HASH_SCHEMA | null;
+  action: PersistedNormalizedAction | null;
   aegisNonce: string | null;
   policyId: string | null;
   policyVersion: number | null;
@@ -250,7 +264,10 @@ export class PrecheckService {
           conflict("IDEMPOTENCY_CONFLICT", "Idempotency-Key was already used with a different payload");
         }
         return {
-          httpStatus: existing.status === "PENDING_TEEML" ? 202 : 200,
+          httpStatus:
+            existing.functionalResponse.status === "PENDING_TEEML"
+              ? 202
+              : 200,
           response: structuredClone(existing.functionalResponse),
           idempotentReplay: true,
         };
@@ -320,7 +337,8 @@ export class PrecheckService {
         walletId: params.walletId,
         idempotencyKeyHash,
         requestPayloadHash,
-        semanticContextHash: action.semanticContextHash,
+        actionHashSchemaVersion: ACTION_HASH_SCHEMA,
+        action: toPersistedAction(action),
         aegisNonce: nonce?.toString() ?? null,
         policyId: policy?.policyId ?? null,
         policyVersion: policy?.policyVersion ?? null,
@@ -351,9 +369,6 @@ export class PrecheckService {
       });
 
       if (response.status === "PENDING_TEEML") {
-        // TODO(teeml-integration): Send the in-memory semantic context directly to the 0G TeeML verifier and persist only TeeML hashes, codes, provider/model IDs, artifact hash, verification flag, and evaluatedAt.
-        // TODO(TG-TEEML-E2E-001): Wire the real verified 0G TeeML artifact into the VerifiedTeeMlRegistryWriter after the TeeML branch is merged. The integration must reject fallback, unverified, non-private, schema-invalid, or hash-mismatched verdicts. Remove this TODO after the real TeeML -> registry -> Hedera Subgraph -> GraphQL E2E passes with transaction and block evidence.
-        // TODO(usage-hold-finalization): Release this hold after a TeeML denial or timeout, and mark it COMMITTED only after the approved Hedera execution is confirmed.
         await tx.insertUsageHold({
           usageHoldId: response.usageHoldId,
           requestId,
@@ -408,7 +423,7 @@ export class PrecheckService {
 
 export function parsePrecheckActionRequest(params: PrecheckRouteParams, input: unknown): NormalizedPrecheckActionRequest {
   const body = objectOf(input, "body");
-  rejectUnknownKeys(body, ["agentId", "walletId", "actionType", "destination", "assetId", "amount", "actionDeadline", "semanticContext"], "body");
+  rejectUnknownKeys(body, ["agentId", "walletId", "actionType", "destination", "assetId", "amount", "actionDeadline"], "body");
 
   const routeAgentId = normalizeIdentifier(params.agentId);
   const routeWalletId = normalizeIdentifier(params.walletId);
@@ -419,7 +434,6 @@ export function parsePrecheckActionRequest(params: PrecheckRouteParams, input: u
     badRequest("ACTION_CONTEXT_MISMATCH", "body.walletId must match the route walletId");
   }
 
-  const semanticContext = normalizeSemanticContext(body.semanticContext);
   return {
     agentId: routeAgentId,
     walletId: routeWalletId,
@@ -428,8 +442,6 @@ export function parsePrecheckActionRequest(params: PrecheckRouteParams, input: u
     assetId: normalizeIdentifier(requiredString(body.assetId, "body.assetId")),
     amount: positiveBaseUnitAmount(body.amount, "body.amount"),
     actionDeadline: unixSeconds(body.actionDeadline, "body.actionDeadline"),
-    semanticContext,
-    semanticContextHash: computeSemanticContextHash(semanticContext),
   };
 }
 
@@ -443,14 +455,6 @@ export function computePrecheckRequestPayloadHash(action: NormalizedPrecheckActi
     assetId: action.assetId,
     amount: action.amount,
     actionDeadline: action.actionDeadline,
-    semanticContextHash: action.semanticContextHash,
-  });
-}
-
-export function computeSemanticContextHash(semanticContext: string): Hex32 {
-  return hashCanonicalValue({
-    schema: SEMANTIC_CONTEXT_HASH_SCHEMA,
-    semanticContext,
   });
 }
 
@@ -460,7 +464,10 @@ export function computeActionHash(input: {
   walletId: string;
   networkId: string;
   action: NormalizedPrecheckActionRequest;
-  policy: PolicyRecord | null;
+  policy: Pick<
+    PolicyRecord,
+    "policyId" | "policyVersion" | "policyHash"
+  > | null;
   aegisNonce: bigint | null;
 }): Hex32 {
   return hashCanonicalValue({
@@ -478,7 +485,6 @@ export function computeActionHash(input: {
     policyHash: input.policy?.policyHash ?? null,
     aegisNonce: input.aegisNonce?.toString() ?? null,
     actionDeadline: input.action.actionDeadline,
-    semanticContextHash: input.action.semanticContextHash,
   });
 }
 
@@ -699,6 +705,16 @@ function toEvaluatorAction(action: NormalizedPrecheckActionRequest): NormalizedA
   };
 }
 
+function toPersistedAction(action: NormalizedPrecheckActionRequest): PersistedNormalizedAction {
+  return {
+    actionType: action.actionType,
+    destination: structuredClone(action.destination),
+    assetId: action.assetId,
+    amount: action.amount,
+    actionDeadline: action.actionDeadline,
+  };
+}
+
 function normalizeIdempotencyKey(value: string | null): string {
   if (typeof value !== "string" || value.trim().length === 0 || value.length > 512) {
     badRequest("missing_idempotency_key", "Idempotency-Key header is required");
@@ -729,12 +745,6 @@ function requiredString(input: unknown, path: string): string {
 
 function normalizeIdentifier(value: string): string {
   return value.trim().toLowerCase();
-}
-
-function normalizeSemanticContext(input: unknown): string {
-  const semanticContext = requiredString(input, "body.semanticContext").replace(/\r\n?/g, "\n").replace(/[ \t]+/g, " ");
-  if (semanticContext.length > 2_000) badRequest("invalid_semantic_context", "body.semanticContext must be at most 2000 characters");
-  return semanticContext;
 }
 
 function positiveBaseUnitAmount(input: unknown, path: string): string {

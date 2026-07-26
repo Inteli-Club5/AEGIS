@@ -1,3 +1,0 @@
-ALTER TYPE "public"."aegis_wallet_creation_status" ADD VALUE 'FAILED' BEFORE 'COMPLETED';--> statement-breakpoint
-ALTER TABLE "aegis_wallet_creation_operations" ADD COLUMN "failure_code" text;--> statement-breakpoint
-ALTER TABLE "aegis_wallet_creation_operations" ADD CONSTRAINT "aegis_wallet_creation_operations_failure_code_check" CHECK ("failure_code" IS NULL OR "failure_code" = 'TRANSACTION_REVERTED');

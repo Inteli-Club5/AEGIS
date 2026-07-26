@@ -1,29 +1,44 @@
 # AEGIS
 
-AEGIS is a safety layer for AI agents that move value. It creates the agent
-itself on Hedera, wraps it in a Safe-based protected wallet (2-of-3: agent
-signer + AEGIS co-signer + recovery guardian), and requires every transaction
-to clear a user-defined policy, 0G/TeeML decision verification, and AEGIS
-co-signature before it can execute. The Graph indexes the resulting history
-for the dashboard and audit log.
+AEGIS is a pre-transaction safety layer for AI agents that move value. It
+creates the agent and its Hedera wallet, registers its 0G Agentic ID, applies a
+deterministic Level 1 Policy check, and sends only trusted semantic context to
+0G semantic verification. The hackathon uses an explicitly selected testnet
+TeeTLS profile; production requires mainnet Private/TeeML. Operational funds
+remain in the Safe; the agent's Hedera wallet cannot move them alone.
 
-> On `feat/policy-engine-level-1`, the active scope is
-> [`docs/aegis-current-scope.md`](docs/aegis-current-scope.md). It overrides
-> older architecture, demo, bounty, and implementation notes when they conflict
-> with Policy Engine Level 1.
+The current branch stops at production `TEEML_ALLOWED`, demo-only
+`TEETLS_HACKATHON_ALLOWED`, `TEEML_DENIED`, or `TEEML_FAILED`. It does not sign
+a final DecisionReceipt, request Safe owner signatures, or execute Hedera.
+Verdict signing and execution signing remain separate future responsibilities.
+The Graph is the canonical confirmed/historical onchain read layer for the
+dashboard. Hedera and 0G remain separate Subgraphs and are joined only in the
+typed GraphQL client.
 
-![AEGIS architecture](docs/AEGIS_ARCHITECTURE.png)
-![AEGIS user flow](docs/AEGIS_USER_FLOW.png)
+TeeTLS verifies the broker TEE and signed response, but the upstream model may
+process plaintext. It is never an automatic fallback and its artifacts are
+demo-only. TeeTLS ALLOW uses `TEETLS_HACKATHON_ALLOWED` and releases its
+UsageHold. A future signer must accept only `TEEML_ALLOWED` backed by
+`production-private-teeml` with `sealedInference: true`. PostgreSQL makes final
+verification artifacts immutable and rejects any audit event that does not
+match the exact verification, action, profile, and commitment tuple.
+
+> [`docs/aegis-current-scope.md`](docs/aegis-current-scope.md) is the active
+> scope and overrides conflicting historical architecture, demo, bounty, and
+> implementation notes. Historical diagrams are intentionally not embedded
+> here because they contain superseded trust and execution flows.
 
 Built during ETHGlobal Lisbon using [scaffold-hbar](https://github.com/hedera-dev/scaffold-hbar),
 the [0G Compute starter kit](https://github.com/0glabs/0g-compute-ts-starter-kit),
 and the [Safe{Core} SDK](https://docs.safe.global/) as public references. The
-unintegrated 0G starter service is not shipped as an AEGIS runtime service. The
-real TeeML boundary is the verification-gated writer port in `services/agent-service`;
-its remaining integration is tracked as `TG-TEEML-E2E-001`.
+unintegrated starter service is not shipped as an AEGIS runtime service.
+Historical design material includes future DecisionReceipt and co-signature
+concepts; they are not implemented by the current branch.
 
-- **Architecture:** [`docs/AEGIS_ARCHITECTURE.md`](docs/AEGIS_ARCHITECTURE.md) - full production architecture, user flow, transaction flow, and hackathon scope.
-- **Current scope:** [`docs/aegis-current-scope.md`](docs/aegis-current-scope.md) - active Policy Engine Level 1 branch scope, interfaces, handoff, and local PostgreSQL commands.
+- **Historical architecture:** [`docs/AEGIS_ARCHITECTURE.md`](docs/AEGIS_ARCHITECTURE.md) - design reference only; current scope and interfaces are normative.
+- **Current scope:** [`docs/aegis-current-scope.md`](docs/aegis-current-scope.md) - active Level 1 and TeeML scope, trust boundaries, handoff, and local commands.
+- **Current interfaces:** [`docs/interfaces.md`](docs/interfaces.md) - strict precheck, Policy semantic source, TeeML endpoint, hashes, states, and persistence.
+- **0G semantic verifier:** [`docs/0g/teeml-semantic-verifier.md`](docs/0g/teeml-semantic-verifier.md) - production Private/TeeML and explicit hackathon TeeTLS profiles.
 - **Decisions:** [`docs/decisions.md`](docs/decisions.md) - ADR-lite log of locked product/technical decisions.
 - **Roadmap:** [`docs/roadmap.md`](docs/roadmap.md) - phased plan from hackathon MVP to beta, expansion, and partnerships, plus the financial projections behind it.
 - **Workflow:** [`PLAYBOOK.md`](PLAYBOOK.md) - how the team builds, ownership, conventions.
@@ -32,9 +47,10 @@ its remaining integration is tracked as `TG-TEEML-E2E-001`.
 
 ```
 packages/nextjs             dashboard (Next.js + RainbowKit + wagmi)
+packages/agentic-id-contract shared canonical Agentic ID metadata commitments
 packages/foundry            contracts (TeeML registry; Safe ABIs)
-services/agent-service      policy engine + verified TeeML registry writer port
-services/cosigner           policy re-check + co-signature (Safe SDK)
+services/agent-service      agent, wallet, Level 1, 0G verification, registry port
+services/cosigner           future final recheck and Safe authorization boundary
 docs/                       architecture, scope, decisions
 ```
 
@@ -47,8 +63,10 @@ A Hedera-ready monorepo for building dApps with Next.js, Hardhat or Foundry, and
 ## Prerequisites
 
 - [Node.js](https://nodejs.org/) >= 20.18.3
-- [Yarn](https://yarnpkg.com/) — **required** (this project uses Yarn workspaces; npm and pnpm are not supported)  
-  Install via Corepack: `corepack enable && corepack prepare yarn@stable --activate`
+- [Yarn](https://yarnpkg.com/) - required for the frontend and contract
+  workspaces. The standalone `services/agent-service` package and its root
+  wrapper scripts use npm.
+  Install Yarn via Corepack: `corepack enable && corepack prepare yarn@stable --activate`
 - [Git](https://git-scm.com/)
 - **If using Foundry:** [Foundry](https://book.getfoundry.sh/getting-started/installation) (`forge`, `cast`, `anvil`)
 

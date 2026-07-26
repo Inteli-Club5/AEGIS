@@ -1,10 +1,6 @@
 import { sql } from "drizzle-orm";
-import { bigint, check, foreignKey, index, integer, jsonb, pgEnum, pgTable, text, uniqueIndex } from "drizzle-orm/pg-core";
-import {
-  NETWORK_ID,
-  type PolicyRules,
-  type SemanticRule,
-} from "../types.js";
+import { bigint, boolean, check, foreignKey, index, integer, jsonb, pgEnum, pgTable, text, uniqueIndex } from "drizzle-orm/pg-core";
+import { NETWORK_ID, type PolicyRules, type SemanticRule } from "../types.js";
 
 export const agentStatusEnum = pgEnum("aegis_agent_status", ["ACTIVE", "PAUSED", "RETIRED"]);
 export const walletStatusEnum = pgEnum("aegis_wallet_status", ["PROTECTED", "PAUSED", "RETIRED", "DEAD"]);
@@ -23,9 +19,29 @@ export const walletDeploymentProvenanceEnum = pgEnum(
 export const policyStatusEnum = pgEnum("aegis_policy_status", ["DRAFT", "ACTIVE", "SUPERSEDED", "REVOKED"]);
 export const assetCatalogKindEnum = pgEnum("aegis_asset_catalog_kind", ["HBAR", "HTS_FUNGIBLE"]);
 export const assetCatalogStatusEnum = pgEnum("aegis_asset_catalog_status", ["ACTIVE", "DISABLED"]);
-export const actionRequestStatusEnum = pgEnum("aegis_action_request_status", ["RECEIVED", "DENIED_PRECHECK", "PENDING_TEEML"]);
+export const actionRequestStatusEnum = pgEnum("aegis_action_request_status", [
+  "RECEIVED",
+  "DENIED_PRECHECK",
+  "PENDING_TEEML",
+  "TEEML_PROCESSING",
+  "TEEML_ALLOWED",
+  "TEETLS_HACKATHON_ALLOWED",
+  "TEEML_DENIED",
+  "TEEML_FAILED",
+]);
 export const precheckRecordStatusEnum = pgEnum("aegis_precheck_record_status", ["PASS_TO_TEEML", "DENY_PRECHECK"]);
 export const usageHoldStatusEnum = pgEnum("aegis_usage_hold_status", ["HELD", "RELEASED", "EXPIRED", "COMMITTED"]);
+export const teemlVerificationStatusEnum = pgEnum("aegis_teeml_verification_status", [
+  "PROCESSING",
+  "ALLOWED",
+  "TEETLS_HACKATHON_ALLOWED",
+  "DENIED",
+  "FAILED",
+]);
+export const agenticIdRegistrationStatusEnum = pgEnum(
+  "aegis_agentic_id_registration_status",
+  ["PROCESSING", "COMPLETED", "UNKNOWN"],
+);
 
 export const agents = pgTable("aegis_agents", {
   agentId: text("agent_id").primaryKey(),
@@ -195,7 +211,15 @@ export const actionRequests = pgTable(
     walletId: text("wallet_id").notNull(),
     idempotencyKeyHash: text("idempotency_key_hash").notNull(),
     requestPayloadHash: text("request_payload_hash").notNull(),
-    semanticContextHash: text("semantic_context_hash").notNull(),
+    legacySemanticContextHash: text("semantic_context_hash"),
+    actionHashSchemaVersion: text("action_hash_schema_version"),
+    actionType: text("action_type"),
+    destinationKind: text("destination_kind"),
+    destinationValue: text("destination_value"),
+    destinationChainId: integer("destination_chain_id"),
+    assetId: text("asset_id"),
+    amount: text("amount"),
+    actionDeadline: integer("action_deadline"),
     aegisNonce: bigint("aegis_nonce", { mode: "bigint" }),
     policyId: text("policy_id"),
     policyVersion: integer("policy_version"),
@@ -211,6 +235,35 @@ export const actionRequests = pgTable(
     walletNonceUnique: uniqueIndex("aegis_action_requests_wallet_nonce_unique").on(table.walletId, table.aegisNonce),
     agentWalletIdx: index("aegis_action_requests_agent_wallet_idx").on(table.agentId, table.walletId),
     policyIdx: index("aegis_action_requests_policy_idx").on(table.policyId),
+    actionCommitmentCheck: check(
+      "aegis_action_requests_action_commitment_check",
+      sql.raw(`(
+        "action_hash_schema_version" IS NULL
+        AND "action_type" IS NULL
+        AND "destination_kind" IS NULL
+        AND "destination_value" IS NULL
+        AND "destination_chain_id" IS NULL
+        AND "asset_id" IS NULL
+        AND "amount" IS NULL
+        AND "action_deadline" IS NULL
+      ) OR (
+        "action_hash_schema_version" = 'aegis.action.level1.v2'
+        AND "action_type" IS NOT NULL
+        AND btrim("action_type") <> ''
+        AND "destination_kind" IN ('EVM_ADDRESS', 'HEDERA_ACCOUNT_ID', 'URL_ORIGIN')
+        AND "destination_value" IS NOT NULL
+        AND btrim("destination_value") <> ''
+        AND "asset_id" IS NOT NULL
+        AND btrim("asset_id") <> ''
+        AND "amount" ~ '^[1-9][0-9]*$'
+        AND "action_deadline" >= 0
+        AND (
+          ("destination_kind" = 'EVM_ADDRESS' AND "destination_chain_id" = 296)
+          OR ("destination_kind" = 'HEDERA_ACCOUNT_ID' AND ("destination_chain_id" IS NULL OR "destination_chain_id" = 296))
+          OR ("destination_kind" = 'URL_ORIGIN' AND "destination_chain_id" IS NULL)
+        )
+      )`),
+    ),
   }),
 );
 
@@ -311,5 +364,227 @@ export const auditEvents = pgTable(
     stageCheck: check("aegis_audit_events_stage_check", sql.raw(`"stage" = 'PRECHECK'`)),
     actorTypeCheck: check("aegis_audit_events_actor_type_check", sql.raw(`"actor_type" = 'AGENT'`)),
     networkCheck: check("aegis_audit_events_network_check", sql.raw(`"network_id" = 'hedera:testnet'`)),
+  }),
+);
+
+export const agentSemanticProfiles = pgTable(
+  "aegis_agent_semantic_profiles",
+  {
+    agentId: text("agent_id")
+      .primaryKey()
+      .references(() => agents.agentId),
+    agenticId: text("agentic_id").notNull(),
+    contractAddress: text("contract_address").notNull(),
+    tokenId: text("token_id").notNull(),
+    metadataHash: text("metadata_hash").notNull(),
+    capabilityIds: jsonb("capability_ids").$type<string[]>().notNull(),
+    registeredAt: integer("registered_at").notNull(),
+    updatedAt: integer("updated_at").notNull(),
+  },
+  table => ({
+    agenticIdUnique: uniqueIndex("aegis_agent_semantic_profiles_agentic_id_unique").on(table.agenticId),
+    identityCheck: check(
+      "aegis_agent_semantic_profiles_identity_check",
+      sql.raw(`(
+        "contract_address" ~ '^0x[0-9a-f]{40}$'
+        AND "token_id" ~ '^(0|[1-9][0-9]*)$'
+        AND "metadata_hash" ~ '^0x[0-9a-f]{64}$'
+        AND jsonb_typeof("capability_ids") = 'array'
+        AND jsonb_array_length("capability_ids") BETWEEN 1 AND 20
+      )`),
+    ),
+  }),
+);
+
+export const agenticIdRegistrations = pgTable(
+  "aegis_agentic_id_registrations",
+  {
+    agentId: text("agent_id")
+      .primaryKey()
+      .references(() => agents.agentId),
+    registrationHash: text("registration_hash").notNull(),
+    status: agenticIdRegistrationStatusEnum("status").notNull(),
+    metadataUri: text("metadata_uri"),
+    explorerUrl: text("explorer_url"),
+    createdAt: integer("created_at").notNull(),
+    updatedAt: integer("updated_at").notNull(),
+    completedAt: integer("completed_at"),
+  },
+  table => ({
+    registrationHashCheck: check(
+      "aegis_agentic_id_registrations_hash_check",
+      sql.raw(`"registration_hash" ~ '^0x[0-9a-f]{64}$'`),
+    ),
+    completionCheck: check(
+      "aegis_agentic_id_registrations_completion_check",
+      sql.raw(`(
+        (
+          "status" = 'COMPLETED'
+          AND "metadata_uri" IS NOT NULL
+          AND length("metadata_uri") BETWEEN 1 AND 2048
+          AND "explorer_url" IS NOT NULL
+          AND length("explorer_url") BETWEEN 1 AND 2048
+          AND "completed_at" IS NOT NULL
+        )
+        OR
+        (
+          "status" IN ('PROCESSING', 'UNKNOWN')
+          AND "metadata_uri" IS NULL
+          AND "explorer_url" IS NULL
+          AND "completed_at" IS NULL
+        )
+      )`),
+    ),
+  }),
+);
+
+export const teemlVerifications = pgTable(
+  "aegis_teeml_verifications",
+  {
+    verificationId: text("verification_id").primaryKey(),
+    requestId: text("request_id")
+      .notNull()
+      .references(() => actionRequests.requestId),
+    precheckId: text("precheck_id")
+      .notNull()
+      .references(() => precheckRecords.precheckId),
+    agentId: text("agent_id").notNull(),
+    agenticId: text("agentic_id").notNull(),
+    policyId: text("policy_id").notNull(),
+    policyVersion: integer("policy_version").notNull(),
+    policyHash: text("policy_hash").notNull(),
+    actionHash: text("action_hash").notNull(),
+    semanticContextHash: text("semantic_context_hash").notNull(),
+    teemlRequestHash: text("teeml_request_hash").notNull(),
+    status: teemlVerificationStatusEnum("status").notNull(),
+    verdict: text("verdict"),
+    reasonCode: text("reason_code"),
+    technicalReasonCode: text("technical_reason_code"),
+    providerAddress: text("provider_address"),
+    modelId: text("model_id"),
+    securityProfile: text("security_profile"),
+    trustMode: text("trust_mode"),
+    verificationMode: text("verification_mode"),
+    sealedInference: boolean("sealed_inference"),
+    teeVerified: boolean("tee_verified"),
+    responseId: text("response_id"),
+    responseHash: text("response_hash"),
+    traceHash: text("trace_hash"),
+    promptTokens: integer("prompt_tokens"),
+    completionTokens: integer("completion_tokens"),
+    latencyMs: integer("latency_ms"),
+    evaluatedAt: integer("evaluated_at"),
+    createdAt: integer("created_at").notNull(),
+    updatedAt: integer("updated_at").notNull(),
+  },
+  table => ({
+    requestUnique: uniqueIndex("aegis_teeml_verifications_request_unique").on(table.requestId),
+    precheckUnique: uniqueIndex("aegis_teeml_verifications_precheck_unique").on(table.precheckId),
+    contextCommitmentCheck: check(
+      "aegis_teeml_verifications_context_commitment_check",
+      sql.raw(`(
+        "policy_hash" ~ '^0x[0-9a-f]{64}$'
+        AND "action_hash" ~ '^0x[0-9a-f]{64}$'
+        AND "semantic_context_hash" ~ '^0x[0-9a-f]{64}$'
+        AND "teeml_request_hash" ~ '^0x[0-9a-f]{64}$'
+      )`),
+    ),
+    resultCheck: check(
+      "aegis_teeml_verifications_result_check",
+      sql.raw(`(
+        ("status" = 'PROCESSING'
+          AND "verdict" IS NULL
+          AND "reason_code" IS NULL
+          AND "technical_reason_code" IS NULL
+          AND "response_hash" IS NULL)
+        OR
+        ("status" IN ('ALLOWED', 'TEETLS_HACKATHON_ALLOWED', 'DENIED')
+          AND "verdict" IS NOT NULL
+          AND "verdict" = CASE WHEN "status" = 'DENIED' THEN 'DENY' ELSE 'ALLOW' END
+          AND "reason_code" IS NOT NULL
+          AND "technical_reason_code" IS NULL
+          AND "model_id" IS NOT NULL
+          AND "security_profile" IS NOT NULL
+          AND "trust_mode" IS NOT NULL
+          AND "verification_mode" IS NOT NULL
+          AND "sealed_inference" IS NOT NULL
+          AND (
+            ("status" = 'ALLOWED'
+              AND "security_profile" = 'production-private-teeml'
+              AND "trust_mode" = 'private'
+              AND "verification_mode" = 'TeeML'
+              AND "sealed_inference" = true)
+            OR
+            ("status" = 'TEETLS_HACKATHON_ALLOWED'
+              AND "security_profile" = 'hackathon-testnet-teetls'
+              AND "trust_mode" = 'verified'
+              AND "verification_mode" = 'TeeTLS'
+              AND "sealed_inference" = false)
+            OR
+            ("status" = 'DENIED'
+              AND (
+                ("security_profile" = 'production-private-teeml'
+                  AND "trust_mode" = 'private'
+                  AND "verification_mode" = 'TeeML'
+                  AND "sealed_inference" = true)
+                OR
+                ("security_profile" = 'hackathon-testnet-teetls'
+                  AND "trust_mode" = 'verified'
+                  AND "verification_mode" = 'TeeTLS'
+                  AND "sealed_inference" = false)
+              ))
+          )
+          AND "tee_verified" IS NOT NULL
+          AND "tee_verified" = true
+          AND "response_hash" IS NOT NULL
+          AND "response_hash" ~ '^0x[0-9a-f]{64}$'
+          AND "latency_ms" IS NOT NULL
+          AND "latency_ms" >= 0
+          AND "evaluated_at" IS NOT NULL)
+        OR
+        ("status" = 'FAILED'
+          AND "verdict" IS NULL
+          AND "reason_code" IS NULL
+          AND "technical_reason_code" IS NOT NULL)
+      )`),
+    ),
+  }),
+);
+
+export const teemlAuditEvents = pgTable(
+  "aegis_teeml_audit_events",
+  {
+    eventId: text("event_id").primaryKey(),
+    verificationId: text("verification_id").references(() => teemlVerifications.verificationId),
+    requestId: text("request_id").notNull(),
+    precheckId: text("precheck_id").notNull(),
+    agentId: text("agent_id").notNull(),
+    policyHash: text("policy_hash").notNull(),
+    actionHash: text("action_hash").notNull(),
+    semanticContextHash: text("semantic_context_hash"),
+    teemlRequestHash: text("teeml_request_hash"),
+    outcome: text("outcome").notNull(),
+    reasonCode: text("reason_code").notNull(),
+    occurredAt: integer("occurred_at").notNull(),
+    retentionUntil: integer("retention_until").notNull(),
+  },
+  table => ({
+    requestUnique: uniqueIndex("aegis_teeml_audit_events_request_unique").on(table.requestId),
+    outcomeCheck: check(
+      "aegis_teeml_audit_events_outcome_check",
+      sql.raw(`(
+        ("outcome" IN ('TEEML_ALLOWED', 'TEETLS_HACKATHON_ALLOWED', 'TEEML_DENIED')
+          AND "verification_id" IS NOT NULL
+          AND "semantic_context_hash" IS NOT NULL
+          AND "semantic_context_hash" ~ '^0x[0-9a-f]{64}$'
+          AND "teeml_request_hash" IS NOT NULL
+          AND "teeml_request_hash" ~ '^0x[0-9a-f]{64}$')
+        OR
+        ("outcome" = 'TEEML_FAILED'
+          AND (("semantic_context_hash" IS NULL AND "teeml_request_hash" IS NULL)
+            OR ("semantic_context_hash" ~ '^0x[0-9a-f]{64}$'
+              AND "teeml_request_hash" ~ '^0x[0-9a-f]{64}$')))
+      )`),
+    ),
   }),
 );

@@ -8,6 +8,7 @@ import {
   inspectExistingSafeWallet,
 } from "./createWallet.js";
 import { proposeAction as proposeAgentAction } from "./proposeAction.js";
+import { HttpError, registerAgenticId } from "./registerAgenticId.js";
 import {
   deleteAgent as deleteStoredAgent,
   getAgent as getStoredAgent,
@@ -21,6 +22,8 @@ import {
   UnconfiguredPrecheckRepository,
 } from "./policy-engine/db/postgres.js";
 import { createUuidV7 } from "./policy-engine/ids.js";
+import { PolicyEngineError } from "./policy-engine/errors.js";
+import { createEnvAgentActorAuthenticator } from "./policy-engine/agent-auth.js";
 import type { PrecheckRepository } from "./policy-engine/precheck.js";
 import {
   DEFAULT_AUDIT_RETENTION_DAYS,
@@ -36,8 +39,31 @@ import {
 import { PolicyLifecycleService } from "./policy-engine/service.js";
 import {
   NETWORK_ID,
+  type Hex32,
   type WalletCreationOperationRecord,
 } from "./policy-engine/types.js";
+import {
+  createZeroGSemanticInferenceFromEnv,
+  DEFAULT_ZERO_G_TEEML_TIMEOUT_MS,
+  resolveZeroGSecurityProfileFromEnv,
+} from "./integrations/0g/zero-g-semantic-inference.js";
+import { createPostgresTeeMlRepository } from "./teeml/postgres-repository.js";
+import { createPostgresAgenticIdRegistrationRepository } from "./teeml/postgres-agentic-id-registration.js";
+import {
+  UnconfiguredAgenticIdRegistrationRepository,
+  type AgenticIdRegistrationRepository,
+} from "./teeml/agentic-id-registration.js";
+import type { TeeMlInferenceGateway } from "./teeml/inference-gateway.js";
+import type { ZeroGSecurityProfile } from "./teeml/security-profile.js";
+import {
+  UnconfiguredTeeMlRepository,
+  type TeeMlRepository,
+} from "./teeml/repository.js";
+import { createTeeMlRouter } from "./teeml/routes.js";
+import {
+  DEFAULT_TEEML_PROCESSING_LEASE_SECONDS,
+  TeeMlService,
+} from "./teeml/service.js";
 import { resolveRecoveryGuardian } from "./walletConfig.js";
 
 const EVM_ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/;
@@ -53,11 +79,16 @@ const AGENT_TYPES: AgentType[] = [
 export type AgentServiceAppOptions = {
   policyRepository?: PolicyRepository;
   precheckRepository?: PrecheckRepository;
+  teemlRepository?: TeeMlRepository;
+  teemlInference?: TeeMlInferenceGateway;
+  teemlSecurityProfile?: ZeroGSecurityProfile;
   authenticateAgentActor?: AgentActorAuthenticator;
   createAgent?: typeof createAgentProfile;
   createWallet?: typeof createAgentWallet;
   inspectExistingWallet?: typeof inspectExistingSafeWallet;
   proposeAction?: typeof proposeAgentAction;
+  registerAgenticId?: typeof registerAgenticId;
+  agenticIdRegistrationRepository?: AgenticIdRegistrationRepository;
   getAgent?: typeof getStoredAgent;
   setAgentWallet?: typeof setStoredAgentWallet;
 };
@@ -76,6 +107,16 @@ export function createAgentServiceApp(options: AgentServiceAppOptions = {}) {
     (process.env.DATABASE_URL
       ? createPostgresPrecheckRepository(process.env.DATABASE_URL)
       : new UnconfiguredPrecheckRepository());
+  const teemlRepository =
+    options.teemlRepository ??
+    (process.env.DATABASE_URL
+      ? createPostgresTeeMlRepository(process.env.DATABASE_URL)
+      : new UnconfiguredTeeMlRepository());
+  const agenticIdRegistrationRepository =
+    options.agenticIdRegistrationRepository ??
+    (process.env.DATABASE_URL
+      ? createPostgresAgenticIdRegistrationRepository(process.env.DATABASE_URL)
+      : new UnconfiguredAgenticIdRegistrationRepository());
   const policyService = new PolicyLifecycleService(policyRepository);
   const precheckService = new PrecheckService(precheckRepository, {
     idGenerator: createUuidV7,
@@ -88,6 +129,28 @@ export function createAgentServiceApp(options: AgentServiceAppOptions = {}) {
       DEFAULT_AUDIT_RETENTION_DAYS,
     ),
   });
+  const teemlTimeoutMs = envPositiveInteger(
+    "ZG_TEEML_TIMEOUT_MS",
+    DEFAULT_ZERO_G_TEEML_TIMEOUT_MS,
+  );
+  const teemlSecurityProfile =
+    options.teemlSecurityProfile ?? resolveZeroGSecurityProfileFromEnv();
+  const teemlService = new TeeMlService(
+    teemlRepository,
+    options.teemlInference ?? createZeroGSemanticInferenceFromEnv(),
+    {
+      idGenerator: createUuidV7,
+      auditRetentionDays: envPositiveInteger(
+        "AUDIT_RETENTION_DAYS",
+        DEFAULT_AUDIT_RETENTION_DAYS,
+      ),
+      processingLeaseSeconds: Math.max(
+        DEFAULT_TEEML_PROCESSING_LEASE_SECONDS,
+        Math.ceil(teemlTimeoutMs / 1_000) + 30,
+      ),
+      securityProfile: teemlSecurityProfile,
+    },
+  );
   const isPolicyDatabaseConfigured = !(
     policyRepository instanceof UnconfiguredPolicyRepository
   );
@@ -96,6 +159,8 @@ export function createAgentServiceApp(options: AgentServiceAppOptions = {}) {
   const inspectExistingWallet =
     options.inspectExistingWallet ?? inspectExistingSafeWallet;
   const proposeAction = options.proposeAction ?? proposeAgentAction;
+  const registerAgenticIdHandler =
+    options.registerAgenticId ?? registerAgenticId;
   const getAgent = options.getAgent ?? getStoredAgent;
   const persistAgentWallet = options.setAgentWallet ?? setStoredAgentWallet;
 
@@ -110,6 +175,7 @@ export function createAgentServiceApp(options: AgentServiceAppOptions = {}) {
       options.authenticateAgentActor,
     ),
   );
+  app.use(createTeeMlRouter(teemlService, options.authenticateAgentActor));
 
   app.post("/create-agents", async (req, res) => {
     const { ownerWallet, name, type, endpoint, description } = req.body ?? {};
@@ -151,9 +217,11 @@ export function createAgentServiceApp(options: AgentServiceAppOptions = {}) {
       }
       res.status(201).json(profile);
     } catch (error) {
-      res.status(500).json({
-        error: error instanceof Error ? error.message : "create_agent_failed",
-      });
+      res
+        .status(500)
+        .json({
+          error: error instanceof Error ? error.message : "create_agent_failed",
+        });
     }
   });
 
@@ -187,9 +255,12 @@ export function createAgentServiceApp(options: AgentServiceAppOptions = {}) {
       if (error instanceof Error && error.message === "agent_not_found") {
         return res.status(404).json({ error: "not_found" });
       }
-      res.status(500).json({
-        error: error instanceof Error ? error.message : "propose_action_failed",
-      });
+      res
+        .status(500)
+        .json({
+          error:
+            error instanceof Error ? error.message : "propose_action_failed",
+        });
     }
   });
 
@@ -427,12 +498,93 @@ export function createAgentServiceApp(options: AgentServiceAppOptions = {}) {
       if (error instanceof Error && error.message === "agent_not_found") {
         return res.status(404).json({ error: "not_found" });
       }
-      res.status(500).json({
-        error: error instanceof Error ? error.message : "create_wallet_failed",
-      });
+      res
+        .status(500)
+        .json({
+          error:
+            error instanceof Error ? error.message : "create_wallet_failed",
+        });
     }
   });
 
+  app.post("/agents/:agentId/register-agentic-id", async (req, res) => {
+    try {
+      if (!options.authenticateAgentActor) {
+        return res.status(503).json({
+          error: "agent_auth_unconfigured",
+        });
+      }
+      const actor = await options.authenticateAgentActor(req);
+      if (
+        actor.actorType !== "AGENT" ||
+        actor.authenticatedAgentId.trim().toLowerCase() !==
+          req.params.agentId.trim().toLowerCase()
+      ) {
+        return res.status(403).json({ error: "agent_context_mismatch" });
+      }
+      if (
+        req.body !== undefined &&
+        (req.body === null ||
+          typeof req.body !== "object" ||
+          Array.isArray(req.body) ||
+          Object.keys(req.body as Record<string, unknown>).length > 0)
+      ) {
+        return res.status(400).json({ error: "unknown_property" });
+      }
+      let policyHash: Hex32 | undefined;
+      if (!options.registerAgenticId) {
+        if (!isPolicyDatabaseConfigured) {
+          return res.status(503).json({ error: "policy_store_unavailable" });
+        }
+        const agentId = req.params.agentId.trim().toLowerCase();
+        const agent = getAgent(agentId);
+        if (!agent) return res.status(404).json({ error: "not_found" });
+        if (!agent.wallet) {
+          return res.status(409).json({ error: "agent_wallet_not_created" });
+        }
+        const activePolicy = await policyRepository.getActivePolicy(
+          agentId,
+          agent.wallet.walletId,
+        );
+        if (!activePolicy) {
+          return res.status(409).json({ error: "active_policy_required" });
+        }
+        policyHash = activePolicy.policyHash;
+      }
+      const profile = await registerAgenticIdHandler(req.params.agentId, {
+        registrationRepository: agenticIdRegistrationRepository,
+        ...(policyHash ? { policyHash } : {}),
+      });
+      res.status(201).json(profile);
+    } catch (error) {
+      if (error instanceof PolicyEngineError) {
+        return res
+          .status(error.status)
+          .json({ error: error.code, message: error.message });
+      }
+      if (error instanceof Error && error.message === "agent_not_found") {
+        return res.status(404).json({ error: "not_found" });
+      }
+      if (
+        error instanceof Error &&
+        error.message === "agent_wallet_not_created"
+      ) {
+        return res
+          .status(409)
+          .json({
+            error:
+              "agent must have a Safe wallet (create-wallets) before registering an Agentic ID",
+          });
+      }
+      if (error instanceof HttpError) {
+        return res.status(error.status).json({ error: error.message });
+      }
+      res.status(500).json({
+        error:
+          error instanceof Error ? error.message : "register_agentic_id_failed",
+      });
+    }
+  });
   app.delete("/agents/:agentId", async (req, res) => {
     const agentId = req.params.agentId;
     deleteStoredAgent(agentId);
@@ -521,7 +673,8 @@ function envPositiveInteger(name: string, fallback: number): number {
 
 const port = process.env.AGENT_SERVICE_PORT ?? 4200;
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  createAgentServiceApp().listen(port, () =>
-    console.log(`aegis-agent-service on :${port}`),
-  );
+  const authenticateAgentActor = createEnvAgentActorAuthenticator();
+  createAgentServiceApp({
+    ...(authenticateAgentActor ? { authenticateAgentActor } : {}),
+  }).listen(port, () => console.log(`aegis-agent-service on :${port}`));
 }
