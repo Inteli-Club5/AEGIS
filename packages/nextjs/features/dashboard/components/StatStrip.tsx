@@ -3,15 +3,8 @@ import type { OnchainOverviewMetrics } from "~~/lib/onchain-data/types";
 import { cn } from "~~/lib/utils/cn";
 
 export function OnchainStatStrip({ metrics }: { metrics: OnchainOverviewMetrics }) {
-  const unavailableLabel = metrics.scope === "unavailable" ? "Summary unavailable" : undefined;
   return (
     <div>
-      {metrics.scope !== "complete" && (
-        <p className="mb-2 text-caption text-warning" role="status">
-          {unavailableLabel ??
-            "One protocol summary is unavailable; shown metrics are exact only for the available source."}
-        </p>
-      )}
       <MetricGrid
         items={[
           { key: "agents", label: "Hedera agents", value: formatOnchainMetric(metrics.totalAgents), icon: Bot },
