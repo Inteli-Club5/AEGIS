@@ -106,7 +106,6 @@ export function normalizePolicyRules(input: unknown): PolicyRules {
   );
 
   if (allowedActionTypes.length === 0) badRequest("empty_allowed_action_types", "rules.allowedActionTypes must not be empty");
-  if (allowedDestinations.length === 0) badRequest("empty_allowed_destinations", "rules.allowedDestinations must not be empty");
   if (allowedAssets.length === 0) badRequest("empty_allowed_assets", "rules.allowedAssets must not be empty");
 
   const amount = objectOf(rules.amount, "rules.amount");

@@ -1,4 +1,4 @@
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import pg from "pg";
 import { PolicyEngineError, conflict, notFound } from "../errors.js";
@@ -251,6 +251,20 @@ export class PostgresPolicyRepository implements PolicyRepository {
       return mapPolicy(row);
     });
   }
+
+  async deleteAgent(agentId: string): Promise<void> {
+    const normalized = agentId.toLowerCase();
+    await this.db.transaction(async tx => {
+      const agentWallets = await tx.select({ walletId: schema.wallets.walletId }).from(schema.wallets).where(eq(schema.wallets.agentId, normalized));
+      const walletIds = agentWallets.map(row => row.walletId);
+      if (walletIds.length > 0) {
+        await tx.delete(schema.walletNonces).where(inArray(schema.walletNonces.walletId, walletIds));
+      }
+      await tx.delete(schema.policies).where(eq(schema.policies.agentId, normalized));
+      await tx.delete(schema.wallets).where(eq(schema.wallets.agentId, normalized));
+      await tx.delete(schema.agents).where(eq(schema.agents.agentId, normalized));
+    });
+  }
 }
 
 export class UnconfiguredPolicyRepository implements PolicyRepository {
@@ -285,6 +299,9 @@ export class UnconfiguredPolicyRepository implements PolicyRepository {
     this.throwUnconfigured();
   }
   async revokePolicy(): Promise<never> {
+    this.throwUnconfigured();
+  }
+  async deleteAgent(): Promise<never> {
     this.throwUnconfigured();
   }
 

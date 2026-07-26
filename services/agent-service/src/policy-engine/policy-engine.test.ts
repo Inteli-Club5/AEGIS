@@ -75,7 +75,6 @@ describe("Policy Engine Level 1 lifecycle", () => {
       [() => parseCreatePolicyRequest({ ...baseCreatePolicyRequest(), agentId: "" }), "invalid_string"],
       [() => parseCreatePolicyRequest({ ...baseCreatePolicyRequest(), validFrom: -1 }), "invalid_unix_seconds"],
       [() => parseCreatePolicyRequest(baseCreatePolicyRequest({ allowedActionTypes: [] })), "empty_allowed_action_types"],
-      [() => parseCreatePolicyRequest(baseCreatePolicyRequest({ allowedDestinations: [] })), "empty_allowed_destinations"],
       [() => parseCreatePolicyRequest(baseCreatePolicyRequest({ allowedAssets: [] })), "empty_allowed_assets"],
       [() => parseCreatePolicyRequest(baseCreatePolicyRequest({ allowedActionTypes: ["BAD_ACTION"] })), "unsupported_action_type"],
       [() => parseCreatePolicyRequest(baseCreatePolicyRequest({ amount: { min: "20", max: "10", dailyLimit: "100" } })), "invalid_amount_range"],
@@ -167,6 +166,14 @@ describe("Policy Engine Level 1 lifecycle", () => {
 
       await rejectsWithCode(async () => service.createPolicy(body, await signCreate(service, body)), "wallet_not_protected");
     }
+  });
+
+  it("accepts an empty destination list as no destination restriction", () => {
+    const parsed = parseCreatePolicyRequest(
+      baseCreatePolicyRequest({ allowedDestinations: [] }),
+    );
+
+    assert.deepEqual(parsed.rules.allowedDestinations, []);
   });
 
   it("rejects invalid operator signatures", async () => {

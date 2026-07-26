@@ -5,7 +5,7 @@ import { createAgent as createAgentProfile } from "./createAgent.js";
 import { createWallet as createAgentWallet } from "./createWallet.js";
 import { proposeAction as proposeAgentAction } from "./proposeAction.js";
 import { HttpError, registerAgenticId } from "./registerAgenticId.js";
-import { getAgent as getStoredAgent } from "./store.js";
+import { deleteAgent as deleteStoredAgent, getAgent as getStoredAgent, setAgentWallet } from "./store.js";
 import type { AgentType } from "./types.js";
 import {
   createPostgresPolicyRepository,
@@ -52,6 +52,7 @@ import {
   DEFAULT_TEEML_PROCESSING_LEASE_SECONDS,
   TeeMlService,
 } from "./teeml/service.js";
+import { resolveRecoveryGuardianAddress } from "./walletConfig.js";
 
 const EVM_ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/;
 const AGENT_TYPES: AgentType[] = [
@@ -258,7 +259,14 @@ export function createAgentServiceApp(options: AgentServiceAppOptions = {}) {
     }
 
     const profile = getAgent(req.params.agentId);
-    const effectiveGuardian = recoveryGuardianAddress ?? profile?.ownerWallet;
+    if (profile?.wallet) {
+      return res.json(profile.wallet);
+    }
+    const effectiveGuardian = resolveRecoveryGuardianAddress({
+      requestedAddress: recoveryGuardianAddress,
+      configuredAddress: process.env.AEGIS_RECOVERY_GUARDIAN_ADDRESS,
+      ownerWallet: profile?.ownerWallet,
+    });
 
     if (
       typeof effectiveGuardian !== "string" ||
@@ -358,14 +366,28 @@ export function createAgentServiceApp(options: AgentServiceAppOptions = {}) {
       if (error instanceof HttpError) {
         return res.status(error.status).json({ error: error.message });
       }
-      res
-        .status(500)
-        .json({
-          error:
-            error instanceof Error
-              ? error.message
-              : "register_agentic_id_failed",
-        });
+      res.status(500).json({
+        error:
+          error instanceof Error ? error.message : "register_agentic_id_failed",
+      });
+    }
+  });
+
+  app.delete("/agents/:agentId", async (req, res) => {
+    const agentId = req.params.agentId;
+    deleteStoredAgent(agentId);
+
+    if (!isPolicyDatabaseConfigured) {
+      return res.status(204).end();
+    }
+
+    try {
+      await policyRepository.deleteAgent(agentId);
+      res.status(204).end();
+    } catch (error) {
+      res.status(500).json({
+        error: error instanceof Error ? error.message : "delete_agent_failed",
+      });
     }
   });
 

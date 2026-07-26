@@ -10,7 +10,6 @@ A comprehensive REST API implementation for interacting with the 0G Compute Netw
 - **Automatic Ledger Management** with startup initialization
 - **TEE Verification** for enhanced trust and security
 - **Single-use Authentication** headers for secure requests
-- **Comprehensive Test Script** for learning and debugging
 - **BigInt Serialization** for blockchain data compatibility
 - **Enhanced Error Handling** with troubleshooting guidance
 
@@ -77,8 +76,6 @@ All services feature **TeeML** verifiability (TEE-based verification).
 │   │   └── brokerService.ts     # Core 0G broker integration
 │   ├── index.ts                 # Express app entry point
 │   └── startup.ts               # Application initialization
-├── demo-compute-flow.ts         # Comprehensive demo script
-├── DEMO_SCRIPT.md              # Demo script documentation
 ├── package.json                # Project configuration
 ├── tsconfig.json               # TypeScript configuration
 └── README.md                   # This file
@@ -132,27 +129,9 @@ npm start
 - **REST API**: http://localhost:4000
 - **Swagger UI**: http://localhost:4000/docs
 
-## 🧪 Run the Complete Flow
-
-Run the comprehensive demo script to see the entire 0G compute workflow:
-
-```bash
-npm run demo
-```
-
-This script demonstrates:
-- Wallet and broker initialization
-- Ledger account setup with funding (**3 OG minimum** - contract requirement in v0.6.x)
-- Service discovery and provider acknowledgment
-- **Fund transfer to specific provider** (required 1 OG minimum per provider)
-- AI query submission with payment processing
-- TEE verification and cost tracking
-
 **Note**: When using a new wallet, you must:
 1. Create a ledger with minimum **3 OG** (contract requirement)
 2. Transfer at least **1 OG** to each provider before making queries
-
-See [DEMO_SCRIPT.md](./DEMO_SCRIPT.md) for detailed documentation.
 
 ## 📚 API Endpoints
 
@@ -352,9 +331,6 @@ npm run serve        # Alternative development command
 # Production
 npm run build        # Compile TypeScript to JavaScript
 npm start           # Start production server
-
-# Testing
-npm run demo   # Run comprehensive workflow demo
 ```
 
 ## 🏗️ Core Architecture
@@ -596,7 +572,6 @@ git checkout cli-version
 - **0G Compute Documentation**: https://docs.0g.ai/developer-hub/building-on-0g/compute-network/inference
 - **0G Main Website**: https://0g.ai
 - **Discord Support**: https://discord.gg/0glabs
-- **Demo Script Guide**: [DEMO_SCRIPT.md](./DEMO_SCRIPT.md)
 
 ## 📝 License
 
@@ -604,4 +579,4 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ---
 
-*Ready to build with decentralized AI? Start with `npm run demo` to see the magic happen!* ✨
+*Ready to build with decentralized AI?* ✨

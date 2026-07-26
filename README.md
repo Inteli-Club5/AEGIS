@@ -38,6 +38,7 @@ current branch.
 - **Current interfaces:** [`docs/interfaces.md`](docs/interfaces.md) - strict precheck, Policy semantic source, TeeML endpoint, hashes, states, and persistence.
 - **0G semantic verifier:** [`docs/0g/teeml-semantic-verifier.md`](docs/0g/teeml-semantic-verifier.md) - production Private/TeeML and explicit hackathon TeeTLS profiles.
 - **Decisions:** [`docs/decisions.md`](docs/decisions.md) - ADR-lite log of locked product/technical decisions.
+- **Roadmap:** [`docs/roadmap.md`](docs/roadmap.md) - phased plan from hackathon MVP to beta, expansion, and partnerships, plus the financial projections behind it.
 - **Workflow:** [`PLAYBOOK.md`](PLAYBOOK.md) - how the team builds, ownership, conventions.
 
 ## AEGIS repo layout

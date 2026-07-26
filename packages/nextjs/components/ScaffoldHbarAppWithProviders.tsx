@@ -8,25 +8,8 @@ import { useTheme } from "next-themes";
 import { Toaster } from "react-hot-toast";
 import { hederaTestnet } from "viem/chains";
 import { WagmiProvider } from "wagmi";
-import { Footer } from "~~/components/Footer";
-import { Header } from "~~/components/Header";
-import { LocalChainErrorBanner } from "~~/components/LocalChainErrorBanner";
 import { BlockieAvatar } from "~~/components/scaffold-hbar";
 import { wagmiConfig } from "~~/services/web3/wagmiConfig";
-
-const ScaffoldHbarApp = ({ children }: { children: React.ReactNode }) => {
-  return (
-    <>
-      <div className="flex flex-col min-h-screen">
-        <Header />
-        <LocalChainErrorBanner />
-        <main className="relative flex flex-col flex-1">{children}</main>
-        <Footer />
-      </div>
-      <Toaster />
-    </>
-  );
-};
 
 export const queryClient = new QueryClient({
   defaultOptions: {
@@ -48,23 +31,23 @@ export const ScaffoldHbarAppWithProviders = ({ children }: { children: React.Rea
   const rainbowKitTheme = mounted
     ? isDarkMode
       ? darkTheme({
-          accentColor: "#8259ef",
-          accentColorForeground: "white",
-          borderRadius: "large",
+          accentColor: "#62affc",
+          accentColorForeground: "#0f2a47",
+          borderRadius: "medium",
           fontStack: "system",
           overlayBlur: "small",
         })
       : lightTheme({
-          accentColor: "#4f46e5",
-          accentColorForeground: "white",
-          borderRadius: "large",
+          accentColor: "#62affc",
+          accentColorForeground: "#0f2a47",
+          borderRadius: "medium",
           fontStack: "system",
           overlayBlur: "small",
         })
     : lightTheme({
-        accentColor: "#4f46e5",
-        accentColorForeground: "white",
-        borderRadius: "large",
+        accentColor: "#62affc",
+        accentColorForeground: "#0f2a47",
+        borderRadius: "medium",
         fontStack: "system",
         overlayBlur: "small",
       });
@@ -72,9 +55,10 @@ export const ScaffoldHbarAppWithProviders = ({ children }: { children: React.Rea
   return (
     <WagmiProvider config={wagmiConfig}>
       <QueryClientProvider client={queryClient}>
-        <ProgressBar height="3px" color="#2299dd" />
+        <ProgressBar height="3px" color="#62affc" />
         <RainbowKitProvider avatar={BlockieAvatar} coolMode initialChain={hederaTestnet} theme={rainbowKitTheme}>
-          <ScaffoldHbarApp>{children}</ScaffoldHbarApp>
+          {children}
+          <Toaster />
         </RainbowKitProvider>
       </QueryClientProvider>
     </WagmiProvider>
