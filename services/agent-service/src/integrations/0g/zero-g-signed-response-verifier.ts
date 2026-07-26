@@ -482,6 +482,13 @@ function assertEligibleProvider(
       expectedAddress.toLowerCase() ||
     typeof rawProvider.model !== "string" ||
     rawProvider.model !== expectedModel ||
+    // The on-chain service registry's `verifiability` field always reads
+    // "TeeML" for eligible providers under both security profiles - it is a
+    // different vocabulary from the Router HTTP catalog's
+    // `verifiability`/`trust_mode` (checked separately in
+    // zero-g-router-client.ts). Do not compare this to
+    // `securityProfile`/`verificationMode`; that would reject every real
+    // hackathon TeeTLS provider.
     rawProvider.verifiability !== "TeeML" ||
     rawProvider.teeSignerAcknowledged !== true ||
     typeof rawProvider.teeSignerAddress !== "string" ||

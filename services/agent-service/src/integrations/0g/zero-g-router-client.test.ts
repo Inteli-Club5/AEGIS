@@ -722,7 +722,7 @@ describe("ZeroGRouterClient", () => {
     assert.throws(
       () =>
         createClient(async () => completionResponse(validEnvelope()), undefined, {
-          maxOutputTokens: 257,
+          maxOutputTokens: 769,
         }),
       error => {
         assert.ok(error instanceof ZeroGRouterError);

@@ -196,14 +196,8 @@ export class TeeMlService {
       requestId,
       async transaction => {
         const sources = await transaction.getTrustedSources(requestId);
-        if (!sources) {
+        if (!sources || sources.agentId !== actorAgentId) {
           notFound("teeml_request_not_found", "action request was not found");
-        }
-        if (sources.agentId !== actorAgentId) {
-          forbidden(
-            "agent_context_mismatch",
-            "authenticated agent does not own this action request",
-          );
         }
         const existing = await transaction.getVerification(requestId);
         if (

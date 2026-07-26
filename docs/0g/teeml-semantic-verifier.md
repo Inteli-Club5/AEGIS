@@ -16,12 +16,45 @@ explicitly and is rejected outside testnet. It is real 0G TeeTLS verification,
 but its upstream centralized model may process plaintext; it is not
 Private/TeeML and cannot become production execution authorization.
 
-The latest real hackathon run reached the selected testnet provider with funded
-Router credit. Completion dispatch succeeded, but the subsequent provider
-signed-response request returned HTTP `400`, so AEGIS failed closed with
-`TEEML_NOT_VERIFIED / SIGNATURE_UNAVAILABLE`. No retry or evidence file was
-produced. The branch remains operationally blocked until a real ALLOW and DENY
-complete. Mainnet and testnet keys, balances, and deposits are separate.
+Earlier hackathon runs reached the selected testnet provider with funded
+Router credit, but the subsequent provider signed-response request
+consistently returned HTTP `400` (`chat_id_not_found`), so AEGIS failed
+closed with `TEEML_NOT_VERIFIED / SIGNATURE_UNAVAILABLE`. Live diagnosis (raw
+request/response inspection, an A/B test isolating `verify_tee`, and a
+successful reference call through the official SDK's Direct broker mode
+against the same provider) confirmed this was a bug in the testnet Router's
+completion proxy, not a credentials, timing, or AEGIS client-code issue: a
+chat ID the Router hands back is not resolvable at the provider's own
+signed-response endpoint, regardless of `verify_tee`.
+
+The hackathon profile now bypasses the Router entirely and talks to the
+pinned provider directly through `@0gfoundation/0g-compute-ts-sdk@0.9.0`'s
+Direct broker mode (`services/agent-service/src/integrations/0g/zero-g-direct-inference.ts`):
+a funded ledger, an acknowledged provider TEE signer, broker-signed billing
+headers, and verification via `broker.inference.processResponse`.
+`npm run test:0g:teetls:hackathon` now produces a real ALLOW and DENY pair in
+`docs/evidence/0g-teetls-hackathon-verification.json`, and a full real
+end-to-end run (Hedera account, Safe, 0G Agentic ID, Policy, Level 1
+precheck, TeeML verify) completes through the actual HTTP routes.
+
+**Known, disclosed verification limitation**: `processResponse` confirms a
+genuine signature from the provider's acknowledged TEE signer exists for the
+exact chat ID, but the provider's real signed response is
+`{text: "<hash>:<hash>:<provider_type>:<provider_identity>:<tls_fingerprint>",
+signature, ...}`, not the raw completion text - confirmed only once this
+session, since the Router path never got far enough to observe a real
+response before. The exact hashing scheme is undocumented, so this gateway
+cannot independently re-derive the commitment and prove it matches the exact
+`content` byte-for-byte; `ZeroGSignedResponseVerifier` (built assuming `text`
+was the raw content) fails closed on every real response here for that
+reason. This is a genuine gap in the hackathon profile's guarantee, not
+silently overstated as "byte-for-byte content-verified" - consistent with
+this profile already being labeled "may process plaintext, never
+production-authorizing."
+
+The production `production-private-teeml` profile is unaffected, still uses
+the Router, and remains live-unproven on mainnet. Mainnet and testnet keys,
+balances, and deposits are separate.
 
 No local inference fallback, standard-provider fallback, automatic profile
 downgrade, DecisionReceipt signer, Safe execution, or Hedera execution was
@@ -199,6 +232,11 @@ PostgreSQL's own clock is authoritative for the final ALLOW UsageHold expiry
 check.
 
 ## 0G Security Profiles And Request
+
+This section describes the Router path, which the production profile still
+uses. The hackathon profile bypasses the Router entirely (see Branch Status
+above); its request/verification path is the SDK's Direct broker mode, not
+what follows here.
 
 The profile is selected by `ZG_TEEML_SECURITY_PROFILE`; omission defaults to
 `production-private-teeml`. The two exact contracts are:

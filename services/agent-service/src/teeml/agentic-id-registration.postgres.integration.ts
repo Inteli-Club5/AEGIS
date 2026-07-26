@@ -1,3 +1,4 @@
+import "dotenv/config";
 import assert from "node:assert/strict";
 import { fileURLToPath } from "node:url";
 import { after, before, describe, it } from "node:test";

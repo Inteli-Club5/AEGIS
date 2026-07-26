@@ -5,10 +5,12 @@ import {
   type TeeMlInferenceResult,
 } from "../../teeml/inference-gateway.js";
 import {
+  HACKATHON_TESTNET_TEETLS_PROFILE,
   parseZeroGSecurityProfile,
   type ZeroGSecurityProfile,
 } from "../../teeml/security-profile.js";
 import type { TeeMlChatMessage } from "../../teeml/prompt.js";
+import { createZeroGDirectInferenceFromEnv } from "./zero-g-direct-inference.js";
 import { ZeroGRouterClient } from "./zero-g-router-client.js";
 import {
   ZeroGRouterError,
@@ -28,7 +30,7 @@ import {
 export const DEFAULT_ZERO_G_ROUTER_BASE_URL =
   OFFICIAL_ZERO_G_MAINNET_ROUTER_BASE_URL;
 export const DEFAULT_ZERO_G_TEEML_TIMEOUT_MS = 30_000;
-export const DEFAULT_ZERO_G_TEEML_MAX_OUTPUT_TOKENS = 256;
+export const DEFAULT_ZERO_G_TEEML_MAX_OUTPUT_TOKENS = 768;
 const MAX_ZERO_G_TEEML_TIMEOUT_MS = 5 * 60 * 1_000;
 
 type ZeroGOperationalStage =
@@ -101,6 +103,19 @@ export class ZeroGSemanticInferenceGateway implements TeeMlInferenceGateway {
 export function createZeroGSemanticInferenceFromEnv(
   env: NodeJS.ProcessEnv = process.env,
 ): TeeMlInferenceGateway {
+  if (
+    parseZeroGSecurityProfile(env.ZG_TEEML_SECURITY_PROFILE) ===
+    HACKATHON_TESTNET_TEETLS_PROFILE
+  ) {
+    // The Router's own completion proxy leaves the hackathon TeeTLS provider's
+    // signed-response endpoint unresolvable afterward (chat_id_not_found),
+    // reproduced consistently and confirmed independent of verify_tee. The
+    // SDK's direct broker/ledger session against the same provider verifies
+    // successfully, so the hackathon profile bypasses the Router entirely.
+    // See docs/0g/teeml-semantic-verifier.md.
+    return createZeroGDirectInferenceFromEnv(env);
+  }
+
   const apiKey = env.ZG_ROUTER_API_KEY;
   const modelId = env.ZG_TEEML_MODEL;
   if (!apiKey || !modelId) {

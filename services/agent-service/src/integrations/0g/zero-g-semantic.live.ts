@@ -53,7 +53,16 @@ import {
 import { resolveZeroGRouterNetwork } from "./zero-g-network.js";
 
 const RESPONSE_HASH_SCHEMA = "aegis.teeml.response.v1";
-const REQUIRED_ENV = ["ZG_ROUTER_API_KEY", "ZG_TEEML_MODEL"] as const;
+const REQUIRED_ENV_BY_PROFILE: Record<ZeroGSecurityProfile, readonly string[]> = {
+  [PRODUCTION_PRIVATE_TEEML_PROFILE]: ["ZG_ROUTER_API_KEY", "ZG_TEEML_MODEL"],
+  [HACKATHON_TESTNET_TEETLS_PROFILE]: [
+    "ZG_COMPUTE_PRIVATE_KEY",
+    "ZG_TEEML_PROVIDER_ADDRESS",
+    "ZG_TEEML_PROVIDER_MODEL_ID",
+  ],
+};
+const REQUIRED_ENV =
+  REQUIRED_ENV_BY_PROFILE[resolveZeroGSecurityProfileFromEnv()];
 const missing = REQUIRED_ENV.filter(name => !process.env[name]?.trim());
 
 if (missing.length > 0) {
@@ -73,15 +82,26 @@ async function run(): Promise<void> {
     gateway = createZeroGSemanticInferenceFromEnv();
     const allow = await verifyCase("live-allow", "ALLOW");
     const deny = await verifyCase("live-deny", "DENY");
-    const network = resolveZeroGRouterNetwork(
-      process.env.ZG_ROUTER_BASE_URL ?? DEFAULT_ZERO_G_ROUTER_BASE_URL,
-    );
+    const isDirect = securityProfile === HACKATHON_TESTNET_TEETLS_PROFILE;
+    const networkFields = isDirect
+      ? {
+          integration: "0G Direct SDK semantic verification",
+          network: "testnet",
+          providerAddress: process.env.ZG_TEEML_PROVIDER_ADDRESS,
+        }
+      : {
+          integration: "0G Router semantic verification",
+          network: resolveZeroGRouterNetwork(
+            process.env.ZG_ROUTER_BASE_URL ?? DEFAULT_ZERO_G_ROUTER_BASE_URL,
+          ).name,
+          routerBaseUrl: resolveZeroGRouterNetwork(
+            process.env.ZG_ROUTER_BASE_URL ?? DEFAULT_ZERO_G_ROUTER_BASE_URL,
+          ).routerBaseUrl,
+        };
     const evidence = {
       schemaVersion: "1.0",
       generatedAt: new Date().toISOString(),
-      integration: "0G Router semantic verification",
-      network: network.name,
-      routerBaseUrl: network.routerBaseUrl,
+      ...networkFields,
       sdk: {
         package: "@0gfoundation/0g-compute-ts-sdk",
         version: "0.9.0",

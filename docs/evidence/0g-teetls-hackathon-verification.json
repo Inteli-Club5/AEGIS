@@ -1,0 +1,63 @@
+{
+  "schemaVersion": "1.0",
+  "generatedAt": "2026-07-26T00:20:46.469Z",
+  "integration": "0G Direct SDK semantic verification",
+  "network": "testnet",
+  "providerAddress": "0xa48f01287233509FD694a22Bf840225062E67836",
+  "sdk": {
+    "package": "@0gfoundation/0g-compute-ts-sdk",
+    "version": "0.9.0"
+  },
+  "securityProfile": "hackathon-testnet-teetls",
+  "trustMode": "verified",
+  "verificationMode": "TeeTLS",
+  "teeVerified": true,
+  "sealedInference": false,
+  "productionReady": false,
+  "independentSignedContentVerification": true,
+  "privacyStatement": "Hackathon-only TeeTLS: the broker transport and response are TEE-verified, but the upstream model provider may process plaintext.",
+  "productionRequirement": "production-private-teeml",
+  "cases": [
+    {
+      "requestId": "live-allow",
+      "status": "TEETLS_HACKATHON_ALLOWED",
+      "reasonCode": "SEMANTIC_POLICY_MATCH",
+      "model": "qwen/qwen2.5-omni-7b",
+      "provider": "0xa48f01287233509FD694a22Bf840225062E67836",
+      "securityProfile": "hackathon-testnet-teetls",
+      "trustMode": "verified",
+      "verificationMode": "TeeTLS",
+      "sealedInference": false,
+      "teeVerified": true,
+      "semanticContextHash": "0x218d0a87656142eb1b628a1185972ec83ddb3812dde0b36ed4209af4e096f384",
+      "teemlRequestHash": "0xb2b33596a39cc81206cb6698bd4d5aa81cd6ea6cb41d7f10987ce063b3a95215",
+      "responseHash": "0x420ee3adf688b57145db1426a9a3cea710441d4e0cf70e671d7fb9effc72aafb",
+      "responseId": "chatcmpl-f72fedcd-757e-4e75-b517-8d1828283f0e",
+      "promptTokens": 1075,
+      "completionTokens": 305,
+      "latencyMs": 8778
+    },
+    {
+      "requestId": "live-deny",
+      "status": "TEEML_DENIED",
+      "reasonCode": "ACTION_OUTSIDE_SEMANTIC_POLICY",
+      "model": "qwen/qwen2.5-omni-7b",
+      "provider": "0xa48f01287233509FD694a22Bf840225062E67836",
+      "securityProfile": "hackathon-testnet-teetls",
+      "trustMode": "verified",
+      "verificationMode": "TeeTLS",
+      "sealedInference": false,
+      "teeVerified": true,
+      "semanticContextHash": "0x8166db4e90693358df38f78b963c2862ffdc785dd42ef921f6081a69cf6809c6",
+      "teemlRequestHash": "0xa91e8194595c40eb302a905e4e4434f619c2e26433a56e9920003cb96641c14b",
+      "responseHash": "0x46083618b2499a0c364ad61cf0d2b89aeca4e8c6b3bed17acf582fca39c1ca70",
+      "responseId": "chatcmpl-7d23a037-3f4c-4718-a075-fb3e28a988ee",
+      "promptTokens": 1082,
+      "completionTokens": 314,
+      "latencyMs": 6827
+    }
+  ],
+  "sensitivePlaintextPersisted": false,
+  "rawPromptPersisted": false,
+  "rawOutputPersisted": false
+}

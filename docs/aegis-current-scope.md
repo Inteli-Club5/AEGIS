@@ -177,7 +177,31 @@ Private/TeeML and is never represented as production-ready. Profile selection
 is explicit through `ZG_TEEML_SECURITY_PROFILE`. There is no automatic
 downgrade from Private/TeeML to TeeTLS.
 
-Both profiles pin one eligible provider and force:
+**The hackathon `hackathon-testnet-teetls` profile bypasses the 0G Router
+entirely and talks to the pinned provider directly through the official
+`@0gfoundation/0g-compute-ts-sdk@0.9.0` broker** (`ledger`/`inference`
+namespaces): a funded ledger, an acknowledged provider TEE signer, and
+broker-signed billing headers, calling the provider's own
+`/v1/proxy/chat/completions` and verifying with `broker.inference.processResponse`.
+This was forced by a confirmed bug in the testnet Router
+(`router-api-testnet.integratenetwork.work`): its `/chat/completions` proxy
+dispatches a real completion, but the resulting chat ID is then unresolvable
+at the provider's own signed-response endpoint (`chat_id_not_found`),
+reproduced consistently across many independent runs and confirmed via an
+A/B test to be unrelated to the `verify_tee` request flag. Calling the same
+provider directly - bypassing the Router - resolves the same signature
+successfully. See `docs/0g/teeml-semantic-verifier.md` and
+`services/agent-service/src/integrations/0g/zero-g-direct-inference.ts`. The
+default and only production profile (`production-private-teeml`, mainnet)
+is unaffected and still uses the Router path described below; it remains
+live-unproven and out of scope for this fix.
+
+The remainder of this section (Router pinning headers, trust-mode headers,
+provider/model catalog validation) describes the **production Router path**
+only; the hackathon Direct-mode path pins its provider through
+`ZG_TEEML_PROVIDER_ADDRESS`/`ZG_TEEML_PROVIDER_MODEL_ID` instead, with no
+catalog-based discovery. The production profile pins one eligible provider
+and forces:
 
 ```http
 X-0G-Provider-Address: <selected-provider>
@@ -379,11 +403,37 @@ hackathon command requires the same two real cases through testnet TeeTLS and
 writes only `docs/evidence/0g-teetls-hackathon-verification.json`, explicitly
 marked `productionReady: false` and `sealedInference: false`.
 
-At the current checkpoint, the funded hackathon request reached the selected
-testnet TeeTLS provider and dispatched a completion. The provider's subsequent
-signed-response endpoint returned HTTP `400`, so AEGIS failed closed with
-`TEEML_NOT_VERIFIED / SIGNATURE_UNAVAILABLE`. The client did not retry or
-accept an unsigned verdict. No ALLOW or DENY evidence file was generated, and
-the real test remains blocked on provider signed-response availability. The
-production Private/TeeML path also remains live-unproven; it is preserved as
-the default production profile and is not replaced or commented out.
+The hackathon path was blocked for several sessions: the funded request
+reached the selected testnet TeeTLS provider and dispatched a completion, but
+the provider's signed-response endpoint returned HTTP `400`
+(`chat_id_not_found`) when queried through the Router-dispatched flow. Live
+diagnosis (raw request/response inspection, an A/B test isolating
+`verify_tee`, and a working reference run through the official SDK's
+Direct broker mode against the same provider) confirmed this was a Router-side
+bug, not a credentials, timing, or client-code issue. The hackathon profile
+was moved to the SDK's Direct broker mode (see the `0G Integration` section
+above); a real, funded, end-to-end run - from Hedera account and Safe
+creation through 0G Agentic ID registration, Policy creation, Level 1
+precheck, and TeeML verification - now completes with `TEETLS_HACKATHON_ALLOWED`
+verdicts, and `npm run test:0g:teetls:hackathon` produces a real ALLOW and DENY
+pair in `docs/evidence/0g-teetls-hackathon-verification.json`, each confirmed
+by a valid signature from the provider's acknowledged TEE signer via
+`broker.inference.processResponse`.
+
+This verification has a known, disclosed limitation: the provider's real
+signed response is `{text: "<hash>:<hash>:<provider_type>:<provider_identity>:
+<tls_fingerprint>", signature, ...}`, not the raw completion text, and its
+exact hashing scheme is undocumented. `processResponse` confirms a genuine
+signature exists for this exact chat ID from the acknowledged signer, but
+does not independently re-derive the commitment to prove that signed payload
+corresponds byte-for-byte to the specific `content` this gateway trusts as
+the verdict. Attempting true byte-for-byte independent verification (the
+approach the Router path was designed around, per `ZeroGSignedResponseVerifier`)
+fails closed on every real hackathon response, because that verifier assumes
+the wrong response shape - an assumption never actually exercised before,
+since the Router path always failed earlier at `chat_id_not_found`. This gap
+is consistent with the hackathon profile's existing "may process plaintext,
+never production-authorizing" status and does not change the production
+Private/TeeML contract. The production Private/TeeML path remains
+live-unproven; it is preserved as the default production profile, still uses
+the Router, and is not replaced or commented out.
