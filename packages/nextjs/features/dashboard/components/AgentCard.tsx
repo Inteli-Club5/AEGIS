@@ -1,7 +1,9 @@
 "use client";
 
-import { Bot, ChevronRight, Pause, Plus, ShieldCheck, ShieldOff, TriangleAlert } from "lucide-react";
+import { useState } from "react";
+import { Bot, ChevronRight, Loader2, Pause, Plus, ShieldCheck, ShieldOff, Trash2, TriangleAlert } from "lucide-react";
 import { Badge, type BadgeTone } from "~~/components/ui/Badge";
+import { ConfirmDialog } from "~~/components/ui/ConfirmDialog";
 import type { Agent, AgentStatus } from "~~/lib/types/aegis";
 import { truncateAddress } from "~~/lib/utils/format";
 
@@ -12,17 +14,50 @@ const STATUS_META: Record<AgentStatus, { label: string; tone: BadgeTone; icon: t
   compromised: { label: "Compromised", tone: "danger", icon: TriangleAlert },
 };
 
-export function AgentCard({ agent, onOpen }: { agent: Agent; onOpen: () => void }) {
+export function AgentCard({
+  agent,
+  onOpen,
+  onDelete,
+}: {
+  agent: Agent;
+  onOpen: () => void;
+  onDelete?: () => Promise<void> | void;
+}) {
   const status = STATUS_META[agent.status];
   const StatusIcon = status.icon;
+  const showDelete = Boolean(onDelete) && agent.status !== "protected";
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  async function handleConfirmDelete() {
+    if (!onDelete) return;
+    setDeleting(true);
+    try {
+      await onDelete();
+    } finally {
+      setDeleting(false);
+      setConfirmOpen(false);
+    }
+  }
 
   return (
-    <button
-      onClick={onOpen}
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={() => {
+        if (confirmOpen || deleting) return;
+        onOpen();
+      }}
+      onKeyDown={event => {
+        if ((event.key === "Enter" || event.key === " ") && !confirmOpen && !deleting) {
+          event.preventDefault();
+          onOpen();
+        }
+      }}
       className="group relative flex cursor-pointer flex-col rounded-lg border border-border bg-surface p-4 text-left shadow-md transition-all duration-[160ms] hover:-translate-y-0.5 hover:border-brand hover:shadow-lg motion-reduce:hover:translate-y-0"
     >
       <div className="flex w-full items-start justify-between gap-3">
-        <span className="flex items-center gap-2.5">
+        <span className="flex min-w-0 items-center gap-2.5">
           <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-soft">
             <Bot className="h-4 w-4 text-brand-strong" />
           </span>
@@ -31,10 +66,25 @@ export function AgentCard({ agent, onOpen }: { agent: Agent; onOpen: () => void 
             <span className="block truncate text-caption text-muted">{agent.type}</span>
           </span>
         </span>
-        <Badge tone={status.tone}>
-          <StatusIcon className="h-3 w-3" />
-          {status.label}
-        </Badge>
+        <span className="flex shrink-0 items-center gap-1.5">
+          <Badge tone={status.tone}>
+            <StatusIcon className="h-3 w-3" />
+            {status.label}
+          </Badge>
+          {showDelete && (
+            <button
+              type="button"
+              onClick={event => {
+                event.stopPropagation();
+                setConfirmOpen(true);
+              }}
+              aria-label={`Delete ${agent.name}`}
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted transition-colors hover:bg-danger-soft hover:text-danger focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-strong"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </span>
       </div>
 
       <dl className="mt-4 w-full space-y-1.5">
@@ -53,7 +103,23 @@ export function AgentCard({ agent, onOpen }: { agent: Agent; onOpen: () => void 
       </dl>
 
       <ChevronRight className="absolute bottom-4 right-4 h-4 w-4 text-subtle transition-all duration-[160ms] group-hover:translate-x-0.5 group-hover:text-brand-strong" />
-    </button>
+
+      {showDelete && (
+        <ConfirmDialog
+          open={confirmOpen}
+          title={`Delete ${agent.name}?`}
+          description="This removes the agent from AEGIS's records and your dashboard. Its Hedera account and any deployed Safe wallet are on-chain and stay exactly as they are -- this can't be undone on AEGIS's side."
+          confirmLabel={deleting ? "Deleting…" : "Delete"}
+          onCancel={() => setConfirmOpen(false)}
+          onConfirm={handleConfirmDelete}
+        />
+      )}
+      {deleting && (
+        <span className="absolute inset-0 flex items-center justify-center rounded-lg bg-surface/70">
+          <Loader2 className="h-5 w-5 animate-spin text-muted" />
+        </span>
+      )}
+    </div>
   );
 }
 

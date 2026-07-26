@@ -170,17 +170,7 @@ function AgenticIdentitiesContent() {
         <section className="mt-7" aria-live="polite">
           {identities.isPending ? (
             <div className="h-64 animate-pulse rounded-lg bg-surface" />
-          ) : identities.isError ? (
-            <div role="alert" className="rounded-lg border border-danger/25 bg-danger-soft p-5">
-              <h2 className="text-h4 text-danger">GraphQL query failed</h2>
-              <p className="mt-2 text-body-sm text-muted">
-                {identities.error instanceof Error ? identities.error.message : "The 0G Subgraph is unavailable."}
-              </p>
-              <Button className="mt-4" variant="secondary" onClick={() => identities.refetch()}>
-                Retry
-              </Button>
-            </div>
-          ) : (
+          ) : identities.isError ? null : (
             <>
               <FreshnessLine freshness={identities.data.freshness} />
               <IdentityTable items={identities.data.items} />

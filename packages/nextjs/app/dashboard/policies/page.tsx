@@ -116,17 +116,7 @@ function PolicyReferencesContent() {
         <section className="mt-7" aria-live="polite">
           {policies.isPending ? (
             <div className="h-64 animate-pulse rounded-lg bg-surface" />
-          ) : policies.isError ? (
-            <div role="alert" className="rounded-lg border border-danger/25 bg-danger-soft p-5">
-              <h2 className="text-h4 text-danger">GraphQL query failed</h2>
-              <p className="mt-2 text-body-sm text-muted">
-                {policies.error instanceof Error ? policies.error.message : "The Hedera Subgraph is unavailable."}
-              </p>
-              <Button className="mt-4" variant="secondary" onClick={() => policies.refetch()}>
-                Retry
-              </Button>
-            </div>
-          ) : (
+          ) : policies.isError ? null : (
             <>
               <div className="mb-3 flex flex-wrap justify-between gap-3 text-caption text-muted">
                 <span>Indexed block {policies.data.freshness.indexedBlock?.toLocaleString() ?? "unknown"}</span>

@@ -49,17 +49,7 @@ export default function AgenticIdentityDetailPage() {
 
         {identity.isPending ? (
           <div className="mt-6 h-96 animate-pulse rounded-lg bg-surface" />
-        ) : identity.isError ? (
-          <section role="alert" className="mt-6 rounded-lg border border-danger/25 bg-danger-soft p-6">
-            <h1 className="text-h3 text-danger">Agentic Identity unavailable</h1>
-            <p className="mt-2 text-body-sm text-muted">
-              {identity.error instanceof Error ? identity.error.message : "The 0G Subgraph query failed."}
-            </p>
-            <Button className="mt-4" variant="secondary" onClick={() => identity.refetch()}>
-              Retry GraphQL
-            </Button>
-          </section>
-        ) : (
+        ) : identity.isError ? null : (
           <IdentityDetail
             data={identity.data}
             page={cursorHistory.length}
@@ -97,19 +87,6 @@ function IdentityDetail({
         </div>
         <Badge tone={item.status === "ACTIVE" ? "success" : "neutral"}>{item.status}</Badge>
       </div>
-
-      {(!freshness.available || freshness.stale || freshness.hasIndexingErrors === true) && (
-        <div
-          role="status"
-          className="mt-5 rounded-md border border-warning/30 bg-warning-soft px-4 py-3 text-body-sm text-warning"
-        >
-          {!freshness.available
-            ? "The 0G Subgraph is unavailable; no RPC or application database fallback was used."
-            : freshness.hasIndexingErrors === true
-              ? "The 0G Subgraph reports indexing errors; ownership may lag confirmed events."
-              : "The 0G Subgraph is stale relative to its indexed timestamp."}
-        </div>
-      )}
 
       <section className="mt-6 rounded-lg border border-border bg-surface-raised p-6 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-4">

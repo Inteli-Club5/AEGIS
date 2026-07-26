@@ -6,7 +6,6 @@ import { useQuery } from "@tanstack/react-query";
 import { ExternalLink } from "lucide-react";
 import { AppTopbar } from "~~/components/layout/AppTopbar";
 import { Badge } from "~~/components/ui/Badge";
-import { Button } from "~~/components/ui/Button";
 import { ConnectGate } from "~~/features/wallet/components/ConnectGate";
 import { useConnectWallet } from "~~/features/wallet/components/ConnectWalletProvider";
 import { fetchTeeMLValidation } from "~~/lib/onchain-data/browser";
@@ -46,17 +45,7 @@ export default function TeeMLValidationDetailPage() {
 
         {validation.isPending ? (
           <div className="mt-6 h-96 animate-pulse rounded-lg bg-surface" />
-        ) : validation.isError ? (
-          <section role="alert" className="mt-6 rounded-lg border border-danger/25 bg-danger-soft p-6">
-            <h1 className="text-h3 text-danger">Validation unavailable</h1>
-            <p className="mt-2 text-body-sm text-muted">
-              {validation.error instanceof Error ? validation.error.message : "The Hedera Subgraph query failed."}
-            </p>
-            <Button className="mt-4" variant="secondary" onClick={() => validation.refetch()}>
-              Retry GraphQL
-            </Button>
-          </section>
-        ) : (
+        ) : validation.isError ? null : (
           <ValidationDetail item={validation.data.item} freshness={validation.data.freshness} />
         )}
       </main>
@@ -82,19 +71,6 @@ function ValidationDetail({
         </div>
         <Badge tone={item.verdict === "ALLOW" ? "success" : "danger"}>{item.verdict}</Badge>
       </div>
-
-      {(!freshness.available || freshness.stale || freshness.hasIndexingErrors === true) && (
-        <div
-          role="status"
-          className="mt-5 rounded-md border border-warning/30 bg-warning-soft px-4 py-3 text-body-sm text-warning"
-        >
-          {!freshness.available
-            ? "The Hedera Subgraph is unavailable; no alternate read source was used."
-            : freshness.hasIndexingErrors === true
-              ? "The Subgraph reports indexing errors; this entity may not reflect the current indexed head."
-              : "The indexed block is stale relative to its timestamp."}
-        </div>
-      )}
 
       <section className="mt-6 rounded-lg border border-border bg-surface-raised p-6 shadow-sm">
         <h2 className="text-h4">Indexed evidence</h2>

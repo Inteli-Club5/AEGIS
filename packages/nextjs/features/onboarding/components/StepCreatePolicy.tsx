@@ -536,7 +536,7 @@ export function StepCreatePolicy({
               value={
                 values.trustedService.enabled
                   ? values.trustedService.serviceId || "Configured, service ID missing"
-                  : "None (TeeML verify unavailable)"
+                  : "None (add one to enable running actions through this policy)"
               }
             />
             <ReviewItem

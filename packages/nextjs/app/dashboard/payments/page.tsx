@@ -26,9 +26,8 @@ export default function PaymentsPage() {
         <Link href="/dashboard" className="text-body-sm font-medium text-brand-strong hover:underline">
           ← Back to overview
         </Link>
-        <section className="mt-6 rounded-lg border border-warning/30 bg-warning-soft p-6">
-          <p className="font-mono text-overline uppercase text-warning">Unsupported by current event schema</p>
-          <h1 className="mt-1 text-h2">Payments</h1>
+        <section className="mt-6 rounded-lg border border-border bg-surface p-6 shadow-sm">
+          <h1 className="text-h2">Payments</h1>
           <p className="mt-3 text-body-sm text-muted">
             The current Hedera contracts do not emit a dedicated AEGIS payment event that can be indexed into an
             unambiguous Payment entity. The dashboard therefore does not infer payments from Safe value transfers,

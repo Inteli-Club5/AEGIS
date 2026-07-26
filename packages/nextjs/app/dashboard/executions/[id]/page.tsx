@@ -6,7 +6,6 @@ import { useQuery } from "@tanstack/react-query";
 import { ExternalLink } from "lucide-react";
 import { AppTopbar } from "~~/components/layout/AppTopbar";
 import { Badge } from "~~/components/ui/Badge";
-import { Button } from "~~/components/ui/Button";
 import { ConnectGate } from "~~/features/wallet/components/ConnectGate";
 import { useConnectWallet } from "~~/features/wallet/components/ConnectWalletProvider";
 import { fetchSafeExecution } from "~~/lib/onchain-data/coverageBrowser";
@@ -45,17 +44,7 @@ export default function SafeExecutionDetailPage() {
         </Link>
         {execution.isPending ? (
           <div className="mt-6 h-96 animate-pulse rounded-lg bg-surface" />
-        ) : execution.isError ? (
-          <section role="alert" className="mt-6 rounded-lg border border-danger/25 bg-danger-soft p-6">
-            <h1 className="text-h3 text-danger">Execution unavailable</h1>
-            <p className="mt-2 text-body-sm text-muted">
-              {execution.error instanceof Error ? execution.error.message : "The Hedera Subgraph query failed."}
-            </p>
-            <Button className="mt-4" variant="secondary" onClick={() => execution.refetch()}>
-              Retry GraphQL
-            </Button>
-          </section>
-        ) : (
+        ) : execution.isError ? null : (
           <ExecutionDetail item={execution.data.item} freshness={execution.data.freshness} />
         )}
       </main>
@@ -81,15 +70,6 @@ function ExecutionDetail({
         </div>
         <Badge tone={item.success ? "success" : "danger"}>{item.success ? "SUCCESS" : "FAILURE"}</Badge>
       </div>
-
-      {(!freshness.available || freshness.stale || freshness.hasIndexingErrors === true) && (
-        <div
-          role="status"
-          className="mt-5 rounded-md border border-warning/30 bg-warning-soft px-4 py-3 text-body-sm text-warning"
-        >
-          The Hedera indexer is unavailable, stale, or reporting errors. No alternate chain read was used.
-        </div>
-      )}
 
       <section className="mt-6 rounded-lg border border-border bg-surface-raised p-6 shadow-sm">
         <h2 className="text-h4">Indexed execution</h2>

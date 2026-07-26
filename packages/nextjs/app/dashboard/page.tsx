@@ -9,6 +9,7 @@ import { OnchainStatStrip, StatStripSkeleton } from "~~/features/dashboard/compo
 import { TeeMLValidationTable } from "~~/features/dashboard/components/TeeMLValidationTable";
 import { ConnectGate } from "~~/features/wallet/components/ConnectGate";
 import { useConnectWallet } from "~~/features/wallet/components/ConnectWalletProvider";
+import { deleteAgent } from "~~/lib/api/agents";
 import { ApiError } from "~~/lib/api/http";
 import { getAgentServiceProfile } from "~~/lib/api/onboarding";
 import { readCreatedAgentDetails, removeCreatedAgent } from "~~/lib/onboarding/localAgentDraftStore";
@@ -94,7 +95,20 @@ export default function DashboardPage() {
             </>
           ) : (
             myAgents.map(agent => (
-              <AgentCard key={agent.id} agent={agent} onOpen={() => router.push(`/agents/${agent.id}`)} />
+              <AgentCard
+                key={agent.id}
+                agent={agent}
+                onOpen={() =>
+                  router.push(agent.status === "protected" ? `/agents/${agent.id}` : `/onboarding?resume=${agent.id}`)
+                }
+                onDelete={async () => {
+                  await deleteAgent(agent.id);
+                  removeCreatedAgent(agent.id);
+                  setMyAgents(previous =>
+                    previous ? previous.filter(candidate => candidate.id !== agent.id) : previous,
+                  );
+                }}
+              />
             ))
           )}
         </div>

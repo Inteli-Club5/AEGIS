@@ -188,32 +188,8 @@ function CrossChainAgentsContent() {
         <section className="mt-7" aria-live="polite">
           {agents.isPending ? (
             <div className="h-64 animate-pulse rounded-lg bg-surface" />
-          ) : agents.isError ? (
-            <QueryError
-              message={agents.error instanceof Error ? agents.error.message : "The Subgraph queries are unavailable."}
-              retry={() => agents.refetch()}
-            />
-          ) : (
+          ) : agents.isError ? null : (
             <>
-              {(agents.data.sourceErrors.hedera || agents.data.sourceErrors.zeroG) && (
-                <div
-                  role="status"
-                  className="mb-4 rounded-md border border-warning/30 bg-warning-soft p-4 text-warning"
-                >
-                  {[agents.data.sourceErrors.hedera, agents.data.sourceErrors.zeroG].filter(Boolean).join(" ")} No
-                  alternate read source was used.
-                </div>
-              )}
-              {(agents.data.collection.candidateLookupTruncated.hedera ||
-                agents.data.collection.candidateLookupTruncated.zeroG) && (
-                <div
-                  role="status"
-                  className="mb-4 rounded-md border border-warning/30 bg-warning-soft p-4 text-warning"
-                >
-                  A token candidate lookup exceeded {agents.data.collection.candidateCap} entities. Affected
-                  relationships remain ambiguous.
-                </div>
-              )}
               <FreshnessLine freshness={agents.data.freshness} />
               <CrossChainAgentTable items={agents.data.items} hasNextPage={agents.data.nextCursor !== null} />
               <Pagination
@@ -410,18 +386,6 @@ function freshnessLabel(freshness: IndexerFreshness): string {
         ? "Stale"
         : "Fresh";
   return `${state} · block ${freshness.indexedBlock?.toLocaleString() ?? "unknown"}`;
-}
-
-function QueryError({ message, retry }: { message: string; retry: () => void }) {
-  return (
-    <div role="alert" className="rounded-lg border border-danger/25 bg-danger-soft p-5">
-      <h2 className="text-h4 text-danger">GraphQL query failed</h2>
-      <p className="mt-2 text-body-sm text-muted">{message}</p>
-      <Button className="mt-4" variant="secondary" onClick={retry}>
-        Retry
-      </Button>
-    </div>
-  );
 }
 
 function Pagination({

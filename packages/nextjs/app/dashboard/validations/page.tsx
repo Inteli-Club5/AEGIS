@@ -211,17 +211,7 @@ function ValidationsContent() {
         <section className="mt-7" aria-live="polite">
           {validations.isPending ? (
             <div className="h-64 animate-pulse rounded-lg bg-surface" />
-          ) : validations.isError ? (
-            <div role="alert" className="rounded-lg border border-danger/25 bg-danger-soft p-5">
-              <h2 className="text-h4 text-danger">GraphQL query failed</h2>
-              <p className="mt-2 text-body-sm text-muted">
-                {validations.error instanceof Error ? validations.error.message : "The Hedera Subgraph is unavailable."}
-              </p>
-              <Button className="mt-4" variant="secondary" onClick={() => validations.refetch()}>
-                Retry
-              </Button>
-            </div>
-          ) : (
+          ) : validations.isError ? null : (
             <>
               <div className="mb-3 flex flex-wrap items-center justify-between gap-3 text-caption text-muted">
                 <span>

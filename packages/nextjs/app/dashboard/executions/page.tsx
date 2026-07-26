@@ -157,9 +157,7 @@ function SafeExecutionsContent() {
         <section className="mt-7" aria-live="polite">
           {executions.isPending ? (
             <div className="h-64 animate-pulse rounded-lg bg-surface" />
-          ) : executions.isError ? (
-            <GraphError error={executions.error} retry={() => executions.refetch()} />
-          ) : (
+          ) : executions.isError ? null : (
             <>
               <FreshnessLine freshness={executions.data.freshness} />
               <SafeExecutionTable items={executions.data.items} />
@@ -252,20 +250,6 @@ function FreshnessLine({ freshness }: { freshness: Awaited<ReturnType<typeof fet
               ? "Stale"
               : "Fresh"}
       </span>
-    </div>
-  );
-}
-
-function GraphError({ error, retry }: { error: unknown; retry: () => void }) {
-  return (
-    <div role="alert" className="rounded-lg border border-danger/25 bg-danger-soft p-5">
-      <h2 className="text-h4 text-danger">GraphQL query failed</h2>
-      <p className="mt-2 text-body-sm text-muted">
-        {error instanceof Error ? error.message : "The Hedera Subgraph is unavailable."}
-      </p>
-      <Button className="mt-4" variant="secondary" onClick={retry}>
-        Retry
-      </Button>
     </div>
   );
 }

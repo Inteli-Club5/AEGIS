@@ -6,7 +6,6 @@ import { useQuery } from "@tanstack/react-query";
 import { hederaTestnet } from "viem/chains";
 import { AppTopbar } from "~~/components/layout/AppTopbar";
 import { Badge } from "~~/components/ui/Badge";
-import { Button } from "~~/components/ui/Button";
 import { IndexedFact } from "~~/features/dashboard/components/IndexedFact";
 import { TeeMLValidationTable } from "~~/features/dashboard/components/TeeMLValidationTable";
 import { ConnectGate } from "~~/features/wallet/components/ConnectGate";
@@ -47,17 +46,7 @@ export default function HederaAgentDetailPage() {
 
         {agent.isPending ? (
           <div className="mt-6 h-96 animate-pulse rounded-lg bg-surface" />
-        ) : agent.isError ? (
-          <section role="alert" className="mt-6 rounded-lg border border-danger/25 bg-danger-soft p-6">
-            <h1 className="text-h3 text-danger">Agent summary unavailable</h1>
-            <p className="mt-2 text-body-sm text-muted">
-              {agent.error instanceof Error ? agent.error.message : "The Hedera Subgraph query failed."}
-            </p>
-            <Button className="mt-4" variant="secondary" onClick={() => agent.refetch()}>
-              Retry GraphQL
-            </Button>
-          </section>
-        ) : (
+        ) : agent.isError ? null : (
           <AgentDetail data={agent.data} />
         )}
       </main>
@@ -82,19 +71,6 @@ function AgentDetail({ data }: { data: Awaited<ReturnType<typeof fetchHederaAgen
         </div>
         <Badge tone="info">Indexed summary</Badge>
       </div>
-
-      {(!freshness.available || freshness.stale || freshness.hasIndexingErrors === true) && (
-        <div
-          role="status"
-          className="mt-5 rounded-md border border-warning/30 bg-warning-soft px-4 py-3 text-body-sm text-warning"
-        >
-          {!freshness.available
-            ? "The Hedera Subgraph is unavailable; no alternate read source was used."
-            : freshness.hasIndexingErrors === true
-              ? "The Hedera Subgraph reports indexing errors; this summary may lag confirmed events."
-              : "The Hedera Subgraph is stale relative to its indexed timestamp."}
-        </div>
-      )}
 
       <section className="mt-6 rounded-lg border border-border bg-surface-raised p-6 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-4">

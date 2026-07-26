@@ -94,9 +94,8 @@ export default function AuditCopilotPage() {
         </form>
 
         {error && (
-          <section role="alert" className="mt-6 rounded-lg border border-danger/25 bg-danger-soft p-5">
-            <h2 className="text-body font-semibold text-danger">No supported evidence answer</h2>
-            <p className="mt-1 text-body-sm text-muted">{error}</p>
+          <section className="mt-6 rounded-lg border border-border bg-surface-raised p-5">
+            <p className="text-body-sm text-muted">{error}</p>
           </section>
         )}
 
@@ -145,7 +144,7 @@ export default function AuditCopilotPage() {
             </div>
 
             {result.warnings.length > 0 && (
-              <div className="rounded-lg border border-warning/25 bg-warning-soft px-5 py-4 text-caption text-muted">
+              <div className="rounded-lg border border-border bg-surface-raised px-5 py-4 text-caption text-muted">
                 {result.warnings.join(" ")}
               </div>
             )}

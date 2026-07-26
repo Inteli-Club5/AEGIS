@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { AppTopbar } from "~~/components/layout/AppTopbar";
-import { Button } from "~~/components/ui/Button";
 import { ConnectGate } from "~~/features/wallet/components/ConnectGate";
 import { useConnectWallet } from "~~/features/wallet/components/ConnectWalletProvider";
 import { fetchPolicyReference } from "~~/lib/onchain-data/coverageBrowser";
@@ -42,17 +41,7 @@ export default function PolicyReferenceDetailPage() {
         </Link>
         {policy.isPending ? (
           <div className="mt-6 h-80 animate-pulse rounded-lg bg-surface" />
-        ) : policy.isError ? (
-          <section role="alert" className="mt-6 rounded-lg border border-danger/25 bg-danger-soft p-6">
-            <h1 className="text-h3 text-danger">Policy reference unavailable</h1>
-            <p className="mt-2 text-body-sm text-muted">
-              {policy.error instanceof Error ? policy.error.message : "The Hedera Subgraph query failed."}
-            </p>
-            <Button className="mt-4" variant="secondary" onClick={() => policy.refetch()}>
-              Retry GraphQL
-            </Button>
-          </section>
-        ) : (
+        ) : policy.isError ? null : (
           <PolicyDetail item={policy.data.item} freshness={policy.data.freshness} />
         )}
       </main>
@@ -72,15 +61,6 @@ function PolicyDetail({
       <p className="font-mono text-overline uppercase text-subtle">Hedera testnet · Derived indexed aggregate</p>
       <h1 className="mt-1 text-h2">Policy reference detail</h1>
       <p className="mt-2 break-all font-mono text-mono-sm text-muted">{item.policyHash}</p>
-
-      {(!freshness.available || freshness.stale || freshness.hasIndexingErrors === true) && (
-        <div
-          role="status"
-          className="mt-5 rounded-md border border-warning/30 bg-warning-soft px-4 py-3 text-body-sm text-warning"
-        >
-          The Hedera indexer is unavailable, stale, or reporting errors. No alternate read source was used.
-        </div>
-      )}
 
       <section className="mt-6 rounded-lg border border-border bg-surface-raised p-6 shadow-sm">
         <h2 className="text-h4">Indexed policy metrics</h2>
