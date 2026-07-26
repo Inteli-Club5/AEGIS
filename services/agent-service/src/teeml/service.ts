@@ -120,6 +120,7 @@ export type TeeMlServiceOptions = {
   auditRetentionDays?: number;
   processingLeaseSeconds?: number;
   securityProfile?: ZeroGSecurityProfile;
+  allowHackathonExecution?: boolean;
 };
 
 type ClaimedVerification = {
@@ -152,6 +153,7 @@ export class TeeMlService {
   private readonly auditRetentionDays: number;
   private readonly processingLeaseSeconds: number;
   private readonly securityProfile: ZeroGSecurityProfile;
+  private readonly allowHackathonExecution: boolean;
 
   constructor(
     private readonly repository: TeeMlRepository,
@@ -171,6 +173,7 @@ export class TeeMlService {
     );
     this.securityProfile =
       options.securityProfile ?? PRODUCTION_PRIVATE_TEEML_PROFILE;
+    this.allowHackathonExecution = options.allowHackathonExecution ?? false;
   }
 
   async verify(input: {
@@ -454,6 +457,7 @@ export class TeeMlService {
             evaluatedAt,
             this.auditRetentionDays,
           ),
+          keepUsageHoldForExecution: this.allowHackathonExecution,
         });
         return currentArtifact;
       },

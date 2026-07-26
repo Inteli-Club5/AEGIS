@@ -8,9 +8,11 @@ import type {
 import { TeeMlError } from "./errors.js";
 import type {
   AgentSemanticProfileRecord,
+  CommitUsageHoldInput,
   CompleteTeeMlVerificationInput,
   FailTeeMlBeforeContextInput,
   FailTeeMlVerificationInput,
+  ReleaseUsageHoldInput,
   StartTeeMlVerificationInput,
   TeeMlActionStatus,
   TeeMlRepository,
@@ -301,9 +303,13 @@ class PostgresTeeMlTransaction implements TeeMlTransaction {
     );
     if (
       artifact.verdict === "DENY" ||
-      actionStatus === HACKATHON_TEETLS_ALLOWED_STATUS
+      (actionStatus === HACKATHON_TEETLS_ALLOWED_STATUS &&
+        !input.keepUsageHoldForExecution)
     ) {
-      await this.releaseUsageHold(artifact.requestId, artifact.evaluatedAt);
+      await this.releaseUsageHold({
+        requestId: artifact.requestId,
+        occurredAt: artifact.evaluatedAt,
+      });
     }
     await this.insertAuditEvent({
       eventId: input.eventId,
@@ -346,7 +352,7 @@ class PostgresTeeMlTransaction implements TeeMlTransaction {
       "TEEML_FAILED",
       input.occurredAt,
     );
-    await this.releaseUsageHold(input.requestId, input.occurredAt);
+    await this.releaseUsageHold({ requestId: input.requestId, occurredAt: input.occurredAt });
     await this.insertAuditEvent({
       ...input,
       outcome: "TEEML_FAILED",
@@ -360,7 +366,7 @@ class PostgresTeeMlTransaction implements TeeMlTransaction {
       input.occurredAt,
       "PENDING_TEEML",
     );
-    await this.releaseUsageHold(input.requestId, input.occurredAt);
+    await this.releaseUsageHold({ requestId: input.requestId, occurredAt: input.occurredAt });
     await this.insertAuditEvent({
       ...input,
       verificationId: null,
@@ -368,6 +374,30 @@ class PostgresTeeMlTransaction implements TeeMlTransaction {
       teemlRequestHash: null,
       outcome: "TEEML_FAILED",
     });
+  }
+
+  async commitUsageHold(input: CommitUsageHoldInput): Promise<void> {
+    const result = await this.client.query(
+      `update aegis_usage_holds
+       set status = 'COMMITTED', updated_at = $2
+       where request_id = $1 and status = 'HELD'`,
+      [input.requestId, input.occurredAt],
+    );
+    if (result.rowCount !== 1) {
+      throw new TeeMlError(
+        "TEEML_CONFLICT",
+        "UsageHold is not HELD and cannot be committed",
+      );
+    }
+  }
+
+  async releaseUsageHold(input: ReleaseUsageHoldInput): Promise<void> {
+    await this.client.query(
+      `update aegis_usage_holds
+       set status = 'RELEASED', released_at = $2, updated_at = $2
+       where request_id = $1 and status in ('HELD', 'EXPIRED')`,
+      [input.requestId, input.occurredAt],
+    );
   }
 
   private async updateActionStatus(
@@ -388,18 +418,6 @@ class PostgresTeeMlTransaction implements TeeMlTransaction {
         "action request TeeML state changed concurrently",
       );
     }
-  }
-
-  private async releaseUsageHold(
-    requestId: string,
-    now: number,
-  ): Promise<void> {
-    await this.client.query(
-      `update aegis_usage_holds
-       set status = 'RELEASED', released_at = $2, updated_at = $2
-       where request_id = $1 and status in ('HELD', 'EXPIRED')`,
-      [requestId, now],
-    );
   }
 
   private async insertAuditEvent(input: {

@@ -14,9 +14,10 @@ The agent's Hedera wallet proposes or participates in the flow but cannot move
 Safe funds alone. The verdict signer and execution signers are separate
 responsibilities.
 
-The Graph will later index sanitized public audit data for the dashboard. This
-branch does not implement indexing, final DecisionReceipt signing, Safe
-signatures, or Hedera execution.
+The Graph will later index sanitized public audit data for the dashboard; this
+branch does not implement that indexing. Final DecisionReceipt signing, Safe
+signatures, and real Hedera execution are implemented — see "Remaining
+Handoff" below.
 
 The legacy `create-wallets` implementation still accepts a recovery-guardian
 parameter and deploys a fixed two-of-three Safe. That behavior predates this
@@ -369,23 +370,60 @@ on-chain Agentic profile can claim a live Policy commitment.
 
 ## Remaining Handoff
 
-After TeeML approval, a future branch must:
+After TeeML approval, the flow now:
 
-1. rerun the deterministic Policy with a fresh usage snapshot;
-2. build the final DecisionReceipt;
-3. sign only that receipt with a dedicated `agentVerifierSigner`;
-4. bind it to the exact Safe transaction;
-5. collect the Safe's configured owner threshold;
-6. execute the already implemented Hedera action;
-7. persist the real network receipt;
-8. commit the UsageHold only after execution confirmation;
-9. expose sanitized public audit records through The Graph.
+1. reruns the deterministic Policy with a fresh usage snapshot;
+2. builds the final DecisionReceipt;
+3. signs only that receipt with a dedicated `agentVerifierSigner`;
+4. binds it to the exact Safe transaction;
+5. collects the Safe's configured owner threshold (agent signs, cosigner
+   re-verifies and co-signs);
+6. executes the action on real Hedera testnet;
+7. persists the real network receipt;
+8. commits the UsageHold only after execution confirmation.
 
-The current branch stops before all of those steps.
-The future handoff must reject every artifact except
-`production-private-teeml` with `sealedInference: true`. A hackathon TeeTLS
-ALLOW remains demonstration evidence and can never authorize a DecisionReceipt,
-Safe transaction, or Hedera execution.
+Only step 9 (exposing sanitized public audit records through The Graph)
+remains unimplemented.
+
+This branch implements the handoff above (`services/agent-service/src/payment/`,
+`services/cosigner/src/cosign.ts`) and it has been verified end-to-end on real
+Hedera testnet (2026-07-26): a fresh agent, wallet, Agentic ID, Policy,
+precheck, and TeeML verification, followed by a real executed payment
+(`POST /actions/:requestId/execute`) that split HBAR between the destination
+and the AEGIS fee recipient in one atomic Safe-executed transaction, confirmed
+via the Hedera mirror node (`CONTRACT_REVERT_EXECUTED` → `SUCCESS`, balances
+moved by the exact expected amounts).
+
+Getting the Safe's `execTransaction` to actually move value took an extra
+fix: Hedera's EVM unconditionally rejects a native HBAR transfer performed by
+code executing via `DELEGATECALL` (confirmed with an isolated minimal-proxy
+repro, independent of Safe's own bytecode, across two different JSON-RPC
+relays) — and every Safe `execTransaction` runs its inner call exactly that
+way, so a plain value-carrying `CALL` to the destination reverts with `GS013`
+every time, regardless of destination address form, MultiSend batching, gas
+stipend, or target type. The fix: the payment's `MetaTransactionData` targets
+the Hedera HTS system-contract precompile (`0x167`) with `value: 0` and an
+ABI-encoded `cryptoTransfer` call whose `TransferList` describes the whole
+split payment (debit the Safe, credit the destination, credit the fee
+recipient) — HTS moves value through Hedera's native ledger logic, which is
+unaffected by the DELEGATECALL restriction. One `cryptoTransfer` call replaces
+what used to be a two-leg Safe MultiSend batch. See
+`services/agent-service/src/payment/hts.ts` and `docs/decisions.md`
+(2026-07-26 entry) for the full finding.
+
+**Explicit, conscious hackathon exception (2026-07-26):** production correctness
+requires the handoff to reject every artifact except `production-private-teeml`
+with `sealedInference: true` - a hackathon TeeTLS ALLOW is not sealed and its
+upstream model may see plaintext, so it is not a production-grade authorization.
+`production-private-teeml` remains live-unproven (mainnet, never exercised for
+real), so demoing real execution end-to-end today is only possible on the
+hackathon path. The team decided, knowingly, to allow `TEETLS_HACKATHON_ALLOWED`
+to trigger real execution for the hackathon demo, gated behind an explicit,
+fail-closed opt-in: `AEGIS_ALLOW_HACKATHON_EXECUTION=true` must be set, or
+execution is refused regardless of verdict. This is a demo-only exception to
+the design decision above, confined to Hedera testnet; it must not be enabled
+in any production deployment, and the default `production-private-teeml`
+profile is unaffected.
 
 ## Operational Status
 

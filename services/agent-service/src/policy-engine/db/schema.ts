@@ -523,3 +523,56 @@ export const teemlAuditEvents = pgTable(
     ),
   }),
 );
+
+export const executionStatusEnum = pgEnum("aegis_execution_status", ["EXECUTED"]);
+
+export const executions = pgTable(
+  "aegis_executions",
+  {
+    executionId: text("execution_id").primaryKey(),
+    requestId: text("request_id")
+      .notNull()
+      .references(() => actionRequests.requestId),
+    teemlVerificationId: text("teeml_verification_id")
+      .notNull()
+      .references(() => teemlVerifications.verificationId),
+    agentId: text("agent_id").notNull(),
+    walletId: text("wallet_id").notNull(),
+    policyId: text("policy_id").notNull(),
+    policyVersion: integer("policy_version").notNull(),
+    policyHash: text("policy_hash").notNull(),
+    actionHash: text("action_hash").notNull(),
+    destinationKind: text("destination_kind").notNull(),
+    destinationValue: text("destination_value").notNull(),
+    assetId: text("asset_id").notNull(),
+    amount: text("amount").notNull(),
+    feeAmount: text("fee_amount").notNull(),
+    feeRecipientAddress: text("fee_recipient_address").notNull(),
+    teemlRequestHash: text("teeml_request_hash").notNull(),
+    semanticContextHash: text("semantic_context_hash").notNull(),
+    decisionReceiptSignature: text("decision_receipt_signature").notNull(),
+    safeAddress: text("safe_address").notNull(),
+    safeTxHash: text("safe_tx_hash").notNull(),
+    transactionHash: text("transaction_hash").notNull(),
+    status: executionStatusEnum("status").notNull(),
+    decidedAt: integer("decided_at").notNull(),
+    executedAt: integer("executed_at").notNull(),
+    createdAt: integer("created_at").notNull(),
+  },
+  table => ({
+    requestUnique: uniqueIndex("aegis_executions_request_unique").on(table.requestId),
+    formatCheck: check(
+      "aegis_executions_format_check",
+      sql.raw(`(
+        "policy_hash" ~ '^0x[0-9a-f]{64}$'
+        AND "action_hash" ~ '^0x[0-9a-f]{64}$'
+        AND "teeml_request_hash" ~ '^0x[0-9a-f]{64}$'
+        AND "semantic_context_hash" ~ '^0x[0-9a-f]{64}$'
+        AND "fee_recipient_address" ~ '^0x[0-9a-fA-F]{40}$'
+        AND "safe_address" ~ '^0x[0-9a-fA-F]{40}$'
+        AND "amount" ~ '^[0-9]+$'
+        AND "fee_amount" ~ '^[0-9]+$'
+      )`),
+    ),
+  }),
+);

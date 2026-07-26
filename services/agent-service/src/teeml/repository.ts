@@ -165,6 +165,17 @@ export type CompleteTeeMlVerificationInput = {
   eventId: string;
   artifact: VerifiedTeeMlArtifact;
   retentionUntil: number;
+  keepUsageHoldForExecution?: boolean;
+};
+
+export type CommitUsageHoldInput = {
+  requestId: string;
+  occurredAt: number;
+};
+
+export type ReleaseUsageHoldInput = {
+  requestId: string;
+  occurredAt: number;
 };
 
 export type TeeMlTransaction = {
@@ -174,6 +185,8 @@ export type TeeMlTransaction = {
   completeVerification(input: CompleteTeeMlVerificationInput): Promise<void>;
   failVerification(input: FailTeeMlVerificationInput): Promise<void>;
   failBeforeContext(input: FailTeeMlBeforeContextInput): Promise<void>;
+  commitUsageHold(input: CommitUsageHoldInput): Promise<void>;
+  releaseUsageHold(input: ReleaseUsageHoldInput): Promise<void>;
 };
 
 export type TeeMlRepository = {

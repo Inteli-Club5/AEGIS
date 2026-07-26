@@ -1,29 +1,61 @@
-// AEGIS co-signer (skeleton). Re-checks policy + identity + decision receipt,
-// then co-signs (Safe 2-of-3: agent signer + AEGIS co-signer + recovery
-// guardian). Key in .env for DEMO ONLY - never exposed to the user; always
-// local, KMS/HSM/MPC in prod.
+// AEGIS co-signer. Re-checks the decision receipt and the requested payment
+// legs, then co-signs and executes the Safe 2-of-3 payment (agent signer +
+// AEGIS co-signer + recovery guardian). Key in .env for DEMO ONLY - never
+// exposed to the user; local HSM/MPC/TEE in prod, always self-hosted.
 import "dotenv/config";
 import express from "express";
+import { CosignError, cosignAndExecute, type CosignRequest } from "./cosign.js";
 
 const app = express();
 app.use(express.json());
 
 app.get("/health", (_req, res) => res.json({ ok: true, service: "aegis-cosigner" }));
 
+// POST /cosign  { safeAddress, paymentCall, nonce, agentSignature, decisionReceipt, decisionReceiptSignature }
+app.post("/cosign", async (req, res) => {
+  const rpcUrl = process.env.RPC_URL;
+  const cosignerPrivateKey = process.env.COSIGNER_PRIVATE_KEY;
+  const expectedAgentVerifierSignerAddress =
+    process.env.AEGIS_AGENT_VERIFIER_SIGNER_ADDRESS;
 
-// POST /cosign  { agentId, wallet, policyHash, action, decisionReceipt }
-app.post("/cosign", async (_req, res) => {
-  // TODO(aegis): verify decisionReceipt signature came from the 0G TEE
-  // TODO(aegis): re-check policy (destination, token, amount, deadline, nonce)
-  // TODO(aegis): check identity / policyHash; valid -> AcceptedReceipt + co-sign
-  //              invalid -> DeniedReceipt, no signature, blocked
-  // TODO(aegis): this only enforces 0G/policy in this handler's own code - the
-  // Safe itself just checks for 2-of-3 signatures, so a stolen
-  // COSIGNER_PRIVATE_KEY can sign offline without ever hitting this endpoint.
-  // Close this with a Safe Guard/Module that requires a verifiable 0G
-  // attestation on-chain before allowing execution. Blocked on 0G actually
-  // being wired in first (services/decision-verifier isn't called from here yet).
-  res.status(501).json({ error: "not_implemented" });
+  if (!rpcUrl || !cosignerPrivateKey || !expectedAgentVerifierSignerAddress) {
+    return res.status(503).json({ error: "cosigner_unconfigured" });
+  }
+
+  const body = req.body as Partial<CosignRequest> | undefined;
+  if (
+    !body ||
+    typeof body.safeAddress !== "string" ||
+    !body.paymentCall ||
+    typeof body.paymentCall.to !== "string" ||
+    typeof body.paymentCall.value !== "string" ||
+    typeof body.paymentCall.data !== "string" ||
+    typeof body.nonce !== "number" ||
+    !body.agentSignature ||
+    typeof body.agentSignature.signer !== "string" ||
+    typeof body.agentSignature.data !== "string" ||
+    !body.decisionReceipt ||
+    typeof body.decisionReceiptSignature !== "string"
+  ) {
+    return res.status(400).json({ error: "invalid_cosign_request" });
+  }
+
+  try {
+    const result = await cosignAndExecute(body as CosignRequest, {
+      rpcUrl,
+      cosignerPrivateKey,
+      expectedAgentVerifierSignerAddress,
+    });
+    res.status(200).json(result);
+  } catch (error) {
+    if (error instanceof CosignError) {
+      return res.status(403).json({ error: error.code, message: error.message });
+    }
+    res.status(502).json({
+      error: "cosign_failed",
+      message: error instanceof Error ? error.message : "unknown_error",
+    });
+  }
 });
 
 app.listen(process.env.COSIGNER_PORT ?? 4100, () =>

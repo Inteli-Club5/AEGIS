@@ -594,7 +594,8 @@ class MemoryTeeMlRepository implements TeeMlRepository, TeeMlTransaction {
         : "TEEML_DENIED";
     if (
       artifact.verdict === "DENY" ||
-      this.sources.actionStatus === HACKATHON_TEETLS_ALLOWED_STATUS
+      (this.sources.actionStatus === HACKATHON_TEETLS_ALLOWED_STATUS &&
+        !input.keepUsageHoldForExecution)
     ) {
       this.sources.usageHoldStatus = "RELEASED";
     }
@@ -602,6 +603,14 @@ class MemoryTeeMlRepository implements TeeMlRepository, TeeMlTransaction {
       outcome: this.sources.actionStatus,
       reasonCode: artifact.reasonCode,
     });
+  }
+
+  async commitUsageHold(): Promise<void> {
+    this.sources.usageHoldStatus = "COMMITTED";
+  }
+
+  async releaseUsageHold(): Promise<void> {
+    this.sources.usageHoldStatus = "RELEASED";
   }
 
   async failVerification(input: FailTeeMlVerificationInput): Promise<void> {

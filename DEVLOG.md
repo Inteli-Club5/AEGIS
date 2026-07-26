@@ -1741,3 +1741,90 @@ oldest at the top, newest at the bottom. Use English AM/PM timestamps. Format:
   and no stale account/balance ever reappears.
 - blockers: none.
 - interfaces touched: none.
+
+## 2026-07-26 12:18 AM - Claude Code (CryptoVictor) - payment execution phase: DecisionReceipt, cosigner, real Hedera execution, and a Safe/Hedera EVM compatibility bug
+
+- did: implemented the full post-TeeML payment/execution handoff described in
+  `docs/aegis-current-scope.md`'s "Remaining Handoff": the AEGIS execution fee
+  (1% of amount, floored at 0.01 HBAR, capped at 2.00 HBAR -
+  `payment/fee.ts`), the final `DecisionReceipt` schema and EIP-712 signing
+  with a dedicated `agentVerifierSigner` key separate from the agent's and
+  cosigner's own keys (`payment/decision-receipt.ts`), a real `cosigner`
+  service that independently re-verifies the receipt (ALLOW verdict,
+  freshness, correct signer) before co-signing
+  (`services/cosigner/src/cosign.ts`), and the `POST
+  /actions/:requestId/execute` route wiring all of it together: rerun the
+  Level 1 snapshot inside the existing advisory-locked transaction, build and
+  sign the receipt, build and agent-sign the Safe payment, POST to the
+  cosigner, and only commit the `UsageHold` after a confirmed real Hedera
+  execution (never before). Also threaded through the explicit, fail-closed
+  `AEGIS_ALLOW_HACKATHON_EXECUTION` opt-in the team decided on: a hackathon
+  `TEETLS_HACKATHON_ALLOWED` verdict (not sealed, not production-grade) may
+  trigger real testnet execution only when this flag is `true`, confined to
+  Hedera testnet, never affecting the default `production-private-teeml`
+  profile.
+- did: hit a hard blocker getting the Safe's `execTransaction` to actually
+  move HBAR - every attempt reverted with Safe's own `GS013` ("internal
+  transaction failed"). Systematically ruled out every plausible cause via
+  live testnet diagnosis: long-zero vs. the destination's canonical
+  mirror-node `evm_address` (both failed - fixed `payment/destination.ts` to
+  prefer the canonical address anyway, since it's still more correct, but it
+  wasn't the root cause), MultiSend batching vs. a single leg (both failed),
+  the destination/fee-recipient account not yet existing on Hedera (bootstrapped
+  it, still failed), gas-estimation false-negative vs. genuine on-chain revert
+  (confirmed genuine via the mirror node's `error_message`, which decodes to
+  the literal string `"GS013"`), gas stipend size (default/50000/2300, all
+  failed), target type (EOA vs. a contract with `receive()`, both failed),
+  and the specific JSON-RPC relay (Hashio vs. thirdweb, both failed
+  identically). Isolated the real cause with a minimal repro with no Safe
+  code involved at all: a trivial contract sending native value via a bare
+  `.call{value}` succeeds when called directly, but reverts unconditionally
+  when the exact same code runs via `DELEGATECALL` from a minimal proxy -
+  which is exactly how every Safe `execTransaction` executes its inner call.
+  This is an undocumented Hedera EVM (or relay) incompatibility with a
+  fundamental smart-wallet pattern, not an AEGIS bug.
+- did: found the fix by testing whether Hedera's HTS system-contract
+  precompile (`0x167`, `cryptoTransfer`) - a different code path than a plain
+  value-carrying `CALL`, since it moves value through Hedera's native ledger
+  logic instead of EVM value semantics - works from the same delegatecall
+  context. It does. Rebuilt the payment builder
+  (`services/agent-service/src/payment/hts.ts`, `safe-payment.ts`) so the
+  Safe's single `MetaTransactionData` targets the precompile with `value: 0`
+  and an ABI-encoded `cryptoTransfer` call whose `TransferList` describes the
+  whole split payment (debit the Safe, credit the destination, credit the
+  AEGIS fee) atomically - which also means MultiSend batching is no longer
+  needed at all. Mirrored the same encode/decode logic in the cosigner
+  (`hts.ts`, rewritten `cosign.ts`) so it independently re-verifies the
+  payment call's transfers against the receipt before co-signing. Deleted
+  the now-unused `hbar-units.ts` (weibar conversion) from both services -
+  HTS `cryptoTransfer` amounts stay in native tinybar. Documented the finding
+  in `docs/decisions.md` (2026-07-26 entry) and `docs/aegis-current-scope.md`
+  so no future session re-attempts a naive Safe MultiSend value transfer on
+  Hedera.
+- did: verified the complete fix with a full fresh end-to-end run on real
+  Hedera testnet - create agent, create Safe wallet, fund it, register 0G
+  Agentic ID, create and activate a Policy, precheck, real 0G TeeML verify
+  (`TEETLS_HACKATHON_ALLOWED`), then `POST /actions/:requestId/execute`
+  returned `200 EXECUTED` with a real `transactionHash`. Confirmed via the
+  Hedera mirror node that the transaction's `result` is `SUCCESS` (not a
+  false-positive) and that the destination and fee-recipient balances moved
+  by the exact expected tinybar amounts. All prior debug/temporary code
+  (the `AEGIS_DEBUG_COSIGN`-gated branch in `cosign.ts`, seven `_debug-*.ts`
+  and one `_full-flow4.ts` scratch script) was removed once the fix was
+  confirmed. `tsc --noEmit` and the full unit suite (25 tests across both
+  services) pass clean.
+- next: run the full validation suite (typecheck, unit, integration, build)
+  one more time across both services as a final check, then step 9 from the
+  handoff list (exposing sanitized public audit records through The Graph)
+  is the next unimplemented piece of the north-star flow.
+- blockers: none.
+- interfaces touched: `POST /actions/:requestId/execute` (new, on
+  `services/agent-service`); `POST /cosign` on `services/cosigner` - request
+  body changed from a two-leg Safe MultiSend payload (`legs`,
+  `agentSignature`) to a single `paymentCall` (`MetaTransactionData`
+  targeting the HTS precompile); `buildPaymentLegs` renamed to
+  `buildPaymentCall` (now returns one `MetaTransactionData`, not a two-tuple);
+  `assertLegsMatchReceipt` renamed to `assertPaymentCallMatchesReceipt`;
+  `resolveDestinationEvmAddress` is now async (queries the Hedera mirror node
+  for an account's canonical `evm_address`, falling back to the long-zero
+  alias only when none exists).

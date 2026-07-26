@@ -3,8 +3,15 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "scripts": { "dev": "tsx watch src/index.ts", "build": "tsc" },
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "npm run test:unit",
+    "test:unit": "tsx --test src/*.test.ts"
+  },
   "dependencies": {
+    "@hiero-ledger/sdk": "^2.80.0",
     "@safe-global/protocol-kit": "^6.1.0",
     "@safe-global/api-kit": "^4.0.0",
     "dotenv": "^16.4.5",

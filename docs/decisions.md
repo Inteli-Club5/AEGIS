@@ -33,3 +33,16 @@ add a new line noting the change and why — don't edit history away.
   handoff document. It overrides older architecture, bounty, demo, and
   implementation notes when they conflict with the Level 1 Policy Engine
   boundary.
+- 2026-07-26 — Every Safe-executed HBAR payment on Hedera must move value by
+  targeting the HTS system-contract precompile (`0x167`, `cryptoTransfer`)
+  with `value: 0`, never by attaching native `value` to a plain `CALL` to the
+  destination. Confirmed via an isolated minimal-proxy repro that Hedera's
+  EVM (testnet, both the Hashio and thirdweb JSON-RPC relays) unconditionally
+  rejects a native HBAR transfer performed by code executing via
+  `DELEGATECALL` — exactly how every Safe `execTransaction` runs its inner
+  call — regardless of gas stipend, target type (EOA or contract), or
+  mechanism (`.call{value}` vs `.transfer()`). `cryptoTransfer` moves value
+  through Hedera's native ledger logic instead, which is unaffected, and lets
+  one call encode the whole split payment (destination + AEGIS fee) without
+  MultiSend batching. See `services/agent-service/src/payment/hts.ts` and
+  `services/agent-service/src/payment/safe-payment.ts`.

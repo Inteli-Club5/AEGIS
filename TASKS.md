@@ -76,6 +76,31 @@ the current focus for the next agent session.
   available and the real request reaches the provider; live evidence remains
   externally blocked because its signed-response endpoint returns HTTP 400.
 
+- [x] 2026-07-26: Implemented and verified the full post-TeeML payment
+  handoff end to end on real Hedera testnet: execution fee calculation,
+  signed `DecisionReceipt` (dedicated `agentVerifierSigner` key), a real
+  `cosigner` service that independently re-verifies before co-signing, and
+  `POST /actions/:requestId/execute` (rerun Level 1 -> receipt -> agent
+  signs -> cosigner verifies+co-signs -> execute -> commit UsageHold only
+  after confirmed execution), gated behind the explicit
+  `AEGIS_ALLOW_HACKATHON_EXECUTION` opt-in. Along the way, found and fixed a
+  genuine Hedera EVM incompatibility: Safe's `execTransaction` reverted with
+  `GS013` on every attempt to move native HBAR, root-caused via an isolated
+  minimal-proxy repro (no Safe code involved) to Hedera unconditionally
+  rejecting a native value transfer performed by code executing via
+  `DELEGATECALL` - exactly how every Safe `execTransaction` runs its inner
+  call, confirmed across two different JSON-RPC relays and independent of
+  MultiSend, destination address form, gas stipend, or target type. Fixed by
+  routing the payment through Hedera's HTS `cryptoTransfer` system-contract
+  precompile (`0x167`, `value: 0`) instead of a plain value-carrying `CALL` -
+  which also collapses the old two-leg MultiSend batch into one atomic call.
+  Documented the finding in `docs/decisions.md` and
+  `docs/aegis-current-scope.md` so it isn't silently re-broken later. Full
+  fresh run confirmed via the Hedera mirror node: `result: SUCCESS`,
+  destination and fee-recipient balances moved by the exact expected
+  amounts. `tsc --noEmit` and the full unit suite (25 tests) pass clean on
+  both `agent-service` and `cosigner`.
+
 - [ ] Manual real-browser / real-MetaMask QA pass - everything below was
   built and verified via `check-types`/`lint`/unit tests only, since it all
   sits behind `ConnectGate` and headless Chrome has no injected wallet
