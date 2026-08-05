@@ -6,6 +6,7 @@ import { useSignTypedData } from "wagmi";
 import { Button } from "~~/components/ui/Button";
 import { useConnectWallet } from "~~/features/wallet/components/ConnectWalletProvider";
 import { type PolicyPhase, type SignPolicyCommitment, createPolicy } from "~~/lib/api/onboarding";
+import type { SignAgentCommitment } from "~~/lib/policy/agent-commitment";
 import {
   type PolicyDestinationFormValue,
   type PolicyFormValues,
@@ -38,6 +39,7 @@ export function StepCreatePolicy({
   const { address } = useConnectWallet();
   const { signTypedDataAsync } = useSignTypedData();
   const signCommitment: SignPolicyCommitment = params => signTypedDataAsync(params);
+  const signAgentAction: SignAgentCommitment = params => signTypedDataAsync(params);
   const [values, setValues] = useState<PolicyFormValues>(() =>
     initial ? policyToFormValues(initial) : emptyPolicyFormValues(),
   );
@@ -113,6 +115,7 @@ export function StepCreatePolicy({
         address as `0x${string}`,
         parsed.rules,
         signCommitment,
+        signAgentAction,
         setPhase,
         {
           validFrom: parsed.validFrom,

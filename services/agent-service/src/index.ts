@@ -29,6 +29,14 @@ import {
   createEnvAgentActorAuthenticator,
   createStoreAgentActorAuthenticator,
 } from "./policy-engine/agent-auth.js";
+import {
+  AGENT_COMMITMENT_MAX_AGE_SECONDS,
+  AGENT_COMMITMENT_MAX_FUTURE_SKEW_SECONDS,
+  buildAgentCommitment,
+  extractAgentCommitmentAuth,
+  verifyAgentCommitmentProof,
+} from "./policy-engine/auth.js";
+import { conflict } from "./policy-engine/errors.js";
 import type { PrecheckRepository } from "./policy-engine/precheck.js";
 import {
   DEFAULT_AUDIT_RETENTION_DAYS,
@@ -181,6 +189,45 @@ export function createAgentServiceApp(options: AgentServiceAppOptions = {}) {
   const getAgent = options.getAgent ?? getStoredAgent;
   const persistAgentWallet = options.setAgentWallet ?? setStoredAgentWallet;
 
+  // The in-memory profile store (store.ts) doesn't survive a restart, but a
+  // durable Postgres agent row (written by /create-agents, see saveAgent
+  // below) does -- so ownership proofs for an existing agent must fall back
+  // to it, the same way create-wallets already tolerates a missing in-memory
+  // profile when resuming a durably persisted wallet-creation operation.
+  async function resolveAgentOwnerAddress(
+    agentId: string,
+  ): Promise<`0x${string}` | null> {
+    const inMemory = getAgent(agentId);
+    if (inMemory) return inMemory.ownerWallet as `0x${string}`;
+    if (!isPolicyDatabaseConfigured) return null;
+    const record = await policyRepository.getAgent(agentId);
+    return record ? record.ownerAddress : null;
+  }
+
+  // CREATE_AGENT has no natural idempotency backstop the way CREATE_WALLET
+  // (wallet-creation-operation lock) and DELETE_AGENT (delete is a no-op the
+  // second time) do -- proof-of-ownership alone doesn't stop the owner's own
+  // valid signature from being replayed to mint real Hedera accounts on their
+  // dime for as long as it stays fresh. Reject a signature that's already
+  // been used once; the freshness check already bounds how long an entry
+  // needs to be remembered.
+  const usedCreateAgentSignatures = new Map<string, number>();
+  function rejectReplayedCreateAgentSignature(signature: string, now: number): void {
+    for (const [seenSignature, expiresAt] of usedCreateAgentSignatures) {
+      if (expiresAt <= now) usedCreateAgentSignatures.delete(seenSignature);
+    }
+    if (usedCreateAgentSignatures.has(signature)) {
+      conflict(
+        "replayed_operator_signature",
+        "this signed create-agents request has already been used; sign a fresh one",
+      );
+    }
+    usedCreateAgentSignatures.set(
+      signature,
+      now + AGENT_COMMITMENT_MAX_AGE_SECONDS + AGENT_COMMITMENT_MAX_FUTURE_SKEW_SECONDS,
+    );
+  }
+
   app.get("/health", (_req, res) =>
     res.json({ ok: true, service: "aegis-agent-service" }),
   );
@@ -238,6 +285,38 @@ export function createAgentServiceApp(options: AgentServiceAppOptions = {}) {
     }
 
     try {
+      const auth = extractAgentCommitmentAuth(req.headers);
+      const commitment = buildAgentCommitment({
+        operation: "CREATE_AGENT",
+        operatorAddress: auth.operatorAddress.toLowerCase() as `0x${string}`,
+        issuedAt: auth.issuedAt,
+        ownerWallet: ownerWallet as `0x${string}`,
+        name,
+        agentType: type,
+        endpoint,
+        description,
+      });
+      await verifyAgentCommitmentProof({
+        commitment,
+        auth,
+        ownerAddress: ownerWallet as `0x${string}`,
+      });
+      rejectReplayedCreateAgentSignature(
+        auth.signature.toLowerCase(),
+        Math.floor(Date.now() / 1000),
+      );
+    } catch (error) {
+      if (error instanceof PolicyEngineError) {
+        return res
+          .status(error.status)
+          .json({ error: error.code, message: error.message });
+      }
+      return res.status(500).json({
+        error: error instanceof Error ? error.message : "agent_auth_failed",
+      });
+    }
+
+    try {
       const profile = await createAgent({
         ownerWallet,
         name,
@@ -246,6 +325,12 @@ export function createAgentServiceApp(options: AgentServiceAppOptions = {}) {
         description,
       });
       if (isPolicyDatabaseConfigured) {
+        // TODO(aegis): if this saveAgent throws (DB hiccup) after createAgent
+        // above already succeeded, the agent is live in-memory with a real
+        // Hedera account but no durable row -- resolveAgentOwnerAddress can
+        // never recover its owner after a restart. Needs a retry or a
+        // reconciliation job; not introduced by this auth change, but this
+        // auth change now depends on both stores staying in sync.
         const createdAt = Math.floor(Date.parse(profile.createdAt) / 1000);
         await policyRepository.saveAgent({
           agentId: profile.agentId,
@@ -331,8 +416,44 @@ export function createAgentServiceApp(options: AgentServiceAppOptions = {}) {
       });
     }
 
+    const agentIdForAuth = req.params.agentId.trim().toLowerCase();
+    const ownerAddressForAuth = await resolveAgentOwnerAddress(agentIdForAuth);
+    if (!ownerAddressForAuth) {
+      return res.status(404).json({ error: "not_found" });
+    }
+
     try {
-      const agentId = req.params.agentId.toLowerCase();
+      const auth = extractAgentCommitmentAuth(req.headers);
+      // retryFailedDeployment is deliberately not bound into the commitment:
+      // tampering it post-signature only changes whether an already-owner-
+      // authorized retry of the same reserved wallet creation is allowed,
+      // never who owns the agent or where funds go, so it doesn't need a
+      // dedicated commitment field the way recoveryGuardianAddress does.
+      const commitment = buildAgentCommitment({
+        operation: "CREATE_WALLET",
+        operatorAddress: auth.operatorAddress.toLowerCase() as `0x${string}`,
+        issuedAt: auth.issuedAt,
+        agentId: agentIdForAuth,
+        recoveryGuardianAddress: recoveryGuardianAddress as `0x${string}` | undefined,
+      });
+      await verifyAgentCommitmentProof({
+        commitment,
+        auth,
+        ownerAddress: ownerAddressForAuth,
+      });
+    } catch (error) {
+      if (error instanceof PolicyEngineError) {
+        return res
+          .status(error.status)
+          .json({ error: error.code, message: error.message });
+      }
+      return res.status(500).json({
+        error: error instanceof Error ? error.message : "agent_auth_failed",
+      });
+    }
+
+    try {
+      const agentId = agentIdForAuth;
       const result = await policyRepository.withWalletCreationLock(
         agentId,
         NETWORK_ID,
@@ -660,6 +781,37 @@ export function createAgentServiceApp(options: AgentServiceAppOptions = {}) {
 
   app.delete("/agents/:agentId", async (req, res) => {
     const agentId = req.params.agentId;
+
+    // Deleting an already-deleted (or never-existing) agent is a deliberate
+    // no-op -- nothing to authenticate ownership of, and no state changes.
+    // An existing agent must prove ownership before its records are removed.
+    const ownerAddressForAuth = await resolveAgentOwnerAddress(agentId);
+    if (ownerAddressForAuth) {
+      try {
+        const auth = extractAgentCommitmentAuth(req.headers);
+        const commitment = buildAgentCommitment({
+          operation: "DELETE_AGENT",
+          operatorAddress: auth.operatorAddress.toLowerCase() as `0x${string}`,
+          issuedAt: auth.issuedAt,
+          agentId,
+        });
+        await verifyAgentCommitmentProof({
+          commitment,
+          auth,
+          ownerAddress: ownerAddressForAuth,
+        });
+      } catch (error) {
+        if (error instanceof PolicyEngineError) {
+          return res
+            .status(error.status)
+            .json({ error: error.code, message: error.message });
+        }
+        return res.status(500).json({
+          error: error instanceof Error ? error.message : "agent_auth_failed",
+        });
+      }
+    }
+
     deleteStoredAgent(agentId);
 
     if (!isPolicyDatabaseConfigured) {

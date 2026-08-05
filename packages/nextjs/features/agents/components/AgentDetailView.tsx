@@ -22,13 +22,16 @@ import {
   Wallet,
   XCircle,
 } from "lucide-react";
+import { useSignTypedData } from "wagmi";
 import { Badge, type BadgeTone } from "~~/components/ui/Badge";
 import { Button } from "~~/components/ui/Button";
 import { ConfirmDialog } from "~~/components/ui/ConfirmDialog";
 import { ActionsPanel } from "~~/features/agents/components/ActionsPanel";
 import { FundWalletCard } from "~~/features/agents/components/FundWalletCard";
+import { useConnectWallet } from "~~/features/wallet/components/ConnectWalletProvider";
 import { deleteAgent } from "~~/lib/api/agents";
 import { agenticIdentityEntityId, hashCanonicalAgentId } from "~~/lib/onchain-data/aggregate";
+import type { SignAgentCommitment } from "~~/lib/policy/agent-commitment";
 import {
   type AgentDetail,
   type AgentLifecycleStatus,
@@ -88,6 +91,9 @@ const PROTECTION_STATUS_META: Record<ProtectionStatus, { label: string; tone: Ba
 
 export function AgentDetailView({ agent }: { agent: AgentDetail }) {
   const router = useRouter();
+  const { address } = useConnectWallet();
+  const { signTypedDataAsync } = useSignTypedData();
+  const signAgentAction: SignAgentCommitment = params => signTypedDataAsync(params);
   const [tab, setTab] = useState<TabId>("overview");
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -99,10 +105,14 @@ export function AgentDetailView({ agent }: { agent: AgentDetail }) {
   const ProtectionStatusIcon = protectionMeta.icon;
 
   async function handleDelete() {
+    if (!address) {
+      setDeleteError("Your wallet disconnected -- reconnect to delete this agent.");
+      return;
+    }
     setDeleting(true);
     setDeleteError(null);
     try {
-      await deleteAgent(agent.id);
+      await deleteAgent(agent.id, address as `0x${string}`, signAgentAction);
       router.push("/dashboard");
     } catch (error) {
       setDeleting(false);

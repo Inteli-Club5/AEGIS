@@ -13,6 +13,7 @@ import {
   readCreatedAgents,
   upsertCreatedAgent,
 } from "~~/lib/onboarding/localAgentDraftStore";
+import { type SignAgentCommitment, buildAgentCommitment, signAgentCommitment } from "~~/lib/policy/agent-commitment";
 import {
   POLICY_COMMITMENT_DOMAIN,
   POLICY_COMMITMENT_TYPES,
@@ -25,6 +26,8 @@ import {
 import { planPolicySave } from "~~/lib/policy/save-plan";
 import type { AgentProfile, AgentType, Capability, Policy, ProtectedWalletInfo } from "~~/lib/types/aegis";
 import { formatPolicyAmount } from "~~/lib/utils/format";
+
+export type { SignAgentCommitment };
 
 export type SignPolicyCommitment = (params: {
   domain: typeof POLICY_COMMITMENT_DOMAIN;
@@ -77,29 +80,61 @@ export async function getAgentServiceProfile(agentId: string): Promise<AgentServ
   return requestJson(`/api/agent-service/agents/${encodeURIComponent(agentId)}`);
 }
 
-export async function deleteAgentServiceProfile(agentId: string): Promise<void> {
-  await requestJson(`/api/agent-service/agents/${encodeURIComponent(agentId)}`, { method: "DELETE" });
+export async function deleteAgentServiceProfile(
+  agentId: string,
+  ownerWallet: `0x${string}`,
+  signAgentAction: SignAgentCommitment,
+): Promise<void> {
+  const issuedAt = String(Math.floor(Date.now() / 1000));
+  const commitment = buildAgentCommitment({
+    operation: "DELETE_AGENT",
+    operatorAddress: ownerWallet,
+    agentId,
+    issuedAt,
+  });
+  const signature = await signAgentCommitment(commitment, signAgentAction);
+  await requestJson(`/api/agent-service/agents/${encodeURIComponent(agentId)}`, {
+    method: "DELETE",
+    operator: { address: ownerWallet, signature, issuedAt },
+  });
 }
 
-export async function createAgent(input: {
-  name: string;
-  type: AgentType;
-  description?: string;
-  capabilities: Capability[];
-  ownerWallet: string;
-}): Promise<AgentProfile> {
+export async function createAgent(
+  input: {
+    name: string;
+    type: AgentType;
+    description?: string;
+    capabilities: Capability[];
+    ownerWallet: `0x${string}`;
+  },
+  signAgentAction: SignAgentCommitment,
+): Promise<AgentProfile> {
   const name = input.name.trim();
   const taken = readCreatedAgents().some(agent => agent.name.toLowerCase() === name.toLowerCase());
   if (taken) throw new Error(`An agent named "${name}" already exists.`);
+
+  const issuedAt = String(Math.floor(Date.now() / 1000));
+  const agentType = AGENT_SERVICE_TYPE[input.type];
+  const commitment = buildAgentCommitment({
+    operation: "CREATE_AGENT",
+    operatorAddress: input.ownerWallet,
+    issuedAt,
+    ownerWallet: input.ownerWallet,
+    name,
+    agentType,
+    description: input.description,
+  });
+  const signature = await signAgentCommitment(commitment, signAgentAction);
 
   const created = await requestJson<AgentServiceProfile>("/api/agent-service/agents", {
     method: "POST",
     body: {
       ownerWallet: input.ownerWallet,
       name,
-      type: AGENT_SERVICE_TYPE[input.type],
+      type: agentType,
       description: input.description || undefined,
     },
+    operator: { address: input.ownerWallet, signature, issuedAt },
   });
 
   const profile: AgentProfile = {
@@ -147,10 +182,11 @@ export async function savePolicyDraft(
     recoveryGuardianAddress?: string;
   },
   signTypedDataAsync: SignPolicyCommitment,
+  signAgentAction: SignAgentCommitment,
   onPhase?: (phase: PolicyPhase) => void,
 ): Promise<{ policy: Policy; wallet: ProtectedWalletInfo }> {
   onPhase?.("wallet");
-  const wallet = await ensureWallet(input.agentId, input.recoveryGuardianAddress);
+  const wallet = await ensureWallet(input.agentId, input.ownerWallet, signAgentAction, input.recoveryGuardianAddress);
   const semanticRules: Policy["semanticRules"] = input.semanticRules ?? [];
 
   let versions: Policy[] = [];
@@ -252,6 +288,7 @@ export async function createPolicy(
   ownerWallet: `0x${string}`,
   rules: PolicyRules,
   signTypedDataAsync: SignPolicyCommitment,
+  signAgentAction: SignAgentCommitment,
   onPhase?: (phase: PolicyPhase) => void,
   options?: {
     validFrom?: number;
@@ -273,6 +310,7 @@ export async function createPolicy(
       recoveryGuardianAddress: options?.recoveryGuardianAddress,
     },
     signTypedDataAsync,
+    signAgentAction,
     onPhase,
   );
 }
@@ -342,13 +380,31 @@ export async function activateProtection(
   return active.policy;
 }
 
-async function ensureWallet(agentId: string, recoveryGuardianAddress?: string): Promise<ProtectedWalletInfo> {
+async function ensureWallet(
+  agentId: string,
+  ownerWallet: `0x${string}`,
+  signAgentAction: SignAgentCommitment,
+  recoveryGuardianAddress?: string,
+): Promise<ProtectedWalletInfo> {
   // The browser cache is continuity-only. The serialized, persistence-gated
   // agent-service endpoint must reconcile the authoritative wallet before its
   // ID enters a policy.
+  const issuedAt = String(Math.floor(Date.now() / 1000));
+  const commitment = buildAgentCommitment({
+    operation: "CREATE_WALLET",
+    operatorAddress: ownerWallet,
+    issuedAt,
+    agentId,
+    recoveryGuardianAddress: recoveryGuardianAddress as `0x${string}` | undefined,
+  });
+  const signature = await signAgentCommitment(commitment, signAgentAction);
   const wallet = await requestJson<AgentServiceWallet>(
     `/api/agent-service/agents/${encodeURIComponent(agentId)}/wallet`,
-    { method: "POST", body: recoveryGuardianAddress ? { recoveryGuardianAddress } : {} },
+    {
+      method: "POST",
+      body: recoveryGuardianAddress ? { recoveryGuardianAddress } : {},
+      operator: { address: ownerWallet, signature, issuedAt },
+    },
   );
   if (!wallet.walletId) {
     throw new Error("The agent service did not persist a walletId. Configure DATABASE_URL before creating policies.");

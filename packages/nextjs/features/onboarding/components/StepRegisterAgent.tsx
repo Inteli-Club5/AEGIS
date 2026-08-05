@@ -4,8 +4,10 @@ import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { useConnectWallet } from "@/features/wallet/components/ConnectWalletProvider";
 import { createAgent } from "@/lib/api/onboarding";
+import type { SignAgentCommitment } from "@/lib/policy/agent-commitment";
 import { type AgentProfile, type AgentType, CAPABILITY_LABELS, type Capability } from "@/lib/types/aegis";
 import { Loader2 } from "lucide-react";
+import { useSignTypedData } from "wagmi";
 
 const AGENT_TYPES: AgentType[] = ["Payment Agent", "API Buyer", "Treasury Agent", "DeFi Agent", "Custom"];
 
@@ -25,6 +27,8 @@ export function StepRegisterAgent({
   onCreated: (agent: AgentProfile) => void;
 }) {
   const { address } = useConnectWallet();
+  const { signTypedDataAsync } = useSignTypedData();
+  const signAgentAction: SignAgentCommitment = params => signTypedDataAsync(params);
   const [name, setName] = useState(initial?.name ?? "");
   const [type, setType] = useState<AgentType>(initial?.type ?? "Payment Agent");
   const [description, setDescription] = useState(initial?.description ?? "");
@@ -54,13 +58,16 @@ export function StepRegisterAgent({
 
     setSubmitting(true);
     try {
-      const profile = await createAgent({
-        name: trimmed,
-        type,
-        description: description || undefined,
-        capabilities,
-        ownerWallet: address,
-      });
+      const profile = await createAgent(
+        {
+          name: trimmed,
+          type,
+          description: description || undefined,
+          capabilities,
+          ownerWallet: address as `0x${string}`,
+        },
+        signAgentAction,
+      );
       onCreated(profile);
     } catch (err) {
       setErrors({

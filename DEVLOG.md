@@ -2135,3 +2135,98 @@ oldest at the top, newest at the bottom. Use English AM/PM timestamps. Format:
   `TRUSTED_SERVICE_DESCRIPTOR_V1` semantic-rule section in policy creation.
   `THEGRAPH_0G_SUBGRAPH_URL` now set locally; `THEGRAPH_HEDERA_SUBGRAPH_URL`
   still intentionally unset.
+
+## 2026-08-05 04:03 PM - AI agent - web3 core & contracts (auth hardening)
+
+- did: authenticated the three `services/agent-service` routes that had zero
+  auth at all - `POST /create-agents`, `POST /agents/:agentId/create-wallets`,
+  and `DELETE /agents/:agentId` - each already flagged with a `TODO(auth)`
+  comment on the Next.js proxy side. Before this, anyone who could reach the
+  backend could register an agent under any `ownerWallet` (real Hedera
+  account, operator-funded), deploy a real Safe for any existing agentId, or
+  delete another operator's agent, with no proof of key possession. Added a
+  new EIP-712 `AgentCommitment` scheme (`services/agent-service/src/
+  policy-engine/{types,auth}.ts`, domain "AEGIS Agent Lifecycle", distinct
+  from both the existing `PolicyCommitment` and the dashboard-only
+  `AgentActionAuthorization` to avoid signature-domain confusion) covering
+  `CREATE_AGENT`/`CREATE_WALLET`/`DELETE_AGENT` in one shared struct that
+  blanks fields per operation (same convention `PolicyCommitment` already
+  uses), with a 300s freshness window. `CREATE_WALLET`/`DELETE_AGENT` resolve
+  the existing owner via a new `resolveAgentOwnerAddress` (in-memory store
+  first, durable Postgres `AgentRecord` fallback - required because the
+  in-memory profile store doesn't survive a restart, and several existing
+  `walletCreation.test.ts` cases exercise exactly that restart path).
+  `CREATE_AGENT` additionally gets a same-signature replay guard (in-memory,
+  TTL'd to the freshness window) since, unlike the other two operations,
+  it has no natural idempotency backstop - a captured valid signature could
+  otherwise be replayed to mint real Hedera accounts on the operator's dime
+  for as long as it stayed fresh.
+- did: mirrored the scheme on the frontend (`packages/nextjs/lib/policy/
+  agent-commitment.ts`, byte-for-byte against the backend's domain/types/
+  field-blanking - verified field-by-field in review), wired the three
+  Next.js proxy routes (`forwardOperator: true`, now also forwarding a new
+  `x-aegis-operator-issued-at` header alongside the existing address/
+  signature pair) and updated every call site that reaches these three
+  routes to sign before calling: `createAgent`/`ensureWallet` (via
+  `savePolicyDraft`/`createPolicy`) and `deleteAgentServiceProfile` in
+  `lib/api/onboarding.ts`, `deleteAgent` in `lib/api/agents.ts`, and the UI
+  (`StepRegisterAgent.tsx`, `StepCreatePolicy.tsx`, `AgentDetailView.tsx`,
+  `app/dashboard/page.tsx`) supplying a `useSignTypedData()`-backed signer.
+- did: a `grumpy-carlos-code-reviewer` pass on this before calling it done
+  caught two real gaps that are now fixed (the `CREATE_AGENT` replay guard
+  above, and an `agentId` canonicalization inconsistency within the
+  `create-wallets` handler where the auth check and the operational code
+  path normalized the param differently) plus two documented, deliberately
+  NOT fixed in this pass:
+  - **Proof-of-ownership stops impersonation, not resource exhaustion.**
+    Anyone can still call `POST /create-agents` by generating a fresh
+    throwaway keypair and self-signing a claim to own it - that costs the
+    attacker nothing and still triggers a real operator-funded Hedera
+    `AccountCreateTransaction` every time (`createAgent.ts`, no rate limit,
+    no dedup, no cost). This fix closes "someone acting as your wallet
+    without your signature"; it does **not** close "anyone spamming
+    account creation with disposable keys." If Hedera-funds exhaustion via
+    spam matters (the original report says it does), that needs something
+    orthogonal - rate limiting, a stake/deposit, or an allowlist - as a
+    follow-up, not implied-closed by this fix.
+  - **UX regression, not a bug:** `ensureWallet()` (used by every
+    `savePolicyDraft` call, i.e. every "save policy" action, not just first
+    wallet creation) now signs a fresh `CREATE_WALLET` commitment on every
+    call, even when the wallet already exists and the backend will just
+    return it idempotently - one extra wallet-signature popup per save that
+    didn't exist before this session. Deliberately did not add a local-cache
+    short-circuit for this, since `ensureWallet`'s existing "always
+    reconcile against the backend, never trust the local draft cache"
+    comment documents a previously-fixed bug class this would risk
+    reopening; flagging as a follow-up UX polish item instead.
+- validation: `services/agent-service`'s full unit suite passes 245/246 (the
+  1 failure is the same pre-existing environmental issue as prior sessions -
+  confirmed via `git stash` it fails identically on the unmodified baseline,
+  because this machine's `.env` sets a real `DATABASE_URL` which changes
+  which branch one `walletCreation.test.ts` case hits). Added a new
+  `agentLifecycleAuth.test.ts` (7 cases: unsigned/wrong-signer/stale/
+  tampered-body/replayed for `create-agents`, wrong-signer/tampered-field
+  for `create-wallets`, no-op-vs-authenticated for `delete`) plus updated
+  `walletCreation.test.ts` to sign every request with a real keypair
+  instead of a placeholder address string, and seeded a durable
+  `AgentRecord` in the tests that simulate a restart (needed once ownership
+  resolution started depending on it). `packages/nextjs` `check-types`,
+  `lint`, and `next build` all pass clean.
+- next: decide whether `CREATE_AGENT` resource-exhaustion (rate limiting /
+  staking / allowlisting) and the `ensureWallet` double-signature UX
+  regression are worth separate follow-up work, or accepted as-is for the
+  demo.
+- blockers: none.
+- interfaces touched: new EIP-712 `AgentCommitment` commitment (backend
+  `services/agent-service/src/policy-engine/{types,auth}.ts`, frontend
+  `packages/nextjs/lib/policy/agent-commitment.ts` - **keep these two in
+  sync by hand, same as the existing `PolicyCommitment` mirror**, since a
+  drift silently breaks every signature with an unhelpful
+  `invalid_operator_signature`) and a new required
+  `x-aegis-operator-issued-at` header (alongside the existing operator
+  address/signature pair) on `POST /create-agents`, `POST /agents/:agentId/
+  create-wallets`, and `DELETE /agents/:agentId` (only when the agent
+  already exists for DELETE - deleting an already-deleted/nonexistent agent
+  remains an unauthenticated no-op, unchanged from before, since there is
+  no state to protect and `GET /agents/:agentId` was already fully
+  unauthenticated and already leaks the same existence information).

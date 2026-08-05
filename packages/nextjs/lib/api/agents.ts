@@ -1,10 +1,15 @@
 import { ApiError } from "~~/lib/api/http";
 import { deleteAgentServiceProfile, getAgentServiceProfile } from "~~/lib/api/onboarding";
 import { getActivePolicy, listPolicyVersions } from "~~/lib/api/policies";
+import type { SignAgentCommitment } from "~~/lib/policy/agent-commitment";
 import type { AgentDetail, AgentType, ProtectedWalletInfo } from "~~/lib/types/aegis";
 
-export async function deleteAgent(id: string): Promise<void> {
-  await deleteAgentServiceProfile(id);
+export async function deleteAgent(
+  id: string,
+  ownerWallet: `0x${string}`,
+  signAgentAction: SignAgentCommitment,
+): Promise<void> {
+  await deleteAgentServiceProfile(id, ownerWallet, signAgentAction);
 }
 
 export async function getAgentDetail(id: string): Promise<AgentDetail | null> {

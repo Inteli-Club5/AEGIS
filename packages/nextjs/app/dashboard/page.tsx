@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
+import { useSignTypedData } from "wagmi";
 import { AppTopbar } from "~~/components/layout/AppTopbar";
 import { AddAgentCard, AgentCard, AgentCardSkeleton } from "~~/features/dashboard/components/AgentCard";
 import { OnchainStatStrip, StatStripSkeleton } from "~~/features/dashboard/components/StatStrip";
@@ -14,11 +15,14 @@ import { ApiError } from "~~/lib/api/http";
 import { getAgentServiceProfile } from "~~/lib/api/onboarding";
 import { readCreatedAgentDetails, removeCreatedAgent } from "~~/lib/onboarding/localAgentDraftStore";
 import { fetchOnchainOverview } from "~~/lib/onchain-data/browser";
+import type { SignAgentCommitment } from "~~/lib/policy/agent-commitment";
 import type { AgentDetail } from "~~/lib/types/aegis";
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { status } = useConnectWallet();
+  const { status, address } = useConnectWallet();
+  const { signTypedDataAsync } = useSignTypedData();
+  const signAgentAction: SignAgentCommitment = params => signTypedDataAsync(params);
   const [myAgents, setMyAgents] = useState<AgentDetail[] | null>(null);
   const overview = useQuery({
     queryKey: ["aegis-onchain-overview"],
@@ -102,7 +106,8 @@ export default function DashboardPage() {
                   router.push(agent.status === "protected" ? `/agents/${agent.id}` : `/onboarding?resume=${agent.id}`)
                 }
                 onDelete={async () => {
-                  await deleteAgent(agent.id);
+                  if (!address) throw new Error("Your wallet disconnected -- reconnect to delete this agent.");
+                  await deleteAgent(agent.id, address as `0x${string}`, signAgentAction);
                   removeCreatedAgent(agent.id);
                   setMyAgents(previous =>
                     previous ? previous.filter(candidate => candidate.id !== agent.id) : previous,

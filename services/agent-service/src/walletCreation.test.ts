@@ -2,14 +2,17 @@ import assert from "node:assert/strict";
 import { once } from "node:events";
 import type { Server } from "node:http";
 import { describe, it } from "node:test";
+import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import type { CreateWalletDeploymentContext } from "./createWallet.js";
 import { createAgentServiceApp } from "./index.js";
+import { AGENT_COMMITMENT_DOMAIN, AGENT_COMMITMENT_TYPES, buildAgentCommitment } from "./policy-engine/auth.js";
 import { InMemoryPolicyRepository } from "./policy-engine/repository.js";
 import type { CompleteWalletCreationInput } from "./policy-engine/types.js";
 import type { AgentProfile } from "./types.js";
 
 const AGENT_ID = "018f0000-0000-7000-8000-0000000000aa";
-const OWNER = "0x00000000000000000000000000000000000000A1";
+const ownerAccount = privateKeyToAccount(generatePrivateKey());
+const OWNER = ownerAccount.address;
 const SAFE = "0x00000000000000000000000000000000000000B2" as `0x${string}`;
 const TRANSACTION_HASH = `0x${"ab".repeat(32)}` as `0x${string}`;
 const OWNERS: `0x${string}`[] = [
@@ -46,11 +49,13 @@ describe("Safe wallet creation serialization", () => {
     const secondReplica = createAgentServiceApp(options);
 
     await withServers([firstReplica, secondReplica], async ([firstUrl, secondUrl]) => {
+      const requestBody = { recoveryGuardianAddress: OWNERS[2] };
+      const authHeaders = await createWalletAuthHeaders(requestBody);
       const requests = [firstUrl, secondUrl].map(baseUrl =>
         fetch(`${baseUrl}/agents/${AGENT_ID}/create-wallets`, {
           method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ recoveryGuardianAddress: OWNERS[2] }),
+          headers: { "content-type": "application/json", ...authHeaders },
+          body: JSON.stringify(requestBody),
         }),
       );
       const responses = await Promise.all(requests);
@@ -92,6 +97,7 @@ describe("Safe wallet creation serialization", () => {
 
   it("resumes a broadcast operation after final persistence fails without deploying another Safe", async () => {
     const repository = new FailOnceOnCompletionRepository();
+    await seedDurableAgent(repository);
     let deploymentCount = 0;
     const createWallet = async (
       _agentId: string,
@@ -146,6 +152,7 @@ describe("Safe wallet creation serialization", () => {
 
   it("returns a completed durable wallet after restart without an in-memory agent or external deployment", async () => {
     const repository = new InMemoryPolicyRepository();
+    await seedDurableAgent(repository);
     const firstReplica = createAgentServiceApp({
       policyRepository: repository,
       getAgent: agentId => (agentId === AGENT_ID ? baseProfile() : undefined),
@@ -181,6 +188,7 @@ describe("Safe wallet creation serialization", () => {
 
   it("reconciles a legacy durable wallet before any reservation or external deployment", async () => {
     const repository = new InMemoryPolicyRepository();
+    await seedDurableAgent(repository);
     await repository.saveWallet({
       walletId: "018f0000-0000-7000-8000-0000000000cc",
       agentId: AGENT_ID,
@@ -249,6 +257,7 @@ describe("Safe wallet creation serialization", () => {
 
   it("reconciles a deployed PREPARED Safe after restart without inventing a transaction hash", async () => {
     const repository = new FailOnceOnCompletionRepository();
+    await seedDurableAgent(repository);
     let deploymentCount = 0;
     const createWallet = async (
       _agentId: string,
@@ -482,14 +491,58 @@ async function createWalletWithGuardianBody(body: Record<string, string>) {
   return { guardian, wallet };
 }
 
-function createWalletRequest(
+async function createWalletRequest(
   baseUrl: string,
   body: Record<string, unknown>,
+  account = ownerAccount,
 ): Promise<Response> {
+  const authHeaders = await createWalletAuthHeaders(body, account);
   return fetch(`${baseUrl}/agents/${AGENT_ID}/create-wallets`, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", ...authHeaders },
     body: JSON.stringify(body),
+  });
+}
+
+async function createWalletAuthHeaders(
+  body: Record<string, unknown>,
+  account = ownerAccount,
+): Promise<Record<string, string>> {
+  const issuedAt = String(Math.floor(Date.now() / 1000));
+  const commitment = buildAgentCommitment({
+    operation: "CREATE_WALLET",
+    operatorAddress: account.address.toLowerCase() as `0x${string}`,
+    issuedAt,
+    agentId: AGENT_ID,
+    recoveryGuardianAddress: typeof body.recoveryGuardianAddress === "string"
+      ? (body.recoveryGuardianAddress as `0x${string}`)
+      : undefined,
+  });
+  const signature = await account.signTypedData({
+    domain: AGENT_COMMITMENT_DOMAIN,
+    types: AGENT_COMMITMENT_TYPES,
+    primaryType: "AgentCommitment",
+    message: commitment,
+  });
+  return {
+    "x-aegis-operator-address": account.address,
+    "x-aegis-operator-signature": signature,
+    "x-aegis-operator-issued-at": issuedAt,
+  };
+}
+
+// A restarted replica's in-memory profile is gone, but production always
+// durably persists agent ownership via /create-agents' saveAgent call the
+// moment the agent is created -- these fixtures simulate that same durable
+// row so the ownership proof this test triggers can resolve it, the way it
+// would for a real agent that already existed before the restart.
+async function seedDurableAgent(repository: InMemoryPolicyRepository): Promise<void> {
+  await repository.saveAgent({
+    agentId: AGENT_ID,
+    ownerAddress: OWNER.toLowerCase() as `0x${string}`,
+    status: "ACTIVE",
+    createdAt: 1,
+    updatedAt: 1,
   });
 }
 

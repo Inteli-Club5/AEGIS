@@ -1,5 +1,6 @@
 export const POLICY_HASH_SCHEMA = "aegis.policy.level1.v1";
 export const OPERATOR_MESSAGE_SCHEMA = "aegis.policy.commitment.v1";
+export const AGENT_COMMITMENT_SCHEMA = "aegis.agent.commitment.v1";
 export const NETWORK_ID = "hedera:testnet";
 export const HEDERA_TESTNET_CHAIN_ID = 296;
 export const TRUSTED_SERVICE_DESCRIPTOR_RULE_KIND = "TRUSTED_SERVICE_DESCRIPTOR_V1";
@@ -227,6 +228,36 @@ export type PolicyCommitment = {
   validFrom: bigint;
   validUntil: bigint;
   hasValidUntil: boolean;
+};
+
+// Proves the caller controls the wallet claiming ownership over an agent
+// lifecycle action (create/delete the agent, deploy its Safe) -- these three
+// operations mutate real off-chain records and spend real Hedera funds, but
+// have no pre-existing PolicyCommitment-style owner to check against for
+// CREATE_AGENT (the agent doesn't exist yet). One shared struct covers all
+// three operations, blanking fields that don't apply to a given operation --
+// mirrors how PolicyCommitment blanks sourcePolicyId for CREATE_POLICY.
+export type AgentCommitmentOperation = "CREATE_AGENT" | "CREATE_WALLET" | "DELETE_AGENT";
+
+export type AgentCommitment = {
+  schema: typeof AGENT_COMMITMENT_SCHEMA;
+  operation: AgentCommitmentOperation;
+  networkId: typeof NETWORK_ID;
+  operatorAddress: `0x${string}`;
+  agentId: string;
+  ownerWallet: `0x${string}`;
+  name: string;
+  agentType: string;
+  endpoint: string;
+  description: string;
+  recoveryGuardianAddress: `0x${string}`;
+  issuedAt: bigint;
+};
+
+export type AgentCommitmentAuth = {
+  operatorAddress: string;
+  signature: string;
+  issuedAt: string;
 };
 
 export type PolicyRecord = Policy & {

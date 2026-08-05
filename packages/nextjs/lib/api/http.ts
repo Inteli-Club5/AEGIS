@@ -1,6 +1,7 @@
 export type OperatorHeaders = {
   address: `0x${string}`;
   signature: `0x${string}`;
+  issuedAt?: string;
 };
 
 export class ApiError extends Error {
@@ -32,6 +33,7 @@ export async function requestJson<T>(
         ? {
             "x-aegis-operator-address": options.operator.address,
             "x-aegis-operator-signature": options.operator.signature,
+            ...(options.operator.issuedAt ? { "x-aegis-operator-issued-at": options.operator.issuedAt } : {}),
           }
         : {}),
       ...options.headers,

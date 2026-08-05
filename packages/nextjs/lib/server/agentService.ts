@@ -130,6 +130,7 @@ export async function proxyAgentServiceRequest(
   if (options.forwardOperator) {
     headers["x-aegis-operator-address"] = req.headers.get("x-aegis-operator-address") ?? "";
     headers["x-aegis-operator-signature"] = req.headers.get("x-aegis-operator-signature") ?? "";
+    headers["x-aegis-operator-issued-at"] = req.headers.get("x-aegis-operator-issued-at") ?? "";
   }
 
   const { status, body } = await proxyToAgentService(options.path, {
