@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { AppTopbar } from "@/components/layout/AppTopbar";
 import { OnboardingWizard } from "@/features/onboarding/components/OnboardingWizard";
@@ -13,6 +13,14 @@ import type { AgentProfile, AgentType } from "@/lib/types/aegis";
 const AGENT_TYPES: AgentType[] = ["Payment Agent", "API Buyer", "Treasury Agent", "DeFi Agent", "Custom"];
 
 export default function OnboardingPage() {
+  return (
+    <Suspense>
+      <OnboardingPageInner />
+    </Suspense>
+  );
+}
+
+function OnboardingPageInner() {
   const { status } = useConnectWallet();
   const searchParams = useSearchParams();
   const resumeAgentId = searchParams.get("resume");

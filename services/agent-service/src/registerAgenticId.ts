@@ -10,7 +10,7 @@ import {
   buildCanonicalAgentProfileMetadata,
   buildCanonicalAgenticIdIntelligentData,
   stableStringify,
-} from "../../../packages/agentic-id-contract/index.js";
+} from "../agentic-id-contract/index.js";
 import { getAgent, setAgentAgenticId } from "./store.js";
 import {
   buildAgentSemanticProfile,

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { buildAgenticIdRegistrationCommitment } from "../../../../../agentic-id-contract/index.js";
+import { buildAgenticIdRegistrationCommitment } from "../../../../agentic-id-contract/index.js";
 import { timingSafeEqual } from "node:crypto";
 import { keccak256, stringToHex } from "viem";
 import { createAgenticIdForAegisAgent, normalizeCreateAgenticIdInput } from "~~/integrations/0g/agentic-id";

@@ -6,7 +6,7 @@ import {
   buildCanonicalAgentProfileMetadata,
   buildCanonicalAgenticIdIntelligentData,
   stableStringify,
-} from "../../../packages/agentic-id-contract/index.js";
+} from "../agentic-id-contract/index.js";
 
 const INPUT = {
   aegisAgentId: "agent-golden-1",

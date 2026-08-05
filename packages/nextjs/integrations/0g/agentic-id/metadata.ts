@@ -2,7 +2,7 @@ import {
   buildCanonicalAgentProfileMetadata,
   buildCanonicalAgenticIdIntelligentData,
   stableStringify,
-} from "../../../../agentic-id-contract/index.js";
+} from "../../../agentic-id-contract/index.js";
 import type { AgentProfileMetadata, AgenticIdIntelligentData, CreateAgenticIdForAegisAgentInput } from "./types";
 import { type Hex, keccak256, stringToHex } from "viem";
 
