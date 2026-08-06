@@ -8,7 +8,6 @@
 //
 // Usage:
 //   AEGIS_PRIVATE_KEY=0x... AEGIS_AGENT_ID=<agentId> node scripts/aegis-protect-agent.mjs
-
 import { keccak256, stringToHex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 
@@ -47,7 +46,8 @@ function toCanonicalValue(value, path) {
 
 function stringifyCanonical(value) {
   if (value === null) return "null";
-  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") return JSON.stringify(value);
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean")
+    return JSON.stringify(value);
   if (Array.isArray(value)) return `[${value.map(item => stringifyCanonical(item)).join(",")}]`;
   return `{${Object.keys(value)
     .sort()
@@ -207,11 +207,14 @@ async function main() {
     validFrom: policy.validFrom,
     validUntil: policy.validUntil,
   });
-  const { policy: activePolicy } = await call(`/api/agent-service/policies/${encodeURIComponent(policy.policyId)}/activate`, {
-    method: "POST",
-    body: { expectedPolicyVersion: policy.policyVersion, expectedPolicyHash: policy.policyHash },
-    headers: { "x-aegis-operator-address": operatorAddress, "x-aegis-operator-signature": activateSignature },
-  });
+  const { policy: activePolicy } = await call(
+    `/api/agent-service/policies/${encodeURIComponent(policy.policyId)}/activate`,
+    {
+      method: "POST",
+      body: { expectedPolicyVersion: policy.policyVersion, expectedPolicyHash: policy.policyHash },
+      headers: { "x-aegis-operator-address": operatorAddress, "x-aegis-operator-signature": activateSignature },
+    },
+  );
   console.log(`Policy status: ${activePolicy.status}`);
   console.log("\nDone. This agent is now protected with an empty/simple policy.");
 }

@@ -28,7 +28,6 @@
 // past, which the deterministic policy evaluator always denies with
 // ACTION_DEADLINE_EXPIRED regardless of the policy's other rules -- so it works even
 // against a completely empty/simple policy.
-
 import { keccak256, stringToHex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 
@@ -78,7 +77,8 @@ function toCanonicalValue(value, path) {
 
 function stringifyCanonical(value) {
   if (value === null) return "null";
-  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") return JSON.stringify(value);
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean")
+    return JSON.stringify(value);
   if (Array.isArray(value)) return `[${value.map(item => stringifyCanonical(item)).join(",")}]`;
   return `{${Object.keys(value)
     .sort()
@@ -191,7 +191,8 @@ async function main() {
       mode === "fail"
         ? "\nExpected: the policy gate denied this action at precheck (code: " + precheck.data.code + ")."
         : "\nThis action was denied but mode=pass expected it to succeed. Check the active policy's rules " +
-            "(destinations/amount/action type) for this agent -- code: " + precheck.data.code,
+            "(destinations/amount/action type) for this agent -- code: " +
+            precheck.data.code,
     );
     return;
   }
@@ -232,9 +233,7 @@ async function main() {
     { method: "POST", headers: executeHeaders },
   );
   log("EXECUTE", execute.data);
-  console.log(
-    execute.ok ? `\nExecuted. Transaction hash: ${execute.data.transactionHash}` : "\nExecute failed.",
-  );
+  console.log(execute.ok ? `\nExecuted. Transaction hash: ${execute.data.transactionHash}` : "\nExecute failed.");
 }
 
 main().catch(error => {

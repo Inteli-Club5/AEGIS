@@ -3,8 +3,7 @@
 // access), so the shared module lives here too. Keep both copies (and the
 // services/agent-service one) in sync by hand, same pattern as
 // packages/nextjs/lib/policy/hash.ts.
-export const AGENTIC_ID_REGISTRATION_SCHEMA =
-  "aegis.agentic-id-registration.v1";
+export const AGENTIC_ID_REGISTRATION_SCHEMA = "aegis.agentic-id-registration.v1";
 export const AGENT_PROFILE_SCHEMA = "aegis.agent-profile.v1";
 
 export function stableStringify(value) {
@@ -39,11 +38,7 @@ export function buildCanonicalAgentProfileMetadata(input) {
   return { ...baseMetadata, extensions: input.metadata };
 }
 
-export function buildCanonicalAgenticIdIntelligentData(
-  input,
-  metadataHash,
-  hashValue,
-) {
+export function buildCanonicalAgenticIdIntelligentData(input, metadataHash, hashValue) {
   const capabilities = normalizeCapabilities(input.capabilities);
   return [
     {

@@ -6,7 +6,6 @@
 //
 // Usage:
 //   AEGIS_PRIVATE_KEY=0x... AEGIS_AGENT_ID=<agentId> node scripts/aegis-add-trusted-service.mjs
-
 import { keccak256, stringToHex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 
@@ -46,7 +45,8 @@ function toCanonicalValue(value, path) {
 
 function stringifyCanonical(value) {
   if (value === null) return "null";
-  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") return JSON.stringify(value);
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean")
+    return JSON.stringify(value);
   if (Array.isArray(value)) return `[${value.map(item => stringifyCanonical(item)).join(",")}]`;
   return `{${Object.keys(value)
     .sort()
@@ -285,7 +285,8 @@ async function main() {
     body: { expectedPolicyVersion: updated.policyVersion, expectedPolicyHash: updated.policyHash },
     headers: { "x-aegis-operator-address": operatorAddress, "x-aegis-operator-signature": activateSignature },
   });
-  if (!activateResp.ok) throw new Error(`Activate failed (${activateResp.status}): ${JSON.stringify(activateResp.data)}`);
+  if (!activateResp.ok)
+    throw new Error(`Activate failed (${activateResp.status}): ${JSON.stringify(activateResp.data)}`);
   console.log(`Policy status: ${activateResp.data.policy.status}`);
   console.log(`\nDone. Run the pass scenario now with AEGIS_SERVICE_ID=${SERVICE_ID} (already the script default).`);
 }

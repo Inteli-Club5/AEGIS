@@ -497,15 +497,15 @@ The goal of this delivery is **a front end backend devs can plug into**:
 every screen exists because there's an endpoint for it to consume. Nothing is
 built to act out behavior the backend will produce.
 
-| Phase | Delivery                                              | Screens                 | Status  |
-| ----- | ----------------------------------------------------- | ----------------------- | ------- |
-| 1     | Foundation — tokens, base components, types, API boundaries | —                  | ✅      |
-| 2     | Entry                                                 | S01, S02                | ✅      |
-| 3     | Dashboard                                             | S03                     | ✅      |
-| 4     | Onboarding / writes                                   | S04–S08                 | ✅      |
-| 5     | Detail and management                                 | S10, S11, S12, S13      | pending |
-| 6     | Audit                                                 | S14, S15, S16           | pending |
-| 7     | Operations and system                                 | S18, S19, S20, S21, S22 | pending |
+| Phase | Delivery                                                    | Screens                 | Status  |
+| ----- | ----------------------------------------------------------- | ----------------------- | ------- |
+| 1     | Foundation — tokens, base components, types, API boundaries | —                       | ✅      |
+| 2     | Entry                                                       | S01, S02                | ✅      |
+| 3     | Dashboard                                                   | S03                     | ✅      |
+| 4     | Onboarding / writes                                         | S04–S08                 | ✅      |
+| 5     | Detail and management                                       | S10, S11, S12, S13      | pending |
+| 6     | Audit                                                       | S14, S15, S16           | pending |
+| 7     | Operations and system                                       | S18, S19, S20, S21, S22 | pending |
 
 ### 5.1 Per-screen contract
 
@@ -513,20 +513,20 @@ What each screen expects from the read boundary. Confirmed onchain operations
 are named GraphQL queries in `lib/onchain-data`; private workflow operations
 remain in `lib/api`.
 
-| Screen  | Expected operation                                                                          |
-| ------- | ------------------------------------------------------------------------------------------- |
-| S03     | `getOnchainOverview()`, `listOnchainAgents({ first, cursor, filters })`, `_meta` freshness  |
-| S05     | `createAgent(payload)` → `AgentProfile` (connects an existing agent, doesn't provision one) |
+| Screen  | Expected operation                                                                             |
+| ------- | ---------------------------------------------------------------------------------------------- |
+| S03     | `getOnchainOverview()`, `listOnchainAgents({ first, cursor, filters })`, `_meta` freshness     |
+| S05     | `createAgent(payload)` → `AgentProfile` (connects an existing agent, doesn't provision one)    |
 | S07     | `createPolicy(agentId, ownerWallet, PolicyRules, signer, options)` → versioned `Policy` + Safe |
-| S08     | `activateProtection(agentId, policyHash)`                                                   |
-| S10     | `getCrossChainAgentView(id)`, plus private `getAgent(id)` enrichment when available         |
-| S11     | `getWallet(agentId)`, `rotateSigner(...)`                                                   |
-| S12/S13 | `listPolicies({ agentId })`, `getPolicy(id)`, `revokePolicy(id)`                            |
-| S14     | `listTeeMLValidations({ filters, first, cursor })`                                          |
-| S15     | `getTeeMLValidation(id)` with indexed transaction/block provenance                          |
-| S16     | `listPendingApprovals()`, `cancelProposal(id)`                                              |
-| S18     | Out of scope — no recovery/break-glass API in this branch                                   |
-| S20     | Subgraph `_meta`/indexing status for Hedera and 0G, with honest partial states               |
+| S08     | `activateProtection(agentId, policyHash)`                                                      |
+| S10     | `getCrossChainAgentView(id)`, plus private `getAgent(id)` enrichment when available            |
+| S11     | `getWallet(agentId)`, `rotateSigner(...)`                                                      |
+| S12/S13 | `listPolicies({ agentId })`, `getPolicy(id)`, `revokePolicy(id)`                               |
+| S14     | `listTeeMLValidations({ filters, first, cursor })`                                             |
+| S15     | `getTeeMLValidation(id)` with indexed transaction/block provenance                             |
+| S16     | `listPendingApprovals()`, `cancelProposal(id)`                                                 |
+| S18     | Out of scope — no recovery/break-glass API in this branch                                      |
+| S20     | Subgraph `_meta`/indexing status for Hedera and 0G, with honest partial states                 |
 
 ---
 
