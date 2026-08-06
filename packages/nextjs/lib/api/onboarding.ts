@@ -80,6 +80,18 @@ export async function getAgentServiceProfile(agentId: string): Promise<AgentServ
   return requestJson(`/api/agent-service/agents/${encodeURIComponent(agentId)}`);
 }
 
+// The durable, owner-indexed source of truth for "which agents belong to this
+// wallet" -- unlike localAgentDraftStore's browser-local cache, this survives
+// switching browsers/devices. Returns only ids (the backend deliberately
+// doesn't bulk-expose full profiles from an unauthenticated, owner-address-
+// keyed route); fetch each one's full detail via getAgentDetail.
+export async function listAgentIdsByOwner(ownerWallet: string): Promise<string[]> {
+  const { agentIds } = await requestJson<{ agentIds: string[] }>(
+    `/api/agent-service/agents?owner=${encodeURIComponent(ownerWallet)}`,
+  );
+  return agentIds;
+}
+
 export async function deleteAgentServiceProfile(
   agentId: string,
   ownerWallet: `0x${string}`,

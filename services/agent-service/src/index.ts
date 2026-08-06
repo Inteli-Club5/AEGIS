@@ -350,6 +350,42 @@ export function createAgentServiceApp(options: AgentServiceAppOptions = {}) {
     }
   });
 
+  // Lets the dashboard recover an owner's agents on any browser/device,
+  // instead of relying on a per-browser localStorage cache written at
+  // creation time (which a fresh browser/device never had). Returns only
+  // agentIds from the durable Postgres `aegis_agents` table (ownerAddress) --
+  // deliberately not the full in-memory AgentProfile (Safe address, 2-of-3
+  // owner set, description, toolNames, agenticId): an unauthenticated
+  // *bulk* profile dump keyed only by a public wallet address is a much
+  // bigger reconnaissance surface than the existing unauthenticated
+  // single-agent GET /agents/:agentId, which at least requires already
+  // knowing a specific agentId. Callers fetch each id's full profile
+  // individually the same way the agent detail page always has. This also
+  // means an agent whose in-memory profile was lost to a service restart
+  // (see the TODO above `saveAgent`'s call in /create-agents) still shows
+  // up here -- the per-agent 404 on the follow-up detail fetch is the
+  // existing, already-handled failure mode, instead of this list silently
+  // going empty and looking identical to "this owner truly has zero
+  // agents."
+  app.get("/agents", async (req, res) => {
+    const owner = req.query.owner;
+    if (typeof owner !== "string" || !EVM_ADDRESS_RE.test(owner)) {
+      return res.status(400).json({ error: "owner must be a valid EVM address" });
+    }
+
+    try {
+      const records = await policyRepository.listAgentsByOwner(owner);
+      res.json({ agentIds: records.map(record => record.agentId) });
+    } catch (error) {
+      if (error instanceof PolicyEngineError) {
+        return res.status(error.status).json({ error: error.code, message: error.message });
+      }
+      res.status(500).json({
+        error: error instanceof Error ? error.message : "list_agents_failed",
+      });
+    }
+  });
+
   app.get("/agents/:agentId", (req, res) => {
     const profile = getAgent(req.params.agentId);
     if (!profile) return res.status(404).json({ error: "not_found" });

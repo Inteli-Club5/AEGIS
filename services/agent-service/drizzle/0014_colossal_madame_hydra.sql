@@ -1,0 +1,1 @@
+CREATE INDEX "aegis_agents_owner_created_at_idx" ON "aegis_agents" USING btree ("owner_address","created_at");

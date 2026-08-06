@@ -22,6 +22,7 @@ export type PolicyRepository = {
     operation: () => Promise<T>,
   ): Promise<T>;
   getAgent(agentId: string): Promise<AgentRecord | null>;
+  listAgentsByOwner(ownerAddress: string): Promise<AgentRecord[]>;
   getWallet(walletId: string): Promise<WalletRecord | null>;
   getWalletByAgentNetwork(
     agentId: string,
@@ -132,6 +133,14 @@ export class InMemoryPolicyRepository implements PolicyRepository {
 
   async getAgent(agentId: string): Promise<AgentRecord | null> {
     return clone(this.agents.get(agentId.toLowerCase()) ?? null);
+  }
+
+  async listAgentsByOwner(ownerAddress: string): Promise<AgentRecord[]> {
+    const normalizedOwner = ownerAddress.toLowerCase();
+    return [...this.agents.values()]
+      .filter(agent => agent.ownerAddress === normalizedOwner)
+      .sort((left, right) => right.createdAt - left.createdAt)
+      .map(clone);
   }
 
   async getWallet(walletId: string): Promise<WalletRecord | null> {

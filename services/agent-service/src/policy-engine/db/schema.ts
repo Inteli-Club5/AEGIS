@@ -43,13 +43,19 @@ export const agenticIdRegistrationStatusEnum = pgEnum(
   ["PROCESSING", "COMPLETED", "UNKNOWN"],
 );
 
-export const agents = pgTable("aegis_agents", {
-  agentId: text("agent_id").primaryKey(),
-  ownerAddress: text("owner_address").notNull(),
-  status: agentStatusEnum("status").notNull(),
-  createdAt: integer("created_at").notNull(),
-  updatedAt: integer("updated_at").notNull(),
-});
+export const agents = pgTable(
+  "aegis_agents",
+  {
+    agentId: text("agent_id").primaryKey(),
+    ownerAddress: text("owner_address").notNull(),
+    status: agentStatusEnum("status").notNull(),
+    createdAt: integer("created_at").notNull(),
+    updatedAt: integer("updated_at").notNull(),
+  },
+  table => ({
+    ownerCreatedAtIdx: index("aegis_agents_owner_created_at_idx").on(table.ownerAddress, table.createdAt),
+  }),
+);
 
 export const wallets = pgTable(
   "aegis_wallets",

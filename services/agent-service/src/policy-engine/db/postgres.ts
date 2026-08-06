@@ -90,6 +90,15 @@ export class PostgresPolicyRepository implements PolicyRepository {
     return row ? mapAgent(row) : null;
   }
 
+  async listAgentsByOwner(ownerAddress: string): Promise<AgentRecord[]> {
+    const rows = await this.db
+      .select()
+      .from(schema.agents)
+      .where(eq(schema.agents.ownerAddress, ownerAddress.toLowerCase()))
+      .orderBy(desc(schema.agents.createdAt));
+    return rows.map(mapAgent);
+  }
+
   async getWallet(walletId: string): Promise<WalletRecord | null> {
     const [row] = await this.db.select().from(schema.wallets).where(eq(schema.wallets.walletId, walletId.toLowerCase())).limit(1);
     return row ? mapWallet(row) : null;
@@ -670,6 +679,9 @@ export class UnconfiguredPolicyRepository implements PolicyRepository {
     this.throwUnconfigured();
   }
   async getAgent(): Promise<never> {
+    this.throwUnconfigured();
+  }
+  async listAgentsByOwner(): Promise<never> {
     this.throwUnconfigured();
   }
   async getWallet(): Promise<never> {

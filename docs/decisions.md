@@ -70,3 +70,16 @@ add a new line noting the change and why — don't edit history away.
   string-to-bytes32 boundary rule. Neither conversion lowercases the input.
 - 2026-07-25 — Substreams is not used for the event-based EVM MVP. Subgraphs
   directly provide the required typed GraphQL API with lower operational scope.
+- 2026-08-06 — The dashboard's agent list is sourced from a new unauthenticated
+  `GET /agents?owner=` (`services/agent-service`), keyed on the Postgres
+  `aegis_agents.owner_address` index, replacing a browser-`localStorage` cache
+  that lost real, backend-persisted agents on every browser/device switch.
+  The route returns only `agentIds`, never full profiles, in bulk — an
+  unauthenticated bulk profile dump (Safe address, 2-of-3 owner set,
+  description) keyed on a public wallet address would be a materially bigger
+  enumeration surface than the existing single-agent `GET /agents/:agentId`,
+  which at least requires already knowing a specific agentId. Each id's full
+  detail is still fetched individually via the existing route. Consequence:
+  the dashboard now requires `DATABASE_URL` configured (Policy Engine
+  Postgres) to list any agents at all; without it, every environment sees a
+  load-error banner instead of a locally cached list.
