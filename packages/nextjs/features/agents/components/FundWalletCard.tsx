@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
+import { AlertCircle, CheckCircle2, ExternalLink, Loader2 } from "lucide-react";
 import { UserRejectedRequestError, parseEther } from "viem";
 import { hederaTestnet } from "viem/chains";
 import { useSendTransaction } from "wagmi";
@@ -10,6 +10,7 @@ import { Button } from "~~/components/ui/Button";
 import { useConnectWallet } from "~~/features/wallet/components/ConnectWalletProvider";
 import { truncateAddress } from "~~/lib/utils/format";
 import { wagmiConfig } from "~~/services/web3/wagmiConfig";
+import { getBlockExplorerAddressLink, getBlockExplorerTxLink } from "~~/utils/scaffold-hbar/networks";
 
 const inputClass =
   "mt-2 min-h-11 w-full rounded-md border border-border bg-surface-raised px-3 text-body-sm transition-colors duration-[120ms] focus-visible:border-brand focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-strong";
@@ -21,6 +22,7 @@ export function FundWalletCard({ safeAddress }: { safeAddress: `0x${string}` }) 
   const [amount, setAmount] = useState("");
   const [phase, setPhase] = useState<Phase>("idle");
   const [error, setError] = useState<string | null>(null);
+  const [txHash, setTxHash] = useState<`0x${string}` | null>(null);
 
   const { sendTransactionAsync } = useSendTransaction();
 
@@ -30,11 +32,15 @@ export function FundWalletCard({ safeAddress }: { safeAddress: `0x${string}` }) 
 
   function handleAmountChange(value: string) {
     setAmount(value);
-    if (!busy) setPhase("idle");
+    if (!busy) {
+      setPhase("idle");
+      setTxHash(null);
+    }
   }
 
   async function handleSend() {
     setError(null);
+    setTxHash(null);
     const trimmed = amount.trim();
     const numeric = Number(trimmed);
     if (!trimmed || !Number.isFinite(numeric) || numeric <= 0) {
@@ -47,6 +53,7 @@ export function FundWalletCard({ safeAddress }: { safeAddress: `0x${string}` }) 
     try {
       const value = parseEther(trimmed);
       const hash = await sendTransactionAsync({ to: safeAddress, value, chainId: hederaTestnet.id });
+      setTxHash(hash);
       setPhase("confirming");
       await waitForTransactionReceipt(wagmiConfig, { hash, chainId: hederaTestnet.id });
       setPhase("success");
@@ -87,11 +94,34 @@ export function FundWalletCard({ safeAddress }: { safeAddress: `0x${string}` }) 
           Waiting for confirmation…
         </p>
       )}
+      {(phase === "confirming" || phase === "success") && txHash && (
+        <a
+          href={getBlockExplorerTxLink(hederaTestnet.id, txHash)}
+          target="_blank"
+          rel="noreferrer"
+          aria-label={`View transaction ${txHash} on block explorer`}
+          className="mt-2 flex items-center gap-1.5 text-caption font-mono text-muted underline-offset-4 hover:underline"
+        >
+          {truncateAddress(txHash)}
+          <ExternalLink className="h-3 w-3" aria-hidden="true" />
+        </a>
+      )}
       {phase === "success" && (
-        <p className="mt-2 flex items-center gap-1.5 text-caption text-success">
-          <CheckCircle2 className="h-3 w-3" aria-hidden="true" />
-          Sent and confirmed. This view does not query the Safe balance directly.
-        </p>
+        <div className="mt-2 text-caption text-success">
+          <p className="flex items-center gap-1.5">
+            <CheckCircle2 className="h-3 w-3" aria-hidden="true" />
+            Transaction confirmed.
+          </p>
+          <a
+            href={getBlockExplorerAddressLink(hederaTestnet, safeAddress)}
+            target="_blank"
+            rel="noreferrer"
+            className="mt-1 flex items-center gap-1.5 underline-offset-4 hover:underline"
+          >
+            View updated Safe balance on HashScan
+            <ExternalLink className="h-3 w-3" aria-hidden="true" />
+          </a>
+        </div>
       )}
       {phase === "error" && error && (
         <p className="mt-2 flex items-center gap-1.5 text-caption text-danger">
