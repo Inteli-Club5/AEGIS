@@ -9,7 +9,13 @@ import {
   inspectExistingSafeWallet,
 } from "./createWallet.js";
 import { proposeAction as proposeAgentAction } from "./proposeAction.js";
-import { HttpError, registerAgenticId } from "./registerAgenticId.js";
+import {
+  getExpectedAgenticIdChainId,
+  getExpectedAgenticIdContractAddress,
+  HttpError,
+  MIN_INTERNAL_TOKEN_LENGTH,
+  registerAgenticId,
+} from "./registerAgenticId.js";
 import {
   deleteAgent as deleteStoredAgent,
   getAgent as getStoredAgent,
@@ -88,6 +94,7 @@ import { resolveRecoveryGuardian } from "./walletConfig.js";
 
 const EVM_ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/;
 const TRANSACTION_HASH_RE = /^0x[a-fA-F0-9]{64}$/;
+const PRIVATE_KEY_HEX_RE = /^(0x)?[a-fA-F0-9]{64}$/;
 const AGENT_TYPES: AgentType[] = [
   "Payment",
   "API Buyer",
@@ -116,6 +123,20 @@ export type AgentServiceAppOptions = {
 export function createAgentServiceApp(options: AgentServiceAppOptions = {}) {
   const app = express();
   app.use(express.json());
+
+  // Fail at boot, not at the first real Agentic ID registration: these two
+  // must be explicit, never a silent testnet default that could point a
+  // "production" deployment at the wrong 0G network/contract.
+  getExpectedAgenticIdContractAddress();
+  getExpectedAgenticIdChainId();
+  if (
+    process.env.AEGIS_DASHBOARD_INTERNAL_TOKEN &&
+    process.env.AEGIS_DASHBOARD_INTERNAL_TOKEN.length < MIN_INTERNAL_TOKEN_LENGTH
+  ) {
+    throw new Error(
+      `AEGIS_DASHBOARD_INTERNAL_TOKEN must be at least ${MIN_INTERNAL_TOKEN_LENGTH} characters`,
+    );
+  }
 
   const policyRepository =
     options.policyRepository ??
@@ -954,8 +975,14 @@ function createPaymentExecutionServiceFromEnv(
     policyRepository,
     createPostgresExecutionRepository(process.env.DATABASE_URL),
     {
-      agentVerifierSignerPrivateKey: normalizeHexKey(agentVerifierSignerPrivateKey),
-      feeRecipientAddress: feeRecipientAddress as `0x${string}`,
+      agentVerifierSignerPrivateKey: normalizeHexKey(
+        agentVerifierSignerPrivateKey,
+        "AGENT_VERIFIER_SIGNER_PRIVATE_KEY",
+      ),
+      feeRecipientAddress: normalizeEvmAddress(
+        feeRecipientAddress,
+        "AEGIS_FEE_RECIPIENT_ADDRESS",
+      ),
       rpcUrl,
       cosignerBaseUrl,
       getAgentPrivateKey,
@@ -965,8 +992,12 @@ function createPaymentExecutionServiceFromEnv(
   );
 }
 
-function normalizeHexKey(key: string): `0x${string}` {
-  return key.startsWith("0x") ? (key as `0x${string}`) : `0x${key}`;
+function normalizeHexKey(key: string, label: string): `0x${string}` {
+  if (!PRIVATE_KEY_HEX_RE.test(key)) {
+    throw new Error(`${label} must be a 32-byte hex private key`);
+  }
+  const withoutPrefix = key.startsWith("0x") ? key.slice(2) : key;
+  return `0x${withoutPrefix}`;
 }
 
 function timingSafeEqualStrings(a: string, b: string): boolean {

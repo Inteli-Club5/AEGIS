@@ -23,13 +23,10 @@ import {
 } from "./teeml/agentic-id-registration.js";
 import type { AgentProfile } from "./types.js";
 
-const DEFAULT_AGENTIC_ID_CONTRACT =
-  "0x2700F6A3e505402C9daB154C5c6ab9cAEC98EF1F";
-const DEFAULT_ZERO_G_GALILEO_CHAIN_ID = 16602;
 const MAX_DASHBOARD_RESPONSE_BYTES = 256 * 1024;
 const DEFAULT_AGENTIC_ID_REQUEST_TIMEOUT_MS = 300_000;
 const MAX_AGENTIC_ID_REQUEST_TIMEOUT_MS = 900_000;
-const MIN_INTERNAL_TOKEN_LENGTH = 32;
+export const MIN_INTERNAL_TOKEN_LENGTH = 32;
 const activeRegistrations = new Map<string, Promise<AgentProfile>>();
 
 export class HttpError extends Error {
@@ -349,11 +346,16 @@ function requirePolicyHash(value: Hex | undefined): Hex {
   return value.toLowerCase() as Hex;
 }
 
-function getExpectedAgenticIdContractAddress(): `0x${string}` {
+export function getExpectedAgenticIdContractAddress(): `0x${string}` {
   const configured =
     process.env.ZERO_G_AGENTIC_ID_CONTRACT_ADDRESS ??
-    process.env.AGENTIC_ID_CONTRACT ??
-    DEFAULT_AGENTIC_ID_CONTRACT;
+    process.env.AGENTIC_ID_CONTRACT;
+  if (!configured) {
+    throw new HttpError(
+      500,
+      "ZERO_G_AGENTIC_ID_CONTRACT_ADDRESS is required",
+    );
+  }
   if (!isAddress(configured)) {
     throw new HttpError(
       500,
@@ -363,10 +365,11 @@ function getExpectedAgenticIdContractAddress(): `0x${string}` {
   return getAddress(configured);
 }
 
-function getExpectedAgenticIdChainId(): number {
-  const configured =
-    process.env.ZERO_G_GALILEO_CHAIN_ID ??
-    String(DEFAULT_ZERO_G_GALILEO_CHAIN_ID);
+export function getExpectedAgenticIdChainId(): number {
+  const configured = process.env.ZERO_G_GALILEO_CHAIN_ID;
+  if (!configured) {
+    throw new HttpError(500, "ZERO_G_GALILEO_CHAIN_ID is required");
+  }
   const chainId = Number(configured);
   if (!Number.isSafeInteger(chainId) || chainId <= 0) {
     throw new HttpError(500, "ZERO_G_GALILEO_CHAIN_ID is invalid");

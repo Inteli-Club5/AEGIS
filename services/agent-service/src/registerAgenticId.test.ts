@@ -185,6 +185,8 @@ class FakeRegistrationRepository
 
 beforeEach(() => {
   process.env.AEGIS_AGENTIC_ID_INTERNAL_TOKEN = INTERNAL_TOKEN;
+  process.env.ZERO_G_AGENTIC_ID_CONTRACT_ADDRESS = CONTRACT_ADDRESS;
+  process.env.ZERO_G_GALILEO_CHAIN_ID = String(CHAIN_ID);
 });
 
 afterEach(() => {
@@ -311,6 +313,48 @@ describe("registerAgenticId trusted semantic profile boundary", () => {
     assert.equal(repository.findCompletedCalls, 1);
     assert.equal(repository.claimCalls, 0);
     assert.equal(repository.status, "EMPTY");
+    assert.equal(fetchCalls, 0);
+  });
+
+  it("fails instead of silently defaulting when the expected contract address is unconfigured", async () => {
+    const agentId = "agent-registration-no-contract-env";
+    const profile = storedAgent(agentId);
+    const repository = new FakeRegistrationRepository();
+    saveAgent(profile, "private-key");
+    delete process.env.ZERO_G_AGENTIC_ID_CONTRACT_ADDRESS;
+    let fetchCalls = 0;
+    mock.method(globalThis, "fetch", async () => {
+      fetchCalls += 1;
+      return validResponse(profile);
+    });
+
+    await assert.rejects(
+      registerAgenticId(agentId, {
+        registrationRepository: repository,
+      }),
+      /ZERO_G_AGENTIC_ID_CONTRACT_ADDRESS is required/,
+    );
+    assert.equal(fetchCalls, 0);
+  });
+
+  it("fails instead of silently defaulting when the expected chain id is unconfigured", async () => {
+    const agentId = "agent-registration-no-chain-env";
+    const profile = storedAgent(agentId);
+    const repository = new FakeRegistrationRepository();
+    saveAgent(profile, "private-key");
+    delete process.env.ZERO_G_GALILEO_CHAIN_ID;
+    let fetchCalls = 0;
+    mock.method(globalThis, "fetch", async () => {
+      fetchCalls += 1;
+      return validResponse(profile);
+    });
+
+    await assert.rejects(
+      registerAgenticId(agentId, {
+        registrationRepository: repository,
+      }),
+      /ZERO_G_GALILEO_CHAIN_ID is required/,
+    );
     assert.equal(fetchCalls, 0);
   });
 

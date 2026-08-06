@@ -28,6 +28,92 @@ describe("Agentic ID registration route authentication", () => {
     }
   });
 
+  it("fails startup instead of silently defaulting the expected Agentic ID contract address", () => {
+    const previous = process.env.ZERO_G_AGENTIC_ID_CONTRACT_ADDRESS;
+    delete process.env.ZERO_G_AGENTIC_ID_CONTRACT_ADDRESS;
+    try {
+      assert.throws(
+        () => createAgentServiceApp(),
+        /ZERO_G_AGENTIC_ID_CONTRACT_ADDRESS is required/,
+      );
+    } finally {
+      if (previous === undefined) {
+        delete process.env.ZERO_G_AGENTIC_ID_CONTRACT_ADDRESS;
+      } else {
+        process.env.ZERO_G_AGENTIC_ID_CONTRACT_ADDRESS = previous;
+      }
+    }
+  });
+
+  it("fails startup instead of silently defaulting the expected Agentic ID chain id", () => {
+    const previous = process.env.ZERO_G_GALILEO_CHAIN_ID;
+    delete process.env.ZERO_G_GALILEO_CHAIN_ID;
+    try {
+      assert.throws(
+        () => createAgentServiceApp(),
+        /ZERO_G_GALILEO_CHAIN_ID is required/,
+      );
+    } finally {
+      if (previous === undefined) {
+        delete process.env.ZERO_G_GALILEO_CHAIN_ID;
+      } else {
+        process.env.ZERO_G_GALILEO_CHAIN_ID = previous;
+      }
+    }
+  });
+
+  it("fails startup when AEGIS_DASHBOARD_INTERNAL_TOKEN is configured below the minimum length", () => {
+    const previous = process.env.AEGIS_DASHBOARD_INTERNAL_TOKEN;
+    process.env.AEGIS_DASHBOARD_INTERNAL_TOKEN = "too-short";
+    try {
+      assert.throws(
+        () => createAgentServiceApp(),
+        /AEGIS_DASHBOARD_INTERNAL_TOKEN must be at least 32 characters/,
+      );
+    } finally {
+      if (previous === undefined) {
+        delete process.env.AEGIS_DASHBOARD_INTERNAL_TOKEN;
+      } else {
+        process.env.AEGIS_DASHBOARD_INTERNAL_TOKEN = previous;
+      }
+    }
+  });
+
+  // A valid, self-contained set of the five env vars that gate real payment
+  // execution (see createPaymentExecutionServiceFromEnv) - deliberately not
+  // sourced from the developer's local .env, so these tests prove the
+  // regex/format check itself rather than passing by accident because the
+  // other four vars happen to already be valid on this machine.
+  const VALID_PAYMENT_EXECUTION_ENV = {
+    AGENT_VERIFIER_SIGNER_PRIVATE_KEY: `0x${"11".repeat(32)}`,
+    AEGIS_FEE_RECIPIENT_ADDRESS: `0x${"11".repeat(20)}`,
+    RPC_URL: "https://example-rpc.test",
+    COSIGNER_BASE_URL: "http://localhost:4100",
+    DATABASE_URL: "postgresql://aegis:aegis@localhost:5432/aegis_test",
+  };
+
+  it("fails startup instead of accepting a malformed fee recipient address for real payment execution", () => {
+    withEnvOverrides(
+      { ...VALID_PAYMENT_EXECUTION_ENV, AEGIS_FEE_RECIPIENT_ADDRESS: "not-an-address" },
+      () =>
+        assert.throws(
+          () => createAgentServiceApp(),
+          /AEGIS_FEE_RECIPIENT_ADDRESS must be a valid EVM address/,
+        ),
+    );
+  });
+
+  it("fails startup instead of accepting a malformed verifier signer key for real payment execution", () => {
+    withEnvOverrides(
+      { ...VALID_PAYMENT_EXECUTION_ENV, AGENT_VERIFIER_SIGNER_PRIVATE_KEY: "0x_demo_key" },
+      () =>
+        assert.throws(
+          () => createAgentServiceApp(),
+          /AGENT_VERIFIER_SIGNER_PRIVATE_KEY must be a 32-byte hex private key/,
+        ),
+    );
+  });
+
   it("fails before registration when agent authentication is unconfigured", async () => {
     let registrationCalls = 0;
     const response = await postRegistration(
@@ -197,6 +283,22 @@ describe("Internal agent auth-token route", () => {
     assert.equal(registration.status, 201);
   });
 });
+
+function withEnvOverrides<T>(overrides: Record<string, string>, run: () => T): T {
+  const previous: Record<string, string | undefined> = {};
+  for (const [key, value] of Object.entries(overrides)) {
+    previous[key] = process.env[key];
+    process.env[key] = value;
+  }
+  try {
+    return run();
+  } finally {
+    for (const [key, value] of Object.entries(previous)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
+}
 
 async function withInternalTokenEnv<T>(value: string | undefined, run: () => Promise<T>): Promise<T> {
   const previous = process.env.AEGIS_DASHBOARD_INTERNAL_TOKEN;

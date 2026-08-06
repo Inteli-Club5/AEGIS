@@ -51,11 +51,28 @@ wiring, both flagged loudly per the playbook:
   still needs an actual browser click-through (same gap pattern as the
   onboarding flow before its own manual QA pass) - no live browser session
   available this session.
+- [x] 2026-08-06: Hardened format validation on financial/identity env vars so
+  misconfiguration fails at `createAgentServiceApp()` boot, not at the first
+  real Agentic ID registration or payment: `AEGIS_FEE_RECIPIENT_ADDRESS` and
+  `AGENT_VERIFIER_SIGNER_PRIVATE_KEY` now go through the same EVM-address/hex
+  regexes used elsewhere in `services/agent-service/src/index.ts` instead of
+  being cast unchecked; `AEGIS_DASHBOARD_INTERNAL_TOKEN` now enforces the same
+  32+ character minimum as the sibling `AEGIS_AGENTIC_ID_INTERNAL_TOKEN`
+  pattern; `ZERO_G_AGENTIC_ID_CONTRACT_ADDRESS`/`ZERO_G_GALILEO_CHAIN_ID` no
+  longer silently fall back to the hardcoded 0G Galileo testnet defaults in
+  either `services/agent-service/src/registerAgenticId.ts` or
+  `packages/nextjs/integrations/0g/agentic-id/chain.ts` - both are now
+  required. See DEVLOG for the `grumpy-carlos-code-reviewer` pass and the fix
+  it prompted (the Next.js chain-id getter had to become lazy, not a
+  module-level constant, to avoid failing `next build`'s page-data collection
+  for unrelated pages).
+- [ ] `packages/nextjs/integrations/0g/agentic-id/chain.ts` and
+  `createAgenticIdForAegisAgent.ts` have no unit test coverage at all (not
+  wired into any `test` script glob, and `chain.ts`'s `server-only` +
+  file-based env fallback make it awkward to test env-var-unset behavior
+  hermetically) - the boot-time fix above narrowed the risk but didn't add
+  regression tests for it, unlike the equivalent agent-service side.
 - [ ] Carlos's minor (non-blocking) review findings, not yet addressed:
-  - `AEGIS_DASHBOARD_INTERNAL_TOKEN`'s check in
-    `services/agent-service/src/index.ts` only tests truthiness, not the
-    32+ character minimum the sibling `AEGIS_AGENTIC_ID_INTERNAL_TOKEN` pattern
-    enforces (`app/api/0g/agentic-id/route.ts`).
   - `computeTrustedServiceMetadataHash` (`packages/nextjs/lib/policy/hash.ts`)
     is client-computed and never independently re-verified server-side
     (`trusted-service-descriptor.ts`'s `normalizedHex32` only checks format) -

@@ -1,9 +1,9 @@
 import { agenticIdAbi } from "./abi";
 import {
-  ZERO_G_GALILEO_CHAIN_ID,
   getServerZeroGGalileoRpcUrl,
   getZeroGAgenticIdContractAddress,
   getZeroGExplorerTxUrl,
+  getZeroGGalileoChainId,
 } from "./chain";
 import { getRequiredEnvValue } from "./env";
 import { buildAgentProfileMetadata, buildAgenticIdIntelligentData, buildMetadataHash } from "./metadata";
@@ -119,14 +119,15 @@ export const createAgenticIdForAegisAgent = async (
   rawInput: CreateAgenticIdForAegisAgentInput,
 ): Promise<CreateAgenticIdForAegisAgentResult> => {
   const input = normalizeCreateAgenticIdInput(rawInput);
+  const expectedChainId = getZeroGGalileoChainId();
   const contractAddress = toAddress(getZeroGAgenticIdContractAddress(), "ZERO_G_AGENTIC_ID_CONTRACT_ADDRESS");
-  if (input.expectedChainId !== ZERO_G_GALILEO_CHAIN_ID || input.expectedAgenticIdContractAddress !== contractAddress) {
+  if (input.expectedChainId !== expectedChainId || input.expectedAgenticIdContractAddress !== contractAddress) {
     throw new Error("Agentic ID chain or contract does not match the backend commitment.");
   }
   const rpcUrl = getServerZeroGGalileoRpcUrl();
-  const provider = new JsonRpcProvider(rpcUrl, ZERO_G_GALILEO_CHAIN_ID);
+  const provider = new JsonRpcProvider(rpcUrl, expectedChainId);
   const network = await provider.getNetwork();
-  if (Number(network.chainId) !== ZERO_G_GALILEO_CHAIN_ID) {
+  if (Number(network.chainId) !== expectedChainId) {
     throw new Error("0G Agentic ID RPC chain does not match ZERO_G_GALILEO_CHAIN_ID.");
   }
   const wallet = new Wallet(normalizePrivateKey(getRequiredEnvValue(["ZERO_G_PRIVATE_KEY"])), provider);
@@ -201,7 +202,7 @@ export const createAgenticIdForAegisAgent = async (
   // atomically persists only its sanitized commitments.
   return {
     aegisAgentId: input.aegisAgentId,
-    chainId: ZERO_G_GALILEO_CHAIN_ID,
+    chainId: expectedChainId,
     agenticIdTokenId: tokenId.toString(),
     agenticIdContractAddress: contractAddress,
     metadataHash,

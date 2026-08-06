@@ -2402,3 +2402,74 @@ oldest at the top, newest at the bottom. Use English AM/PM timestamps. Format:
   scoped by owner address) and a new same-origin `GET /api/agent-service/agents`
   proxy handler on the dashboard. Both additive; no existing route or response
   shape changed.
+
+## 2026-08-06 06:15 PM - AI agent - web3 core & contracts (env validation hardening)
+
+- did: per explicit request, hardened format validation on financial/identity
+  environment variables so a misconfiguration fails at boot, not at the first
+  real payment or Agentic ID registration. Four gaps: (1)
+  `AEGIS_FEE_RECIPIENT_ADDRESS` (`services/agent-service/src/index.ts`) was
+  cast straight to `` `0x${string}` `` with no format check; now validated
+  through the same `normalizeEvmAddress` regex already used for
+  `ownerWallet`. (2) `AGENT_VERIFIER_SIGNER_PRIVATE_KEY`'s `normalizeHexKey`
+  only prepended `0x` if missing, with no length/hex check - a copy-pasted
+  `.env.example` placeholder like `0x_demo_key` would silently pass and only
+  blow up inside `signDecisionReceipt` at the first real payment; now
+  requires a 32-byte hex key. (3) `AEGIS_DASHBOARD_INTERNAL_TOKEN`'s check
+  only tested truthiness, not the 32+ character minimum its sibling
+  `AEGIS_AGENTIC_ID_INTERNAL_TOKEN` already enforces (a `TASKS.md`-tracked
+  Carlos finding from an earlier session) - now enforced at
+  `createAgentServiceApp()` boot time. (4)
+  `ZERO_G_AGENTIC_ID_CONTRACT_ADDRESS`/`ZERO_G_GALILEO_CHAIN_ID` silently fell
+  back to hardcoded 0G Galileo testnet defaults when unset, in both
+  `services/agent-service/src/registerAgenticId.ts` and
+  `packages/nextjs/integrations/0g/agentic-id/chain.ts` - removed both
+  defaults; both vars are now required, checked at agent-service boot via the
+  now-exported `getExpectedAgenticIdContractAddress`/
+  `getExpectedAgenticIdChainId`.
+- did: a `grumpy-carlos-code-reviewer` pass caught one real structural bug and
+  two real hygiene gaps in the first draft, all fixed before landing: (1)
+  critical - `chain.ts`'s new `ZERO_G_GALILEO_CHAIN_ID` was a module-level
+  `const` evaluated eagerly at import time (unlike every sibling getter in
+  the same file), so a missing env var would fail `next build`'s page-data
+  collection for any unrelated page that merely imports this module, not
+  "fail at boot" as intended. Fixed by making it a lazy
+  `getZeroGGalileoChainId()` function, matching `getZeroGAgenticIdContractAddress`
+  two lines below it; updated its one call site
+  (`createAgenticIdForAegisAgent.ts`) to call it once and reuse the result.
+  (2) the new fee-recipient/verifier-key boot tests in `index.test.ts` only
+  overrode the one var under test, silently depending on the other four
+  payment-execution vars already being valid via the developer's local,
+  git-ignored `.env` - not hermetic, and would fail for the wrong reason on a
+  clean checkout or future CI. Fixed with a new `withEnvOverrides` test
+  helper and an explicit, self-contained valid baseline for all five vars.
+  (3) `MIN_INTERNAL_TOKEN_LENGTH = 32` was redefined in `index.ts` instead of
+  reusing the constant `registerAgenticId.ts` already exports for the sibling
+  token - now exported once and imported.
+  Added 10 new regression tests across `services/agent-service/src/index.test.ts`
+  and `registerAgenticId.test.ts` (malformed address/key/token-length, and
+  "fails instead of silently defaulting" for both 0G vars, each asserting the
+  failure happens before any network call). `tsc --noEmit`, lint, and the
+  full unit suites pass clean on both packages (agent-service: 257/258 - the
+  one failure is the same pre-existing, unrelated `walletCreation.test.ts`
+  case noted in earlier sessions; nextjs: 109/109).
+- next: `packages/nextjs/integrations/0g/agentic-id/chain.ts` and
+  `createAgenticIdForAegisAgent.ts` still have zero unit test coverage (not
+  in any `test` script glob, and `chain.ts`'s `server-only` + file-based env
+  fallback in `env.ts` make hermetic env-unset testing awkward) - the fix
+  narrowed the blast radius but didn't add regression tests for this side,
+  unlike the agent-service side. Also open: the other Carlos finding already
+  tracked in `TASKS.md` (`computeTrustedServiceMetadataHash` server-side
+  verification).
+- blockers: none.
+- interfaces touched: yes, but internal/config-only - `getExpectedAgenticIdContractAddress`
+  and `getExpectedAgenticIdChainId` (`services/agent-service/src/registerAgenticId.ts`)
+  and `getZeroGGalileoChainId` (`packages/nextjs/integrations/0g/agentic-id/chain.ts`,
+  renamed/un-constified from `ZERO_G_GALILEO_CHAIN_ID`) are now exported;
+  `MIN_INTERNAL_TOKEN_LENGTH` is now exported from `registerAgenticId.ts`. No
+  HTTP request/response shape changed. Operationally significant: every
+  agent-service deployment must now set `ZERO_G_AGENTIC_ID_CONTRACT_ADDRESS`
+  and `ZERO_G_GALILEO_CHAIN_ID` explicitly (both already documented with real
+  values in every `.env.example` in this repo) - an environment that
+  previously relied on the silent testnet default will now fail to boot
+  until it sets them.
