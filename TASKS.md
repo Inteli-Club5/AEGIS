@@ -35,12 +35,22 @@ wiring, both flagged loudly per the playbook:
    zero wallet signature. Fixed before merging; do not remove this check when
    touching these routes.
 
+- [x] 2026-08-06: Wired the Actions tab's precheck -> 0G TeeML verify -> Safe
+  co-signed execute flow into the UI itself - `lib/api/actions.ts` already
+  signed the EIP-712 `AgentActionAuthorization` commitment correctly, but
+  nothing in the app called it, so the flow was curl-only. New
+  `RunActionCard` in `ActionsPanel.tsx` (state machine: form -> precheck ->
+  TeeML verify -> execute, both ALLOW/DENY paths at each stage) plus a new
+  `lib/policy/actionForm.ts` parsing module. A `grumpy-carlos-code-reviewer`
+  pass confirmed operator-wallet binding is solid and fixed two real gaps it
+  found (missing in-flight double-submit guards; an unchecked runtime cast on
+  the trusted-service semantic rule). See DEVLOG for detail.
 - [ ] Manual real-browser QA of the new Actions tab and Agentic ID registration
   button (register -> precheck -> TeeML verify -> execute, both an ALLOW and a
-  DENY path) - built and verified via `check-types`/`lint`/unit tests/production
-  build/live curl smoke tests of the proxy chain only; no live browser
-  click-through yet (same gap pattern as the onboarding flow before its own
-  manual QA pass).
+  DENY path) - the UI now exists and is built/typechecked/linted clean, but
+  still needs an actual browser click-through (same gap pattern as the
+  onboarding flow before its own manual QA pass) - no live browser session
+  available this session.
 - [ ] Carlos's minor (non-blocking) review findings, not yet addressed:
   - `AEGIS_DASHBOARD_INTERNAL_TOKEN`'s check in
     `services/agent-service/src/index.ts` only tests truthiness, not the
@@ -65,6 +75,51 @@ wiring, both flagged loudly per the playbook:
   is now set; the dashboard's 0G-backed views work (indexing catches up over
   time in the background). `THEGRAPH_HEDERA_SUBGRAPH_URL` remains intentionally
   unset - see `TG-DEPLOY-001`/`TG-HEDERA-RPC-001` below, unchanged blockers.
+- [x] 2026-08-06: Fixed a real bug the user hit directly: the dashboard's
+  "Your agents" list was sourced entirely from browser `localStorage`
+  (`lib/onboarding/localAgentDraftStore.ts`), written once at agent-creation
+  time - switching browser or device silently wiped it, making real,
+  backend-persisted agents (including ones with an already-deployed Safe)
+  disappear from the dashboard with no recovery path. The deeper gap:
+  `services/agent-service` had **no endpoint or repository method at all**
+  capable of listing agents by owner address, even though its Postgres
+  `aegis_agents` table already had an (until now unindexed) `owner_address`
+  column. Added `PolicyRepository.listAgentsByOwner` (in-memory + Postgres +
+  the existing `UnconfiguredPolicyRepository` 503 fail-closed path), a
+  composite `(owner_address, created_at)` index + migration
+  (`drizzle/0014_colossal_madame_hydra.sql` - **run `npm run db:migrate`
+  against the real Postgres instance before this is live**), and a new
+  `GET /agents?owner=` route, proxied through a new same-origin
+  `GET /api/agent-service/agents` handler and a new `listAgentIdsByOwner()`
+  (`lib/api/onboarding.ts`). The dashboard's agent-listing effect now calls
+  that, then `getAgentDetail()` per id (already existed, previously only used
+  by the single-agent detail page) via `Promise.allSettled` so one flaky
+  agent can't blank out the others. A `grumpy-carlos-code-reviewer` pass
+  caught two real issues in the first draft, both fixed: (1) the initial
+  version had the new route return full `AgentProfile[]` objects (Safe
+  address, the full 2-of-3 owner set, description, toolNames, agenticId) in
+  bulk, keyed only on a public owner wallet address - a materially bigger
+  unauthenticated enumeration surface than the existing single-agent
+  `GET /agents/:agentId` (which at least requires already knowing a specific
+  agentId); narrowed the route to return only `agentIds`, with each id's full
+  profile still fetched individually the existing way. (2) the first version
+  silently dropped an agent from the list whenever its in-memory profile was
+  missing (e.g. after a service restart - `store.ts`'s profile map is a
+  `// TODO(aegis): replace with a real database` in-memory `Map`), making a
+  restart-related gap indistinguishable from "this owner truly has zero
+  agents"; fixed by having the list route read only from the durable Postgres
+  index (always accurate) and letting a missing in-memory profile surface as
+  the existing, already-handled per-agent 404 on the follow-up detail fetch
+  instead. Documented the enumeration-surface tradeoff and the new
+  `DATABASE_URL`-required consequence (every environment without Postgres
+  configured now shows a load-error banner instead of a stale local cache) in
+  `docs/decisions.md`. New `services/agent-service/src/agentsListByOwner.test.ts`
+  (5 cases: owner scoping, no bulk profile leakage, survives an empty
+  in-memory store, malformed/missing owner param, 503 when unconfigured).
+  `tsc --noEmit`, `next lint`, and the full unit suites pass on both packages
+  (agent-service: 250/251, one pre-existing unrelated failure in
+  `walletCreation.test.ts` confirmed present before this change too; nextjs:
+  109/109).
 
 ## The Graph continuation (older, still open)
 

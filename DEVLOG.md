@@ -2230,3 +2230,175 @@ oldest at the top, newest at the bottom. Use English AM/PM timestamps. Format:
   remains an unauthenticated no-op, unchanged from before, since there is
   no state to protect and `GET /agents/:agentId` was already fully
   unauthenticated and already leaks the same existence information).
+
+## 2026-08-06 11:24 AM - AI agent - dashboard & integration (Actions tab UI)
+
+- did: closed the actual UI gap flagged by the user - `lib/api/actions.ts` already
+  had `precheckAction`/`verifyTeeml`/`executeAction` correctly signing the
+  EIP-712 `AgentActionAuthorization` commitment, but nothing in the app called
+  any of them, so the precheck -> 0G TeeML verify -> Safe co-signed execute
+  flow was only reachable via curl. Added a `RunActionCard` to
+  `features/agents/components/ActionsPanel.tsx` (only rendered once every
+  Actions-tab precondition is met) implementing the full client-side flow as a
+  discriminated-union state machine (`FORM` -> `PRECHECK_DENIED` |
+  `AWAITING_TEEML` -> `TEEML_PROCESSING` | `TEEML_DENIED` | `AWAITING_EXECUTE`
+  -> `EXECUTED`), with a destination picker locked to the active policy's
+  allowlist when one exists (free-text kind+value input otherwise, matching
+  the backend's own "empty allowlist = any destination" semantics), an
+  amount/deadline form, and a read-only trusted-service (serviceId/productId)
+  panel pulled from the policy's `TRUSTED_SERVICE_DESCRIPTOR_V1` semantic rule
+  (TeeML verification is blocked with an explanatory note if the active
+  policy names none). New pure-parsing module `lib/policy/actionForm.ts`
+  (`ActionFormValues`/`parseActionForm`/`emptyActionFormValues`), mirroring the
+  existing `lib/policy/form.ts` split between UI and parsing.
+- did: a `grumpy-carlos-code-reviewer` pass focused specifically on
+  operator-wallet binding (this repo's known risk pattern per the auth-bridge
+  history above) found the binding solid - every call threads the live
+  connected `address` through fresh per-call EIP-712 signatures, and the
+  backend's `verifyAgentActionAuthorization` re-resolves real current
+  ownership on every request, so a mid-flow wallet switch fails closed rather
+  than leaking a stale authorization. It found two real, now-fixed gaps: (1)
+  a double-click on "Run precheck"/"Run TeeML verification"/"Execute action"
+  had no in-flight guard beyond the disabled-button prop, so a fast double
+  submit could create a duplicate usage hold that counts against the same
+  wallet's own daily limits - added an explicit `if (submitting) return;`
+  guard at the top of all three handlers; (2) the trusted-service semantic
+  rule's `params` (typed `Record<string, unknown>`) was cast to
+  `TrustedServiceDescriptorV1` with no runtime shape check, safe only because
+  the backend's write-time validation currently guarantees it - added a
+  `typeof serviceId === "string"` guard so a future violation renders the
+  existing "no trusted service" fallback instead of silently calling
+  `verifyTeeml` with an `undefined` serviceId. Also capped the deadline-minutes
+  form field at 24h (`MAX_DEADLINE_MINUTES`) per a minor finding in the same
+  pass. `check-types`, `lint`, and `next build` all pass clean.
+- did: separately, per explicit request, removed `vercel:yolo` (which sets
+  `NEXT_PUBLIC_IGNORE_BUILD_ERROR=true`, silently ignoring real TypeScript/
+  ESLint build errors) from `AGENTS.md`'s documented deploy command, replacing
+  it with the clean `yarn next:vercel --prod`.
+- next: a real-browser manual QA pass of this new form specifically (fill the
+  form, run a live precheck -> TeeML verify -> execute cycle end to end
+  through the UI) - this closes the coding gap `TASKS.md` flagged, but the
+  "click through it in an actual browser" gap for the Actions tab remains
+  open exactly as before, now with real UI to click through instead of
+  nothing.
+- blockers: none.
+- interfaces touched: none (no backend or shared-contract changes - purely
+  additive frontend wiring against the existing, already-verified precheck/
+  TeeML/execute HTTP surface).
+
+## 2026-08-06 01:19 PM - AI agent - dashboard & integration (regression test)
+
+- did: added a regression test locking the exact invariant `TASKS.md`
+  documents as a previously-real vulnerability class (see the 2026-08-05
+  "auth hardening" entry above): every route calling
+  `proxyAgentServiceRequestAsAgent` (`lib/server/agentService.ts`) must call
+  `verifyAgentActionAuthorization` first and fail closed on its `.ok` result,
+  otherwise anyone who knows an agent's id can trigger real actions with that
+  agent's bearer token, no operator-wallet proof required. Before this test
+  the rule was enforced only by a code comment above
+  `proxyAgentServiceRequestAsAgent` and reviewer memory. New
+  `lib/server/agentServiceAuthGate.test.ts` follows the existing
+  regex/structural-check convention already used by
+  `lib/onchain-data/architecture.test.ts`: it walks every `route.ts` under
+  `app/api`, finds the ones calling `proxyAgentServiceRequestAsAgent`
+  (currently the four agent-bearer routes: precheck, TeeML verify,
+  register-agentic-id, execute), and asserts each one calls
+  `verifyAgentActionAuthorization` *before* that call and gates on
+  `if (!x.ok) return x.response`. Also asserts at least one such route exists,
+  so a future rename/move of the helper fails loudly instead of the check
+  silently passing on zero matches. Five synthetic negative-case subtests
+  (no auth call at all; auth called after proxying; auth called but result
+  never captured; result captured but never gated) exercise the same checker
+  function directly, decoupled from real file contents. Verified the test
+  actually catches the original bug class, not just its own synthetic cases:
+  temporarily removed the auth block from the real `execute/route.ts`, reran
+  the suite, confirmed it failed with the expected violation message, then
+  restored the file (`git diff` on it is empty). Added
+  `lib/server/*.test.ts` to `package.json`'s `test` glob so `yarn test` picks
+  it up. Full suite (`lib/policy`, `lib/onchain-data`, `lib/server`) passes
+  109/109. `check-types` passes clean; `next lint` was started but hung
+  without output past its timeout in this sandbox and was stopped rather than
+  left running - not run to completion this session, worth a normal `yarn
+  lint` from an interactive shell before merging.
+- next: consider whether the same structural-check pattern should also cover
+  the three operator-bearer routes hardened in the 2026-08-05 entry
+  (`create-agents`, `create-wallets`, `delete-agent`), which follow an
+  analogous but distinct `AgentCommitment`/`forwardOperator` pattern rather
+  than `verifyAgentActionAuthorization` - out of scope for this session,
+  which targeted the specific rule named in the request.
+- blockers: none.
+- interfaces touched: none (test-only addition, no runtime behavior change).
+
+## 2026-08-06 03:47 PM - AI agent - dashboard & integration (owner-scoped agent list)
+
+- did: fixed a real bug the user reported directly - the dashboard's "Your
+  agents" list came entirely from browser `localStorage`
+  (`packages/nextjs/lib/onboarding/localAgentDraftStore.ts`), written once at
+  agent-creation time and never re-derived from the backend, so switching
+  browser or device silently dropped real, backend-persisted agents
+  (including ones with an already-deployed Safe) with no recovery path.
+  Investigating turned up a deeper gap: `services/agent-service` had no
+  endpoint or repository method at all capable of listing agents by owner
+  address, on either its ephemeral in-memory profile store (`store.ts`, a
+  `// TODO(aegis): replace with a real database` `Map`) or its Postgres
+  `aegis_agents` table, even though that table already had an owner_address
+  column.
+- did: added `PolicyRepository.listAgentsByOwner` (`services/agent-service/
+  src/policy-engine/repository.ts`'s `InMemoryPolicyRepository`, plus
+  `PostgresPolicyRepository` and the existing `UnconfiguredPolicyRepository`
+  503 fail-closed path in `policy-engine/db/postgres.ts`), a composite
+  `(owner_address, created_at)` index on `aegis_agents`
+  (`policy-engine/db/schema.ts`) with migration
+  `drizzle/0014_colossal_madame_hydra.sql`, and a new `GET /agents?owner=`
+  route in `src/index.ts`. Frontend: a new `GET` handler on the existing
+  `packages/nextjs/app/api/agent-service/agents/route.ts` proxy, a new
+  `listAgentIdsByOwner()` (`lib/api/onboarding.ts`), and
+  `app/dashboard/page.tsx`'s agent-listing effect rewired to call it, then
+  the existing `getAgentDetail()` (previously only used by the single-agent
+  detail page) per id via `Promise.allSettled` rather than `Promise.all`, so
+  one agent failing to load can't blank out every other successfully-loaded
+  one.
+- did: a `grumpy-carlos-code-reviewer` pass on the first draft caught two
+  real issues, both fixed before landing: (1) the route originally returned
+  full `AgentProfile[]` objects (Safe address, the complete 2-of-3 owner set,
+  description, toolNames, agenticId) in bulk, keyed only on a public owner
+  wallet address - a materially larger unauthenticated enumeration surface
+  than the existing single-agent `GET /agents/:agentId`, which at least
+  requires already knowing a specific agentId first. Narrowed the route to
+  return only `agentIds`; each id's full profile is still fetched
+  individually the existing way. (2) the route originally hydrated each
+  Postgres-listed agent against the in-memory profile store and silently
+  dropped any agent whose in-memory profile was missing (e.g. after a
+  service restart) - making that pre-existing, separately-documented gap
+  indistinguishable from "this owner truly has zero agents," which is
+  exactly the failure mode this fix exists to close. Fixed by having the
+  list route read only from the durable Postgres index (always accurate)
+  and letting a missing in-memory profile surface as the existing,
+  already-handled per-agent 404 on the follow-up detail fetch instead of at
+  the list level.
+- did: documented the enumeration-surface tradeoff and a real consequence in
+  `docs/decisions.md`: the dashboard's agent list now requires `DATABASE_URL`
+  (Policy Engine Postgres) configured - any environment without it shows a
+  load-error banner instead of a stale local cache, which is new behavior
+  worth knowing about before running a local demo. Added
+  `services/agent-service/src/agentsListByOwner.test.ts` (5 cases: owner
+  scoping doesn't leak another owner's agent, the route doesn't bulk-expose
+  full profiles, the list survives an empty in-memory profile store, a
+  malformed/missing `owner` query param 400s, an unconfigured policy
+  database 503s). `tsc --noEmit`, `next lint`, and the full unit suites pass
+  on both packages (agent-service: 250/251 - the one failure is a
+  pre-existing, unrelated `walletCreation.test.ts` case confirmed present on
+  the base commit before this change too, via `git stash`; nextjs: 109/109).
+- next: run `npm run db:migrate` (`services/agent-service`) against the real
+  Postgres instance to apply `0014_colossal_madame_hydra.sql` before this is
+  live; then a manual real-browser QA pass specifically of "create an agent,
+  open the dashboard from a second browser/incognito profile with the same
+  wallet connected, confirm it still appears" - the actual cross-browser
+  recovery scenario this fix targets hasn't been click-through verified in a
+  live browser this session.
+- blockers: none.
+- interfaces touched: yes - new backend route `GET /agents?owner=` on
+  `services/agent-service` (returns `{ agentIds: string[] }`, unauthenticated,
+  scoped by owner address) and a new same-origin `GET /api/agent-service/agents`
+  proxy handler on the dashboard. Both additive; no existing route or response
+  shape changed.
