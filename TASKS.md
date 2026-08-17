@@ -263,10 +263,11 @@ recorded there.
   built and verified via `check-types`/`lint`/unit tests only, since it all
   sits behind `ConnectGate` and headless Chrome has no injected wallet
   provider to click through it with:
-  - [ ] `/onboarding` with a genuinely unfinished draft in `localStorage`
-    shows "Continue setting up X?" instead of silently resuming into
-    "Create version v2"; "Protect a different agent" lands on a clean
-    step-0 form.
+  - [ ] `/onboarding` with no `?resume=<agentId>` query param always starts
+    a clean step-0 form, even with a leftover unfinished draft in
+    `localStorage` (no silent resume into "Create version v2"); visiting
+    `/onboarding?resume=<agentId>` for a real cached agent resumes straight
+    into that agent's `StepCreatePolicy`/`StepActivate` as appropriate.
   - [ ] "Fund this wallet" (onboarding success screen, and the agent detail
     page's Wallet tab): connect, enter an amount, confirm, and confirm the
     Safe's live balance updates afterward.
