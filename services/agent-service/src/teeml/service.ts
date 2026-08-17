@@ -42,7 +42,6 @@ import { buildTransientTeeMlMessages } from "./prompt.js";
 import type {
   TeeMlRepository,
   TeeMlAvailableTrustedSources,
-  TeeMlTrustedSources,
   TeeMlVerificationRecord,
 } from "./repository.js";
 import type {
@@ -470,10 +469,10 @@ export class TeeMlService {
         // TODO(TG-TEEML-E2E-001): Submit this sanitized artifact through VerifiedTeeMlRegistryWriter only after production-private TeeML provides sealed, byte-for-byte verified evidence and TG-DEPLOY-001 supplies the singleton registry plus runtime recorder. Remove this TODO after the successful receipt is durably persisted and the registry -> Hedera Subgraph -> GraphQL E2E passes for both ALLOW and DENY without a fallback path.
         // SECURITY(production-handoff): The future signer must accept only a production-private-teeml artifact with sealedInference=true. A hackathon TeeTLS artifact is demonstration evidence and must never authorize production execution.
         // TODO(final-policy-recheck): Re-run the deterministic policy evaluation with a fresh usage snapshot after TeeML approval and before any DecisionReceipt or Safe execution authorization.
-        // TODO(agent-verifier-signer): After the TeeML artifact is verified and the final deterministic policy recheck succeeds, build and sign the final DecisionReceipt with the dedicated agentVerifierSigner. Never sign the raw model output directly.
-        // TODO(usage-hold-finalization): Keep the UsageHold active after TeeML ALLOW, release it on TeeML DENY or failure, and mark it COMMITTED only after the corresponding Safe/Hedera execution is confirmed.
-        // TODO(safe-execution): Bind the final DecisionReceipt to the exact Safe transaction hash and request the required Safe owner signatures only after all AEGIS checks have succeeded.
-        // TODO(hedera-execution): Execute the already implemented Hedera action only after the Safe reaches its configured signature threshold and persist the real network receipt.
+        //
+        // The signed DecisionReceipt, UsageHold commit/release, Safe co-signature, and Hedera
+        // HTS execution this block used to describe as TODOs are implemented in
+        // `payment/execute.ts` (`PaymentExecutionService.execute`) and `services/cosigner`.
       }
 
       return {
