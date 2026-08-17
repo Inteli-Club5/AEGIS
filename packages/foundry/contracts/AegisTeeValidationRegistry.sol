@@ -66,6 +66,7 @@ contract AegisTeeValidationRegistry is AccessControl {
     error EmptyModelIdHash();
     error EmptyReasonCodeHash();
     error InvalidSafe();
+    error InvalidAgenticIdTokenId();
     error InvalidVerdict(uint8 verdict);
     error InvalidSchemaVersion();
     error DuplicateRequest(bytes32 requestId);
@@ -157,6 +158,7 @@ contract AegisTeeValidationRegistry is AccessControl {
         if (record.modelIdHash == bytes32(0)) revert EmptyModelIdHash();
         if (record.reasonCodeHash == bytes32(0)) revert EmptyReasonCodeHash();
         if (record.safe == address(0)) revert InvalidSafe();
+        if (record.agenticIdTokenId == 0) revert InvalidAgenticIdTokenId();
         if (record.verdict != VERDICT_ALLOW && record.verdict != VERDICT_DENY) {
             revert InvalidVerdict(record.verdict);
         }

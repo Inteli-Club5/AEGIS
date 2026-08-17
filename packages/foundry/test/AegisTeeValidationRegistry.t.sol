@@ -224,6 +224,12 @@ contract AegisTeeValidationRegistryTest is Test {
         _expectValidationRevert(record, AegisTeeValidationRegistry.InvalidSafe.selector);
     }
 
+    function test_RevertWhen_AgenticIdTokenIdIsZero() public {
+        AegisTeeValidationRegistry.TeeMLValidationRecord memory record = _validRecord(1);
+        record.agenticIdTokenId = 0;
+        _expectValidationRevert(record, AegisTeeValidationRegistry.InvalidAgenticIdTokenId.selector);
+    }
+
     function test_RevertWhen_VerdictIsInvalid() public {
         AegisTeeValidationRegistry.TeeMLValidationRecord memory record = _validRecord(1);
         record.verdict = 0;
