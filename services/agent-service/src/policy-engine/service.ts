@@ -3,17 +3,14 @@ import { computePolicyHash } from "./canonicalize.js";
 import { badRequest, conflict, forbidden, notFound } from "./errors.js";
 import { type PolicyRepository, toPolicy } from "./repository.js";
 import {
-  type ActivatePolicyRequest,
   type ActivatePolicyResponse,
   type ActivePolicyResponse,
-  type CreatePolicyRequest,
   type CreatePolicyResponse,
   type OperatorAuth,
   type OperatorProof,
   type Policy,
   type PolicyRecord,
   type PolicyRules,
-  type RevokePolicyRequest,
   type RevokePolicyResponse,
   type SemanticRule,
   type UpdatePolicyRequest,

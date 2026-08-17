@@ -185,7 +185,7 @@ export const assetCatalog = pgTable(
     createdAt: integer("created_at").notNull(),
     updatedAt: integer("updated_at").notNull(),
   },
-  table => ({
+  _table => ({
     networkCheck: check("aegis_asset_catalog_network_check", sql.raw(`"network_id" = 'hedera:testnet'`)),
     decimalsCheck: check("aegis_asset_catalog_decimals_check", sql.raw(`"decimals" >= 0 AND "decimals" <= 30`)),
     hbarCheck: check(
@@ -416,7 +416,7 @@ export const agenticIdRegistrations = pgTable(
     updatedAt: integer("updated_at").notNull(),
     completedAt: integer("completed_at"),
   },
-  table => ({
+  _table => ({
     registrationHashCheck: check(
       "aegis_agentic_id_registrations_hash_check",
       sql.raw(`"registration_hash" ~ '^0x[0-9a-f]{64}$'`),

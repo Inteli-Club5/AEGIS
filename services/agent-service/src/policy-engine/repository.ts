@@ -7,7 +7,6 @@ import {
   type OperatorProof,
   type Policy,
   type PolicyRecord,
-  type RevokePolicyResponse,
   type WalletCreationOperationRecord,
   type WalletCreationFailureCode,
   type WalletRecord,

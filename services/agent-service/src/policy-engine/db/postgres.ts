@@ -60,28 +60,32 @@ export class PostgresPolicyRepository implements PolicyRepository {
   ): Promise<T> {
     const lockKey = `wallet-creation:${agentId.toLowerCase()}:${networkId}`;
     const client = await this.walletCreationLockPool.connect();
-    let locked = false;
     try {
       await client.query(
         "select pg_advisory_lock(hashtextextended($1, 0))",
         [lockKey],
       );
-      locked = true;
-      return await operation();
-    } finally {
+      let outcome: { ok: true; value: T } | { ok: false; error: unknown };
       try {
-        if (locked) {
-          const unlock = await client.query(
-            "select pg_advisory_unlock(hashtextextended($1, 0)) as unlocked",
-            [lockKey],
-          );
-          if (unlock.rows[0]?.unlocked !== true) {
-            throw new Error("wallet_creation_advisory_unlock_failed");
-          }
-        }
-      } finally {
-        client.release();
+        outcome = { ok: true, value: await operation() };
+      } catch (error) {
+        outcome = { ok: false, error };
       }
+      const unlock = await client.query(
+        "select pg_advisory_unlock(hashtextextended($1, 0)) as unlocked",
+        [lockKey],
+      );
+      // An unlock failure only surfaces when `operation` itself succeeded --
+      // a failure in `operation` must propagate as-is, not get replaced by
+      // a lock-cleanup error (that's the bug: throwing from `finally` masks
+      // whatever error/return was already in flight from the `try` above).
+      if (!outcome.ok) throw outcome.error;
+      if (unlock.rows[0]?.unlocked !== true) {
+        throw new Error("wallet_creation_advisory_unlock_failed");
+      }
+      return outcome.value;
+    } finally {
+      client.release();
     }
   }
 

@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   DENY_PRECHECK,
-  PASS_TO_TEEML,
   evaluateDeterministicPolicy,
   type DeterministicPolicyEvaluationInput,
 } from "./evaluator.js";
