@@ -28,15 +28,19 @@ export function AgentCard({
   const showDelete = Boolean(onDelete) && agent.status !== "protected";
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   async function handleConfirmDelete() {
     if (!onDelete) return;
     setDeleting(true);
+    setDeleteError(null);
     try {
       await onDelete();
+      setConfirmOpen(false);
+    } catch (error) {
+      setDeleteError(error instanceof Error ? error.message : "Couldn't delete this agent. Try again.");
     } finally {
       setDeleting(false);
-      setConfirmOpen(false);
     }
   }
 
@@ -110,7 +114,11 @@ export function AgentCard({
           title={`Delete ${agent.name}?`}
           description="This removes the agent from AEGIS's records and your dashboard. Its Hedera account and any deployed Safe wallet are on-chain and stay exactly as they are -- this can't be undone on AEGIS's side."
           confirmLabel={deleting ? "Deleting…" : "Delete"}
-          onCancel={() => setConfirmOpen(false)}
+          error={deleteError}
+          onCancel={() => {
+            setConfirmOpen(false);
+            setDeleteError(null);
+          }}
           onConfirm={handleConfirmDelete}
         />
       )}

@@ -10,6 +10,7 @@ export function ConfirmDialog({
   description,
   confirmLabel,
   cancelLabel = "Keep going",
+  error,
   onConfirm,
   onCancel,
 }: {
@@ -18,6 +19,7 @@ export function ConfirmDialog({
   description: string;
   confirmLabel: string;
   cancelLabel?: string;
+  error?: string | null;
   onConfirm: () => void;
   onCancel: () => void;
 }) {
@@ -46,6 +48,7 @@ export function ConfirmDialog({
         <div>
           <h2 className="text-h3">{title}</h2>
           <p className="mt-2 text-body-sm text-muted">{description}</p>
+          {error && <p className="mt-3 text-body-sm text-danger">{error}</p>}
         </div>
       </div>
       <div className="mt-8 flex justify-end gap-3">

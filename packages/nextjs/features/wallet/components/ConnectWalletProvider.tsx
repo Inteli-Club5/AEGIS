@@ -6,6 +6,7 @@ import { ConnectModal } from "./ConnectModal";
 import { type Address, UserRejectedRequestError } from "viem";
 import { hederaTestnet } from "viem/chains";
 import { type Connector, useAccount, useConnect, useConnections, useDisconnect } from "wagmi";
+import { notification } from "~~/utils/scaffold-hbar";
 
 export type WalletId = "metamask" | "walletconnect" | "coinbase";
 type Status = "disconnected" | "connecting" | "connected" | "error";
@@ -95,8 +96,17 @@ export function ConnectWalletProvider({ children }: { children: ReactNode }) {
   );
 
   const disconnect = useCallback(() => {
-    Promise.all(connections.map(connection => disconnectAsync({ connector: connection.connector })))
-      .catch(() => {})
+    Promise.allSettled(connections.map(connection => disconnectAsync({ connector: connection.connector })))
+      .then(results => {
+        const failures = results.filter(result => result.status === "rejected").length;
+        if (failures > 0) {
+          notification.error(
+            failures === results.length
+              ? "Couldn't disconnect the wallet. Please try again."
+              : `${failures} of ${results.length} wallet connections failed to disconnect. Please try again.`,
+          );
+        }
+      })
       .finally(() => router.push("/"));
   }, [connections, disconnectAsync, router]);
 
